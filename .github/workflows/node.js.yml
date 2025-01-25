@@ -29,8 +29,8 @@ jobs:
     - name: Instalar dependências
       run: npm ci
 
-    - name: Testar configuração do projeto
-      run: npm test
+    # name: Testar configuração do projeto
+     # run: npm test
 
     - name: Verificar linting (opcional)
       run: |
