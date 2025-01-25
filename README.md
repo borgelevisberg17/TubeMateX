@@ -44,7 +44,7 @@ Passos de Instalação
 
 1. Clone o repositório:
 
-git clone https://github.com/seu-usuario/TubeMateX.git
+git clone https://github.com/borgelevisberg17/TubeMateX.git
 cd TubeMateX
 
 
