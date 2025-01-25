@@ -1,7 +1,4 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
-name: Node.js CI
+name: Node.js CI/CD
 
 on:
   push:
@@ -17,15 +14,58 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x, 20.x, 22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        # Verifique o suporte em https://nodejs.org/en/about/releases/
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    - run: npm test
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Testar configuração do projeto
+      run: npm test
+
+    - name: Verificar linting (opcional)
+      run: |
+        npm install eslint
+        npx eslint . --ext .js || true # Ignorar erros de linting
+
+    - name: Build do projeto
+      run: npm run build --if-present
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js (Deploy)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+
+    - name: Instalar dependências
+      run: npm ci
+
+    - name: Configurar servidor (opcional)
+      run: |
+        sudo apt-get update
+        sudo apt-get install nginx -y
+        sudo systemctl enable nginx
+
+    - name: Iniciar servidor com PM2
+      run: |
+        npm install pm2 -g
+        pm2 start server.js --name "meu-servidor"
+        pm2 save
+        pm2 startup
