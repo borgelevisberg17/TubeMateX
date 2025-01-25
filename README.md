@@ -104,6 +104,8 @@ Este projeto foi desenvolvido para fins educacionais. O download de vídeos ou �
 📞 Contato
 
 Se tiver dúvidas ou sugestões, sinta-se à vontade para entrar em contato:
+
 Autor: Borge Levisberg
+
 E-mail: borgelevisberg@gmail.com
 
