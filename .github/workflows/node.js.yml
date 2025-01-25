@@ -68,4 +68,4 @@ jobs:
         npm install pm2 -g
         pm2 start server.js --name "meu-servidor"
         pm2 save
-        pm2 startup
+        pm2 startup || true
