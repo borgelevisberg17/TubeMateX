@@ -26,24 +26,24 @@ jobs:
         cache: 'npm'
 
     - name: Instalar dependências
-      working-directory: ./backend
       run: npm ci
+      working-directory: ./backend # Especifica o diretório correto
 
     - name: Verificar linting (opcional)
-      working-directory: ./backend
       run: |
         npm install eslint
-        npx eslint . --ext .js || true # Ignorar erros de linting
+        npx eslint . --ext .js || true
+      working-directory: ./backend
 
     - name: Build do projeto
-      working-directory: ./backend
       run: npm run build --if-present
+      working-directory: ./backend
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
     - name: Checkout do código
       uses: actions/checkout@v4
@@ -54,8 +54,8 @@ jobs:
         node-version: '18.x'
 
     - name: Instalar dependências
-      working-directory: ./backend
       run: npm ci
+      working-directory: ./backend
 
     - name: Configurar servidor (opcional)
       run: |
@@ -64,9 +64,9 @@ jobs:
         sudo systemctl enable nginx
 
     - name: Iniciar servidor com PM2
-      working-directory: ./backend
       run: |
         npm install pm2 -g
         pm2 start server.js --name "meu-servidor"
         pm2 save
         pm2 startup || true
+      working-directory: ./backend
