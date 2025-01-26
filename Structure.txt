@@ -1,7 +1,8 @@
 TubeMateX/
 ├── .git
 ├── .github/
-     ├── node.js.yml
+     ├── workflow
+          ├── node.js.yml
 ├── frontend/                # Tudo relacionado ao front-end
 │   ├── index.html        # Arquivo principal do front-end
 │   ├── libs/
