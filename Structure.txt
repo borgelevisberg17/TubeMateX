@@ -1,13 +1,26 @@
 TubeMateX/
-├── server.js
-├── downloadHistory.json
-├── downloads/
-├── index.html
-├── css/
-│   └── index.css
-├── js/
-│   └── index.js
-├── assets/
-│   └── images/
-│       └── favicon.png
-├── README.md
+├── front/                # Tudo relacionado ao front-end
+│   ├── index.html        # Arquivo principal do front-end
+│   ├── libs/
+│   ├── css/              # Estilos
+│   │   └── index.css    # Arquivos CSS
+│   ├── js/               # Scripts
+│   │   └── index.js
+│   ├── assets/           # Imagens e arquivos estáticos
+│   │   └── logo.png
+│   └── .gitignore        # Exclui arquivos temporários do front
+├── back/                 # Tudo relacionado ao back-end
+│   ├── server.js         # Servidor principal
+│   ├── downloads/        # Arquivos baixados
+│   ├── routes/           # Rotas do Express
+│   │   ├── download.js (indisponível)
+│   │   └── history.js(indisponível)
+│   ├── downloadHistory.json # Histórico de downloads
+│   ├── package.json      # Dependências do back
+│   ├── .env              # Configurações sensíveis
+│   ├── node_modules/     # Dependências do Node.js
+│   └── .gitignore        # Exclui arquivos desnecessários do back
+├── README.md             # Documentação geral
+├── LICENSE               # (Opcional) Licença do projeto
+└── Structure.txt         # Estrutura explicativa do projeto
+└── .gitignore        # Exclui arquivos desnecessários na raiz

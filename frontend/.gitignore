@@ -3,7 +3,7 @@ logs/
 *.log
 *.tmp
 
-# Ignorar dependências globais e módulos do Node.js
+# Ignorar dependências e módulos de front-end
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -13,10 +13,6 @@ yarn-error.log*
 dist/
 build/
 .cache/
-
-# Ignorar pastas específicas
-downloads/
-Assets/
 
 # Ignorar arquivos sensíveis ou de configuração local
 .env
@@ -29,6 +25,3 @@ Thumbs.db
 .idea/
 *.swp
 *.bak
-
-# Ignorar histórico de navegação local
-downloadHistory.json
