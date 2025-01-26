@@ -1,5 +1,8 @@
 TubeMateX/
-├── front/                # Tudo relacionado ao front-end
+├── .git
+├── .github/
+     ├── node.js.yml
+├── frontend/                # Tudo relacionado ao front-end
 │   ├── index.html        # Arquivo principal do front-end
 │   ├── libs/
 │   ├── css/              # Estilos
@@ -9,7 +12,7 @@ TubeMateX/
 │   ├── assets/           # Imagens e arquivos estáticos
 │   │   └── logo.png
 │   └── .gitignore        # Exclui arquivos temporários do front
-├── back/                 # Tudo relacionado ao back-end
+├── backend/                 # Tudo relacionado ao back-end
 │   ├── server.js         # Servidor principal
 │   ├── downloads/        # Arquivos baixados
 │   ├── routes/           # Rotas do Express
