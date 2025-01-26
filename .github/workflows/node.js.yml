@@ -27,17 +27,17 @@ jobs:
 
     - name: Instalar dependências
       run: npm ci
-      working-directory: ./backend # Especifica o diretório correto
+      working-directory: ../backend # Especifica o diretório correto
 
     - name: Verificar linting (opcional)
       run: |
         npm install eslint
         npx eslint . --ext .js || true
-      working-directory: ./backend
+      working-directory: ../backend
 
     - name: Build do projeto
       run: npm run build --if-present
-      working-directory: ./backend
+      working-directory: ../backend
 
   deploy:
     needs: build
@@ -55,9 +55,9 @@ jobs:
 
     - name: Instalar dependências
       run: npm ci
-      working-directory: ./backend
+      working-directory: ../backend
 
-    - name: Configurar servidor (opcional)
+    - name: Configurar servidor 
       run: |
         sudo apt-get update
         sudo apt-get install nginx -y
@@ -69,4 +69,4 @@ jobs:
         pm2 start server.js --name "meu-servidor"
         pm2 save
         pm2 startup || true
-      working-directory: ./backend
+      working-directory: ../backend
