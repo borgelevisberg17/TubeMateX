@@ -21,6 +21,9 @@ jobs:
     - name: Imprimir diretório atual
       run: pwd
 
+    - name: Listar estrutura de arquivos
+      run: ls -la
+
     - name: Verificar estrutura do backend
       run: ls -la ./backend
 
@@ -30,12 +33,20 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
+    - name: Verificar dependências do backend
+      working-directory: './backend'
+      run: |
+        if [ ! -f "package-lock.json" ]; then
+          echo "package-lock.json não encontrado. Instalando dependências..."
+          npm install
+        fi
+
     - name: Limpar cache do npm
       run: npm cache clean --force
 
     - name: Instalar dependências (backend)
       working-directory: './backend'
-      run: npm ci
+      run: npm ci || npm install
 
     - name: Verificar linting (opcional)
       working-directory: './backend'
@@ -72,7 +83,7 @@ jobs:
 
     - name: Instalar dependências
       working-directory: './backend'
-      run: npm ci
+      run: npm ci || npm install
 
     - name: Configurar servidor (opcional)
       run: |
