@@ -22,7 +22,7 @@ jobs:
       run: pwd
 
     - name: Verificar estrutura do backend
-      run: ls -la ../../backend
+      run: ls -la ./backend
 
     - name: Configurar Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
@@ -34,17 +34,17 @@ jobs:
       run: npm cache clean --force
 
     - name: Instalar dependências (backend)
-      working-directory: '../../backend'
+      working-directory: './backend'
       run: npm ci
 
     - name: Verificar linting (opcional)
-      working-directory: '../../backend'
+      working-directory: './backend'
       run: |
         npm install eslint
         npx eslint . --ext .js || true
 
     - name: Build do projeto
-      working-directory: '../../backend'
+      working-directory: './backend'
       run: npm run build --if-present
 
   deploy:
@@ -60,7 +60,7 @@ jobs:
       run: pwd
 
     - name: Verificar estrutura do backend
-      run: ls -la /backend
+      run: ls -la ./backend
 
     - name: Configurar Node.js (Deploy)
       uses: actions/setup-node@v4
@@ -71,7 +71,7 @@ jobs:
       run: npm cache clean --force
 
     - name: Instalar dependências
-      working-directory: '../../backend'
+      working-directory: './backend'
       run: npm ci
 
     - name: Configurar servidor (opcional)
@@ -81,7 +81,7 @@ jobs:
         sudo systemctl enable nginx
 
     - name: Iniciar servidor com PM2
-      working-directory: '../../backend'
+      working-directory: './backend'
       run: |
         npm install pm2 -g
         pm2 start server.js --name "meu-servidor"
