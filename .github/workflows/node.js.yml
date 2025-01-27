@@ -2,9 +2,9 @@ name: Node.js CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -18,11 +18,17 @@ jobs:
     - name: Checkout do código
       uses: actions/checkout@v4
 
+    - name: Verificar estrutura do backend
+      run: ls -la ../../backend
+
     - name: Configurar Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+
+    - name: Limpar cache do npm
+      run: npm cache clean --force
 
     - name: Instalar dependências (backend)
       working-directory: '../../backend'
@@ -47,10 +53,16 @@ jobs:
     - name: Checkout do código
       uses: actions/checkout@v4
 
+    - name: Verificar estrutura do backend
+      run: ls -la ../../backend
+
     - name: Configurar Node.js (Deploy)
       uses: actions/setup-node@v4
       with:
         node-version: '18.x'
+
+    - name: Limpar cache do npm
+      run: npm cache clean --force
 
     - name: Instalar dependências
       working-directory: '../../backend'
