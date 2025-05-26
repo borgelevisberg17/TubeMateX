@@ -25,7 +25,13 @@ jobs:
       run: ls -la
 
     - name: Verificar estrutura do backend
-      run: ls -la ./backend
+      run: |
+        if [ -d "./backend" ]; then
+          echo "Backend encontrado."
+          ls -la ./backend
+        else
+          echo "Pasta backend não encontrada." && exit 1
+        fi
 
     - name: Configurar Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
@@ -33,24 +39,32 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
 
-    - name: Verificar dependências do backend
+    - name: Instalar dependências se necessário
       working-directory: './backend'
       run: |
         if [ ! -f "package-lock.json" ]; then
-          echo "package-lock.json não encontrado. Instalando dependências..."
+          echo "package-lock.json não encontrado. Gerando com npm install..."
           npm install
         fi
 
     - name: Limpar cache do npm
-      run: npm cache clean --force
+      run: npm cache clean --force || true
 
     - name: Instalar dependências (backend)
       working-directory: './backend'
-      run: npm ci || npm install
+      run: |
+        echo "Tentando npm ci..."
+        npm ci || (echo "npm ci falhou, tentando npm install..." && npm install)
 
     - name: Build do projeto
       working-directory: './backend'
-      run: npm run build --if-present
+      run: |
+        if npm run | grep -q "build"; then
+          echo "Executando build..."
+          npm run build
+        else
+          echo "Script de build não definido. Pulando etapa."
+        fi
 
   deploy:
     needs: build
@@ -65,7 +79,7 @@ jobs:
       run: pwd
 
     - name: Verificar estrutura do backend
-      run: ls -la ./backend
+      run: ls -la ./backend || echo "Backend não encontrado"
 
     - name: Configurar Node.js (Deploy)
       uses: actions/setup-node@v4
@@ -73,7 +87,7 @@ jobs:
         node-version: '18.x'
 
     - name: Limpar cache do npm
-      run: npm cache clean --force
+      run: npm cache clean --force || true
 
     - name: Instalar dependências
       working-directory: './backend'
@@ -82,7 +96,11 @@ jobs:
     - name: Iniciar servidor com PM2
       working-directory: './backend'
       run: |
-        npm install pm2 -g
-        pm2 start server.js --name "meu-servidor"
-        pm2 save
+        if ! command -v pm2 &> /dev/null; then
+          echo "PM2 não está instalado. Instalando..."
+          npm install pm2 -g
+        fi
+
+        pm2 start server.js --name "meu-servidor" || pm2 restart "meu-servidor"
+        pm2 save || true
         pm2 startup || true
