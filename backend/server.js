@@ -17,6 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 app.use('/css', express.static(path.join(__dirname, '../frontend/css')));
 app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
+app.use('/downloads', express.static(path.join(__dirname, '/downloads')));
 
 // Diretórios e arquivos
 const downloadsDir = process.env.DOWNLOADS_DIR || path.join(__dirname, '/downloads');
@@ -36,6 +37,36 @@ if (fs.existsSync(historyFile)) {
 // Rota principal
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// Rota para obter histórico
+app.get('/history', (req, res) => {
+  res.json(history);
+});
+
+// Rota para limpar histórico
+app.post('/clear-history', (req, res) => {
+  history = [];
+  fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
+  res.json({ message: 'Histórico limpo com sucesso!' });
+});
+
+// Rota para obter informações do vídeo
+app.get('/video-info', async (req, res) => {
+  const { url } = req.query;
+
+  if (!url || !ytdl.validateURL(url)) {
+    return res.status(400).json({ error: 'URL inválida ou incompatível com o YouTube.' });
+  }
+
+  try {
+    const videoInfo = await ytdl.getInfo(url);
+    const { title, thumbnails } = videoInfo.videoDetails;
+    res.json({ title, thumbnail: thumbnails[0].url });
+  } catch (error) {
+    console.error(`[Erro ao obter informações do vídeo]: ${error.message}`);
+    res.status(500).json({ error: 'Erro ao obter informações do vídeo.' });
+  }
 });
 
 // Rota de download
@@ -70,31 +101,20 @@ app.post('/download', async (req, res) => {
       },
     });
 
-    const writeStream = fs.createWriteStream(filePath);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    videoStream.pipe(res);
 
-    videoStream.pipe(writeStream);
-
-    videoStream.on('progress', (chunkLength, downloaded, total) => {
-      const percent = ((downloaded / total) * 100).toFixed(2);
-      console.log(`[Progresso]: ${percent}%`);
-    });
-
-    writeStream.on('finish', () => {
+    videoStream.on('end', () => {
       const downloadInfo = { url, format, fileName, date: new Date().toISOString() };
       history.push(downloadInfo);
       fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
-
-      res.json({ message: 'Download concluído!', fileName });
     });
 
     videoStream.on('error', (error) => {
       console.error(`[Erro de Stream]: ${error.message}`);
-      res.status(500).json({ error: 'Erro no stream do vídeo.' });
-    });
-
-    writeStream.on('error', (error) => {
-      console.error(`[Erro de Escrita]: ${error.message}`);
-      res.status(500).json({ error: 'Erro ao salvar o arquivo.' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Erro no stream do vídeo.' });
+      }
     });
   } catch (error) {
     console.error(`[Erro Geral]: ${error.message}`);

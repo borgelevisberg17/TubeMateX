@@ -72,14 +72,24 @@ async function startDownload() {
 
     const blob = new Blob(chunks);
     const urlBlob = window.URL.createObjectURL(blob);
+    const disposition = response.headers.get('Content-Disposition');
+    let fileName = 'video.' + selectedFormat;
+    if (disposition && disposition.indexOf('attachment') !== -1) {
+        var filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        var matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+          fileName = matches[1].replace(/['"]/g, '');
+        }
+    }
+
 
     const downloadLink = document.createElement('a');
     downloadLink.href = urlBlob;
-    downloadLink.download = 'video.' + selectedFormat;
+    downloadLink.download = fileName;
     downloadLink.click();
 
     showNotification('Download concluído com sucesso!');
-    addToHistory(url, selectedFormat);
+    loadHistory();
 
     setTimeout(() => {
       progressContainer.style.display = 'none';
@@ -93,27 +103,41 @@ async function startDownload() {
   }
 }
 
-// Adicionar ao histórico
-function addToHistory(url, format) {
-  const timestamp = new Date().toLocaleString();
-  const historyItem = { url, format, timestamp };
+// Carregar histórico
+async function loadHistory() {
+  try {
+    const response = await fetch('http://localhost:3000/history');
+    const history = await response.json();
+    renderHistory(history);
+  } catch (error) {
+    console.error('Erro ao carregar histórico:', error);
+  }
+}
 
-  const savedHistory = JSON.parse(localStorage.getItem('history')) || [];
-  savedHistory.push(historyItem);
-  localStorage.setItem('history', JSON.stringify(savedHistory));
+// Renderizar histórico
+function renderHistory(history) {
+  const historyContainer = document.getElementById('historyContainer');
+  historyContainer.innerHTML = '';
 
-  renderHistoryItem(historyItem);
+  if (history.length === 0) {
+    historyContainer.innerHTML = '<p>Nenhum download realizado ainda.</p>';
+    return;
+  }
+
+  history.forEach((item) => {
+    renderHistoryItem(item);
+  });
 }
 
 // Renderizar item no histórico
-function renderHistoryItem({ url, format, timestamp }) {
+function renderHistoryItem({ url, format, fileName, date }) {
   const historyContainer = document.getElementById('historyContainer');
-
+  const timestamp = new Date(date).toLocaleString();
   const historyItem = document.createElement('div');
   historyItem.className = 'history-item';
   historyItem.innerHTML = `
         <div class="history-info">
-            <div class="history-title">Download realizado</div>
+            <div class="history-title">${fileName}</div>
             <div class="history-meta">
                 <span>${format.toUpperCase()}</span> • 
                 <span>${timestamp}</span>
@@ -135,5 +159,78 @@ function showNotification(message, isError = false) {
   }, 3000);
 }
 
+// Obter informações do vídeo
+async function getVideoInfo() {
+  const url = document.getElementById('videoUrl').value.trim();
+  const videoInfoContainer = document.getElementById('videoInfo');
+
+  if (!isValidUrl(url)) {
+    videoInfoContainer.style.display = 'none';
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://localhost:3000/video-info?url=${encodeURIComponent(url)}`);
+    if (!response.ok) {
+      videoInfoContainer.style.display = 'none';
+      return;
+    }
+
+    const { title, thumbnail } = await response.json();
+    videoInfoContainer.innerHTML = `
+      <img src="${thumbnail}" alt="Thumbnail" class="video-thumbnail">
+      <p class="video-title">${title}</p>
+    `;
+    videoInfoContainer.style.display = 'flex';
+  } catch (error) {
+    console.error('Erro ao obter informações do vídeo:', error);
+    videoInfoContainer.style.display = 'none';
+  }
+}
+
+// Limpar histórico
+async function clearHistory() {
+  try {
+    const response = await fetch('http://localhost:3000/clear-history', {
+      method: 'POST',
+    });
+
+    if (response.ok) {
+      showNotification('Histórico limpo com sucesso!');
+      loadHistory();
+    } else {
+      showNotification('Erro ao limpar o histórico.', true);
+    }
+  } catch (error) {
+    console.error('Erro ao limpar o histórico:', error);
+    showNotification('Erro ao conectar ao servidor.', true);
+  }
+}
+
+// Theme switcher
+const themeToggle = document.getElementById('themeToggle');
+const body = document.body;
+
+function applyTheme(theme) {
+  body.classList.remove('light-mode', 'dark-mode');
+  body.classList.add(theme);
+  themeToggle.checked = theme === 'dark-mode';
+}
+
+function toggleTheme() {
+  const newTheme = themeToggle.checked ? 'dark-mode' : 'light-mode';
+  localStorage.setItem('theme', newTheme);
+  applyTheme(newTheme);
+}
+
 // Inicializar eventos
-document.getElementById('startDownload').addEventListener('click', startDownload);
+document.addEventListener('DOMContentLoaded', () => {
+  loadHistory();
+  const savedTheme = localStorage.getItem('theme') || 'dark-mode';
+  applyTheme(savedTheme);
+});
+document.querySelector("button").addEventListener('click', startDownload);
+document.getElementById('videoUrl').addEventListener('paste', getVideoInfo);
+document.getElementById('videoUrl').addEventListener('keyup', getVideoInfo);
+document.getElementById('clearHistory').addEventListener('click', clearHistory);
+themeToggle.addEventListener('change', toggleTheme);

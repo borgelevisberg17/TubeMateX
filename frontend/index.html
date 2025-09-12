@@ -15,15 +15,22 @@
     <div class="header">
       <h1 class="logo">TubeMateX</h1>
       <p class="subtitle">Descarregue videos de diversas plataformas</p>
+      <div class="theme-switcher">
+        <input type="checkbox" id="themeToggle">
+        <label for="themeToggle"></label>
+      </div>
     </div>
     
     <!-- Download Section -->
     <div class="download-card">
       <div class="input-group">
         <input type="url" id="videoUrl" placeholder="Cole o link do vídeo aqui..." required>
-        <button onclick="startDownload()">Download</button>
+        <button>Download</button>
       </div>
       
+      <!-- Video Info Section -->
+      <div class="video-info" id="videoInfo"></div>
+
       <!-- Format Selection -->
       <div class="format-selector">
         <div class="format-option active" data-format="mp4" onclick="selectFormat('mp4')">
@@ -33,10 +40,6 @@
         <div class="format-option" data-format="mp3" onclick="selectFormat('mp3')">
           <i class="fas fa-music"></i>
           <p>MP3</p>
-        </div>
-        <div class="format-option" data-format="wav" onclick="selectFormat('wav')">
-          <i class="fas fa-file-audio"></i>
-          <p>WAV</p>
         </div>
       </div>
       
@@ -51,7 +54,10 @@
     
     <!-- Download History -->
     <div class="history">
-      <h2>Downloads Recentes</h2>
+      <div class="history-header">
+        <h2>Downloads Recentes</h2>
+        <button id="clearHistory">Limpar Histórico</button>
+      </div>
       <div id="historyContainer">
         <!-- Histórico de downloads será carregado dinamicamente :⁠-⁠)-->
       </div>
@@ -61,6 +67,15 @@
   <!-- Notification -->
   <div class="notification" id="notification"></div>
   
+  <!-- Google AdSense Placeholder -->
+  <!--
+    Para adicionar anúncios do Google AdSense, você precisa de uma conta aprovada.
+    Depois de aprovado, o Google fornecerá um snippet de código para colar aqui.
+    Exemplo:
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+     crossorigin="anonymous"></script>
+  -->
+
   <!-- JavaScript como todas as funções :⁠-⁠)-->
   <script src="js/index.js"></script>
 </body>
