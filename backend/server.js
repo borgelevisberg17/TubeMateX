@@ -1,4 +1,4 @@
-require('dotenv').config(); // Carrega as variáveis do arquivo .env
+require('dotenv').config(); 
 const express = require('express');
 const cors = require('cors');
 const ytdl = require('@distube/ytdl-core');
