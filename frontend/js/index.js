@@ -39,7 +39,7 @@ async function startDownload() {
 
   try {
     showNotification('Iniciando download...');
-    const response = await fetch('https://tube-mate-x.vercel.app/download', {
+    const response = await fetch('/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, format: selectedFormat }),
@@ -106,7 +106,7 @@ async function startDownload() {
 // Carregar histórico
 async function loadHistory() {
   try {
-    const response = await fetch('https://tube-mate-x.vercel.app/history');
+    const response = await fetch('/history');
     const history = await response.json();
     renderHistory(history);
   } catch (error) {
@@ -170,7 +170,7 @@ async function getVideoInfo() {
   }
 
   try {
-    const response = await fetch(`https://tube-mate-x.vercel.app/video-info?url=${encodeURIComponent(url)}`);
+    const response = await fetch(`/video-info?url=${encodeURIComponent(url)}`);
     if (!response.ok) {
       videoInfoContainer.style.display = 'none';
       return;
@@ -191,7 +191,7 @@ async function getVideoInfo() {
 // Limpar histórico
 async function clearHistory() {
   try {
-    const response = await fetch('https://tube-mate-x.vercel.app/clear-history', {
+    const response = await fetch('/clear-history', {
       method: 'POST',
     });
 
