@@ -324,6 +324,62 @@
       animation: pulse 2s infinite;
     }
 
+/* Footer Section */
+.footer {
+    text-align: center;
+    padding: 40px 20px;
+    margin-top: 50px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.footer-links {
+    margin-bottom: 20px;
+}
+
+.footer-links a {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    margin: 0 10px;
+    transition: color 0.3s;
+}
+
+.footer-links a:hover {
+    color: var(--primary);
+}
+
+.footer-social {
+    margin-bottom: 20px;
+}
+
+.footer-social a {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.5em;
+    margin: 0 15px;
+    transition: color 0.3s, transform 0.3s;
+    display: inline-block;
+}
+
+.footer-social a:hover {
+    color: var(--primary);
+    transform: scale(1.2);
+}
+
+.footer-copyright {
+    font-size: 0.9em;
+}
+
+body.light-mode .footer {
+    border-top: 1px solid #e0e0e0;
+    color: #666;
+}
+
+body.light-mode .footer-links a,
+body.light-mode .footer-social a {
+    color: #666;
+}
+
+
 /* User Profile Section */
 .user-profile {
     position: absolute;

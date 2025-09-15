@@ -118,6 +118,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Rotas para páginas legais
+app.get('/terms', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/terms.html'));
+});
+
+app.get('/policy', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/privacy.html'));
+});
+
 // Obter info do vídeo
 app.get('/video-info', async (req, res) => {
   const { url } = req.query;
