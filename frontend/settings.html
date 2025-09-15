@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TubeMateX - Settings</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/index.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <a href="/" class="logo">TubeMateX</a>
+            <p class="subtitle">Configurações da Conta</p>
+            <div class="theme-switcher">
+                <input type="checkbox" id="themeToggle">
+                <label for="themeToggle"></label>
+            </div>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="settings-card">
+            <div class="user-profile-section">
+                <img src="https://via.placeholder.com/100" alt="User Avatar" id="userAvatar" class="settings-avatar">
+                <div class="user-details">
+                    <h2 id="userName">Carregando...</h2>
+                    <p id="userEmail">Carregando...</p>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Preferências</h3>
+                <div class="settings-item">
+                    <span>Modo Escuro</span>
+                    <div class="theme-switcher">
+                        <input type="checkbox" id="settingsThemeToggle">
+                        <label for="settingsThemeToggle"></label>
+                    </div>
+                </div>
+                <div class="settings-item">
+                    <span>Idioma</span>
+                    <select id="languageSelector" class="settings-select">
+                        <option value="pt-br">Português (Brasil)</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Downloads</h3>
+                <div id="downloadedVideos">
+                    <p>Nenhum vídeo baixado recentemente.</p>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Conta</h3>
+                <button id="logoutBtn" class="logout-btn-settings">
+                    <i class="fas fa-sign-out-alt"></i> Sair (Logout)
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer Section -->
+        <footer class="footer">
+            <div class="footer-links">
+                <a href="/policy">Política de Privacidade</a>
+                <span>&bull;</span>
+                <a href="/terms">Termos de Uso</a>
+                <a href="/legacy">Aviso Legal</a>
+            </div>
+            <div class="footer-social">
+                <a href="https://github.com/borgelevisberg17" target="_blank" rel="noopener noreferrer" aria-label="GitHub Profile">
+                    <i class="fab fa-github"></i>
+                </a>
+            </div>
+            <p class="footer-copyright">&copy; 2025 TubeMateX. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
+    <script src="/js/settings.js"></script>
+</body>
+</html>

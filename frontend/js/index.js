@@ -243,13 +243,13 @@ async function updateUserStatus() {
 function renderUserProfile(user) {
     const profileContainer = document.getElementById('userProfile');
     profileContainer.innerHTML = `
-        <div class="user-info">
-            <img src="${user.avatar}" alt="Avatar" class="user-avatar">
-            <span>${user.displayName}</span>
-        </div>
-        <button id="logoutBtn" class="logout-btn">Logout</button>
+        <a href="/settings" class="user-info-link">
+            <div class="user-info">
+                <img src="${user.avatar}" alt="Avatar" class="user-avatar">
+                <span>${user.displayName}</span>
+            </div>
+        </a>
     `;
-    document.getElementById('logoutBtn').addEventListener('click', logout);
 }
 
 // Renderiza o botão de login
