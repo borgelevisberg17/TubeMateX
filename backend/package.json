@@ -21,7 +21,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "play-dl": "^1.9.7",
-    "youtube-dl-exec": "^3.0.25"
+    "youtube-dl-exec": "^1.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"
