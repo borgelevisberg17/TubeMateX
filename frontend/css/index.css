@@ -324,6 +324,61 @@
       animation: pulse 2s infinite;
     }
 
+/* User Profile Section */
+.user-profile {
+    position: absolute;
+    top: 20px;
+    right: 90px; /* Adjust to be next to the theme switcher */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.login-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.login-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+}
+
+.logout-btn {
+    background: var(--error);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: transform 0.2s;
+}
+
+.logout-btn:hover {
+    transform: scale(1.05);
+}
+
     /* Theme Switcher */
     .theme-switcher {
       position: absolute;

@@ -12,7 +12,8 @@ formatOptions.forEach((option) => {
 
 // Validar URL
 function isValidUrl(url) {
-  const urlPattern = /^(https?:\/\/)?([\w.-]+)(\/[\w-./?%&=]*)?$/;
+  // Regex aprimorado para validar URLs do YouTube, incluindo shorts
+  const urlPattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)\/.+$/;
   return urlPattern.test(url);
 }
 
@@ -20,8 +21,8 @@ function isValidUrl(url) {
 async function startDownload() {
   const url = document.getElementById('videoUrl').value.trim();
   const progressContainer = document.getElementById('progressContainer');
-  const progressBar = document.getElementById('progress');
   const status = document.getElementById('status');
+  const downloadButton = document.querySelector('button');
 
   if (!url) {
     showNotification('Por favor, insira uma URL.', true);
@@ -29,77 +30,58 @@ async function startDownload() {
   }
 
   if (!isValidUrl(url)) {
-    showNotification('URL inválida. Tente novamente!', true);
+    showNotification('URL do YouTube inválida. Tente novamente!', true);
     return;
   }
 
+  // Desabilita o botão e mostra o status
+  downloadButton.disabled = true;
+  downloadButton.textContent = 'Baixando...';
   progressContainer.style.display = 'block';
-  progressBar.style.width = '0%';
-  status.textContent = 'Preparando download...';
+  status.textContent = 'Preparando link de download... Por favor, aguarde.';
 
   try {
-    showNotification('Iniciando download...');
+    showNotification('Solicitando link de download...');
+
     const response = await fetch('/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, format: selectedFormat }),
     });
 
+    const result = await response.json();
+
     if (!response.ok) {
-      const result = await response.json();
-      showNotification(result.error || 'Erro ao baixar o vídeo.', true);
-      progressContainer.style.display = 'none';
-      return;
+      throw new Error(result.error || 'Erro desconhecido no servidor.');
     }
 
-    const reader = response.body.getReader();
-    const contentLength = +response.headers.get('Content-Length');
-    let receivedLength = 0;
-    const chunks = [];
+    const { downloadUrl, title } = result;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      chunks.push(value);
-      receivedLength += value.length;
-
-      const percent = ((receivedLength / contentLength) * 100).toFixed(2);
-      const sizeInMB = (receivedLength / (1024 * 1024)).toFixed(2);
-      progressBar.style.width = `${percent}%`;
-      status.textContent = `Baixando... ${percent}% (${sizeInMB} MB)`;
-    }
-
-    const blob = new Blob(chunks);
-    const urlBlob = window.URL.createObjectURL(blob);
-    const disposition = response.headers.get('Content-Disposition');
-    let fileName = 'video.' + selectedFormat;
-    if (disposition && disposition.indexOf('attachment') !== -1) {
-        var filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-        var matches = filenameRegex.exec(disposition);
-        if (matches != null && matches[1]) {
-          fileName = matches[1].replace(/['"]/g, '');
-        }
-    }
-
-
+    // Cria um link de download e simula o clique
     const downloadLink = document.createElement('a');
-    downloadLink.href = urlBlob;
-    downloadLink.download = fileName;
+    downloadLink.href = downloadUrl;
+    downloadLink.download = title; // O backend já fornece o nome do arquivo com extensão
+    document.body.appendChild(downloadLink);
     downloadLink.click();
+    document.body.removeChild(downloadLink);
 
-    showNotification('Download concluído com sucesso!');
+    showNotification('Download iniciado com sucesso!');
+    status.textContent = `Download de "${title}" iniciado!`;
+
+    // Atualiza o histórico
     loadHistory();
 
-    setTimeout(() => {
-      progressContainer.style.display = 'none';
-      progressBar.style.width = '0%';
-      status.textContent = 'Preparando download...';
-    }, 2000);
   } catch (error) {
     console.error(error);
-    showNotification('Erro ao conectar ao servidor.', true);
-    progressContainer.style.display = 'none';
+    showNotification(error.message, true);
+    status.textContent = `Falha: ${error.message}`;
+  } finally {
+    // Reabilita o botão após um tempo
+    setTimeout(() => {
+        downloadButton.disabled = false;
+        downloadButton.textContent = 'Baixar';
+        progressContainer.style.display = 'none';
+    }, 3000);
   }
 }
 
@@ -121,30 +103,32 @@ function renderHistory(history) {
 
   if (history.length === 0) {
     historyContainer.innerHTML = '<p>Nenhum download realizado ainda.</p>';
+    document.getElementById('clearHistory').style.display = 'none';
     return;
   }
 
+  document.getElementById('clearHistory').style.display = 'block';
   history.forEach((item) => {
     renderHistoryItem(item);
   });
 }
 
 // Renderizar item no histórico
-function renderHistoryItem({ url, format, fileName, date }) {
+function renderHistoryItem({ title, format, date }) {
   const historyContainer = document.getElementById('historyContainer');
   const timestamp = new Date(date).toLocaleString();
   const historyItem = document.createElement('div');
   historyItem.className = 'history-item';
   historyItem.innerHTML = `
         <div class="history-info">
-            <div class="history-title">${fileName}</div>
+            <div class="history-title" title="${title}">${title}</div>
             <div class="history-meta">
                 <span>${format.toUpperCase()}</span> • 
                 <span>${timestamp}</span>
             </div>
         </div>
     `;
-  historyContainer.insertBefore(historyItem, historyContainer.firstChild);
+  historyContainer.appendChild(historyItem); // Usa appendChild para manter a ordem
 }
 
 // Mostrar notificação
@@ -190,6 +174,10 @@ async function getVideoInfo() {
 
 // Limpar histórico
 async function clearHistory() {
+  if (!confirm('Tem certeza de que deseja limpar todo o histórico de downloads?')) {
+    return;
+  }
+
   try {
     const response = await fetch('/clear-history', {
       method: 'POST',
@@ -199,7 +187,8 @@ async function clearHistory() {
       showNotification('Histórico limpo com sucesso!');
       loadHistory();
     } else {
-      showNotification('Erro ao limpar o histórico.', true);
+      const result = await response.json();
+      showNotification(result.error || 'Erro ao limpar o histórico.', true);
     }
   } catch (error) {
     console.error('Erro ao limpar o histórico:', error);
@@ -223,14 +212,94 @@ function toggleTheme() {
   applyTheme(newTheme);
 }
 
+// Debounce para não sobrecarregar o servidor com requests de info
+let debounceTimer;
+function handleUrlInput() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        getVideoInfo();
+    }, 500);
+}
+
+// --- Lógica de Autenticação do Frontend ---
+
+// Atualiza a UI baseada no status de login do usuário
+async function updateUserStatus() {
+    try {
+        const response = await fetch('/api/user');
+        if (response.ok) {
+            const user = await response.json();
+            renderUserProfile(user);
+        } else {
+            renderLoginButton();
+        }
+    } catch (error) {
+        console.error('Erro ao verificar status de login:', error);
+        renderLoginButton(); // Assume deslogado em caso de erro
+    }
+}
+
+// Renderiza o perfil do usuário logado
+function renderUserProfile(user) {
+    const profileContainer = document.getElementById('userProfile');
+    profileContainer.innerHTML = `
+        <div class="user-info">
+            <img src="${user.avatar}" alt="Avatar" class="user-avatar">
+            <span>${user.displayName}</span>
+        </div>
+        <button id="logoutBtn" class="logout-btn">Logout</button>
+    `;
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+}
+
+// Renderiza o botão de login
+function renderLoginButton() {
+    const profileContainer = document.getElementById('userProfile');
+    profileContainer.innerHTML = `
+        <a href="/auth/google" class="login-btn">
+            <i class="fab fa-google"></i> Login
+        </a>
+    `;
+}
+
+// Executa o logout
+async function logout() {
+    try {
+        await fetch('/auth/logout', { method: 'POST' });
+        showNotification('Logout bem-sucedido!');
+        updateUserStatus(); // Atualiza a UI para o estado de deslogado
+    } catch (error) {
+        console.error('Erro ao fazer logout:', error);
+        showNotification('Erro ao tentar fazer logout.', true);
+    }
+}
+
+// Verifica se houve um redirecionamento do OAuth
+function handleAuthRedirect() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('auth')) {
+        const status = urlParams.get('auth');
+        if (status === 'success') {
+            showNotification('Login bem-sucedido!');
+        } else if (status === 'failed') {
+            showNotification('Falha no login com o Google.', true);
+        }
+        // Limpa os parâmetros da URL para não mostrar a notificação novamente no refresh
+        window.history.replaceState({}, document.title, "/");
+    }
+}
+
+
 // Inicializar eventos
 document.addEventListener('DOMContentLoaded', () => {
   loadHistory();
   const savedTheme = localStorage.getItem('theme') || 'dark-mode';
   applyTheme(savedTheme);
+  updateUserStatus(); // Verifica o status de login ao carregar a página
+  handleAuthRedirect(); // Verifica se veio de um redirect do OAuth
 });
+
 document.querySelector("button").addEventListener('click', startDownload);
-document.getElementById('videoUrl').addEventListener('paste', getVideoInfo);
-document.getElementById('videoUrl').addEventListener('keyup', getVideoInfo);
+document.getElementById('videoUrl').addEventListener('input', handleUrlInput);
 document.getElementById('clearHistory').addEventListener('click', clearHistory);
 themeToggle.addEventListener('change', toggleTheme);
