@@ -1,7 +1,7 @@
 {
   "name": "youtube-downloader-backend",
   "version": "1.0.0",
-  "description": "Backend para download de vídeos do YouTube usando Express e ytdl-core",
+  "description": "Backend para download de vídeos do YouTube usando Express, play-dl e youtube-dl-exec",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,16 +11,17 @@
     "youtube",
     "downloader",
     "express",
-    "ytdl"
+    "play-dl",
+    "youtube-dl-exec"
   ],
   "author": "Borge",
   "license": "MIT",
   "dependencies": {
-    "@distube/ytdl-core": "^4.15.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-   "yt-dlp-exec": "^1.0.2"
+    "play-dl": "^1.9.7",
+    "youtube-dl-exec": "^3.0.25"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

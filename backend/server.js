@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const ytdlp = require('yt-dlp-exec');
+const play = require('play-dl');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,16 +37,22 @@ app.get('/video-info', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'URL não fornecida.' });
 
   try {
-    const info = await ytdlp(url, {
-      dumpSingleJson: true,
-      noCheckCertificates: true,
-      noWarnings: true,
-    });
-
-    res.json({ title: info.title, thumbnail: info.thumbnail });
+    // Primeiro tenta com play-dl
+    const info = await play.video_info(url);
+    res.json({ title: info.video_details.title, thumbnail: info.video_details.thumbnails[0].url });
   } catch (err) {
-    console.error(`[Erro ao obter informações]: ${err.message}`);
-    res.status(500).json({ error: 'Erro ao obter informações do vídeo.' });
+    console.warn(`[play-dl falhou]: ${err.message}, tentando com yt-dlp...`);
+    try {
+      const info = await ytdlp(url, {
+        dumpSingleJson: true,
+        noCheckCertificates: true,
+        noWarnings: true,
+      });
+      res.json({ title: info.title, thumbnail: info.thumbnail });
+    } catch (err2) {
+      console.error(`[Erro ao obter informações]: ${err2.message}`);
+      res.status(500).json({ error: 'Erro ao obter informações do vídeo.' });
+    }
   }
 });
 
@@ -57,12 +64,22 @@ app.post('/download', async (req, res) => {
   }
 
   try {
-    const result = await ytdlp(url, {
-      getUrl: true,
-      format: format === 'mp3' ? 'bestaudio' : 'best',
-    });
+    let directUrl;
 
-    const directUrl = (Array.isArray(result) ? result[0] : result).trim();
+    // Primeiro tenta com play-dl (mais leve)
+    try {
+      const streamInfo = await play.stream_from_info(await play.video_info(url), {
+        quality: format === 'mp3' ? 1 : 2, // 1=bestaudio, 2=video
+      });
+      directUrl = streamInfo.url;
+    } catch (err) {
+      console.warn(`[play-dl falhou no download]: ${err.message}, usando yt-dlp...`);
+      const result = await ytdlp(url, {
+        getUrl: true,
+        format: format === 'mp3' ? 'bestaudio' : 'best',
+      });
+      directUrl = (Array.isArray(result) ? result[0] : result).trim();
+    }
 
     // Salvar histórico
     const downloadInfo = { url, format, directUrl, date: new Date().toISOString() };
