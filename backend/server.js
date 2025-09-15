@@ -91,6 +91,7 @@ app.get('/api/user', (req, res) => {
         res.json({
             id: req.user.id,
             displayName: req.user.displayName,
+            email: req.user.emails && req.user.emails.length > 0 ? req.user.emails[0].value : null,
             avatar: req.user.photos && req.user.photos.length > 0 ? req.user.photos[0].value : null
         });
     } else {
@@ -129,6 +130,10 @@ app.get('/policy', (req, res) => {
 app.get('/legacy', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/legacy.html'));
 });
+
+app.get('/settings', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/settings.html'));
+});
 // Obter info do vídeo
 app.get('/video-info', async (req, res) => {
   const { url } = req.query;
@@ -161,56 +166,46 @@ app.post('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL ou formato não fornecido.' });
     }
 
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Você precisa estar logado para baixar vídeos.' });
+    }
+
     try {
-        // Objeto de opções para o play-dl, a ser preenchido se o usuário estiver autenticado
-        const playDlOptions = {};
+        play.setToken({ youtube: { access_token: req.user.accessToken } });
 
-        if (req.isAuthenticated() && req.user.accessToken) {
-            console.log('[Auth] Usuário autenticado. Tentando usar o token de acesso para o play-dl.');
-            // Define o token de autorização para o play-dl.
-            // Esta é a maneira correta de usar um token de acesso OAuth com a biblioteca.
-            play.setToken({
-                youtube: {
-                    access_token: req.user.accessToken
-                }
-            });
-        } else {
-            // Garante que nenhum token antigo seja usado para usuários não autenticados
-            play.setToken({ youtube: {} });
-        }
+        const info = await play.video_info(url);
+        const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
+        const filename = `${title}.${format}`;
+        const outputPath = path.join(__dirname, 'downloads', filename);
 
-        let info;
-        try {
-            info = await play.video_info(url);
-        } catch (infoErr) {
-            // Se a obtenção de informações falhar com um erro de autenticação, informa o frontend.
-            if (infoErr.message.includes('Sign in') || infoErr.message.includes('age-restricted')) {
-                return res.status(401).json({ error: 'Este vídeo é restrito. Por favor, faça login para continuar.', requiresAuth: true });
+        const stream = await ytdlp.exec(url, {
+            output: outputPath,
+            format: format === 'mp3' ? 'bestaudio/best' : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        });
+
+        stream.on('close', () => {
+            const userId = req.user.id;
+            if (!history[userId]) {
+                history[userId] = [];
             }
-            // Para outros erros, apenas loga e continua para o yt-dlp
-            console.warn(`[play-dl falhou ao obter info]: ${infoErr.message}, tentando com yt-dlp...`);
-            info = await ytdlp(url, { dumpSingleJson: true, noCheckCertificates: true, noWarnings: true });
-        }
-
-        const title = info.title.replace(/[<>:"/\\|?*]+/g, '');
-        let directUrl;
-
-        try {
-            const stream = await play.stream_from_info(info, { quality: format === 'mp3' ? 1 : 2 });
-            directUrl = stream.url;
-        } catch(streamErr) {
-            console.warn(`[play-dl falhou no stream]: ${streamErr.message}, usando yt-dlp como fallback...`);
-            directUrl = await ytdlp(url, {
-                getUrl: true,
-                format: format === 'mp3' ? 'bestaudio' : 'best',
+            history[userId].unshift({
+                filename,
+                title: info.video_details.title,
+                format,
+                date: new Date().toISOString(),
+                path: outputPath,
+                expires: Date.now() + 3600000 // 1 hour from now
             });
-        }
 
-        // Salva no histórico (simplificado)
-        history.unshift({ url, format, title, date: new Date().toISOString() });
-        if (history.length > 20) history.pop();
+            if (history[userId].length > 20) {
+                const oldestItem = history[userId].pop();
+                if (fs.existsSync(oldestItem.path)) {
+                    fs.unlinkSync(oldestItem.path);
+                }
+            }
 
-        res.json({ downloadUrl: directUrl, title: `${title}.${format === 'mp3' ? 'mp3' : 'mp4'}` });
+            res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
+        });
 
     } catch (err) {
         const errorMessage = err.stderr || err.message;
@@ -223,9 +218,43 @@ app.post('/download', async (req, res) => {
     }
 });
 
+// Rota para servir arquivos baixados
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+
+// Limpeza de arquivos expirados
+setInterval(() => {
+    const now = Date.now();
+    for (const userId in history) {
+        history[userId] = history[userId].filter(item => {
+            if (item.expires < now) {
+                if (fs.existsSync(item.path)) {
+                    console.log(`Excluindo arquivo expirado: ${item.path}`);
+                    fs.unlinkSync(item.path);
+                }
+                return false;
+            }
+            return true;
+        });
+    }
+}, 60000); // Executa a cada minuto
+
 // Rota para obter histórico
 app.get('/history', (req, res) => {
-    res.json(history);
+    if (req.isAuthenticated()) {
+        const userId = req.user.id;
+        res.json(history[userId] || []);
+    } else {
+        res.json([]);
+    }
+});
+
+app.get('/api/user/downloads', (req, res) => {
+    if (req.isAuthenticated()) {
+        const userId = req.user.id;
+        res.json(history[userId] || []);
+    } else {
+        res.status(401).json({ message: 'Não autenticado' });
+    }
 });
 
 // Limpar histórico
