@@ -126,7 +126,9 @@ app.get('/terms', (req, res) => {
 app.get('/policy', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/privacy.html'));
 });
-
+app.get('/legacy', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/legacy.html'));
+});
 // Obter info do vídeo
 app.get('/video-info', async (req, res) => {
   const { url } = req.query;
