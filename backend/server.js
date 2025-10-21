@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -23,8 +23,12 @@ if (!process.env.SESSION_SECRET || !process.env.GOOGLE_CLIENT_ID || !process.env
 app.use(session({
     secret: process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
-    saveUninitialized: true, // Alterado para true para facilitar o login com Google
-    cookie: { secure: process.env.NODE_ENV === 'production' }
+    saveUninitialized: true,
+    proxy: true,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    }
 }));
 
 app.use(passport.initialize());
@@ -166,17 +170,21 @@ app.post('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL ou formato não fornecido.' });
     }
 
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Você precisa estar logado para baixar vídeos.' });
-    }
-
     try {
-        play.setToken({ youtube: { access_token: req.user.accessToken } });
+        // Se o usuário estiver autenticado, usar o token dele pode ajudar com vídeos privados/restritos
+        if (req.isAuthenticated() && req.user.accessToken) {
+            play.setToken({ youtube: { access_token: req.user.accessToken } });
+        }
 
         const info = await play.video_info(url);
         const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
         const filename = `${title}.${format}`;
         const outputPath = path.join(__dirname, 'downloads', filename);
+
+        // Garante que o diretório de downloads exista
+        if (!fs.existsSync(path.join(__dirname, 'downloads'))) {
+            fs.mkdirSync(path.join(__dirname, 'downloads'));
+        }
 
         const stream = await ytdlp.exec(url, {
             output: outputPath,
@@ -184,23 +192,27 @@ app.post('/download', async (req, res) => {
         });
 
         stream.on('close', () => {
-            const userId = req.user.id;
-            if (!history[userId]) {
-                history[userId] = [];
-            }
-            history[userId].unshift({
-                filename,
-                title: info.video_details.title,
-                format,
-                date: new Date().toISOString(),
-                path: outputPath,
-                expires: Date.now() + 3600000 // 1 hour from now
-            });
+            // Salva no histórico apenas se o usuário estiver logado
+            if (req.isAuthenticated()) {
+                const userId = req.user.id;
+                if (!history[userId]) {
+                    history[userId] = [];
+                }
+                history[userId].unshift({
+                    filename,
+                    title: info.video_details.title,
+                    format,
+                    date: new Date().toISOString(),
+                    path: outputPath,
+                    expires: Date.now() + 3600000 // 1 hora a partir de agora
+                });
 
-            if (history[userId].length > 20) {
-                const oldestItem = history[userId].pop();
-                if (fs.existsSync(oldestItem.path)) {
-                    fs.unlinkSync(oldestItem.path);
+                // Limpa o histórico antigo se exceder o limite
+                if (history[userId].length > 20) {
+                    const oldestItem = history[userId].pop();
+                    if (fs.existsSync(oldestItem.path)) {
+                        fs.unlinkSync(oldestItem.path);
+                    }
                 }
             }
 
