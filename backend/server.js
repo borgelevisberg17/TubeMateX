@@ -186,38 +186,42 @@ app.post('/download', async (req, res) => {
             fs.mkdirSync(path.join(__dirname, 'downloads'));
         }
 
-        const stream = await ytdlp.exec(url, {
+        // O yt-dlp-exec retorna uma promessa que resolve quando o download é concluído.
+        await ytdlp.exec(url, {
             output: outputPath,
-            format: format === 'mp3' ? 'bestaudio/best' : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            // Corrigido para usar as opções de formato corretas para yt-dlp
+            format: format === 'mp3'
+                ? 'bestaudio/best'
+                : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            // Adiciona a flag '-x' para extrair áudio para mp3
+            ...(format === 'mp3' && { extractAudio: true, audioFormat: 'mp3' })
         });
 
-        stream.on('close', () => {
-            // Salva no histórico apenas se o usuário estiver logado
-            if (req.isAuthenticated()) {
-                const userId = req.user.id;
-                if (!history[userId]) {
-                    history[userId] = [];
-                }
-                history[userId].unshift({
-                    filename,
-                    title: info.video_details.title,
-                    format,
-                    date: new Date().toISOString(),
-                    path: outputPath,
-                    expires: Date.now() + 3600000 // 1 hora a partir de agora
-                });
+        // Salva no histórico apenas se o usuário estiver logado
+        if (req.isAuthenticated()) {
+            const userId = req.user.id;
+            if (!history[userId]) {
+                history[userId] = [];
+            }
+            history[userId].unshift({
+                filename,
+                title: info.video_details.title,
+                format,
+                date: new Date().toISOString(),
+                path: outputPath,
+                expires: Date.now() + 3600000 // 1 hora a partir de agora
+            });
 
-                // Limpa o histórico antigo se exceder o limite
-                if (history[userId].length > 20) {
-                    const oldestItem = history[userId].pop();
-                    if (fs.existsSync(oldestItem.path)) {
-                        fs.unlinkSync(oldestItem.path);
-                    }
+            // Limpa o histórico antigo se exceder o limite
+            if (history[userId].length > 20) {
+                const oldestItem = history[userId].pop();
+                if (fs.existsSync(oldestItem.path)) {
+                    fs.unlinkSync(oldestItem.path);
                 }
             }
+        }
 
-            res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
-        });
+        res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
 
     } catch (err) {
         const errorMessage = err.stderr || err.message;
