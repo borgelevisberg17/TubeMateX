@@ -3,8 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsThemeToggle = document.getElementById('settingsThemeToggle');
     const body = document.body;
     const logoutBtn = document.getElementById('logoutBtn');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-    // --- Lógica de Tema ---
+    // --- Theme Logic ---
     function applyTheme(theme) {
         body.classList.remove('light-mode', 'dark-mode');
         body.classList.add(theme);
@@ -25,61 +26,79 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsThemeToggle) settingsThemeToggle.addEventListener('change', toggleTheme);
 
 
-    // --- Lógica de Autenticação ---
+    // --- Authentication Logic ---
     async function fetchUser() {
+        // Try to load from cache first
+        const cachedUser = localStorage.getItem('userProfile');
+        if (cachedUser) {
+            populateUserData(JSON.parse(cachedUser));
+        }
+
         try {
             const response = await fetch('/api/user');
             if (response.ok) {
                 const user = await response.json();
+                localStorage.setItem('userProfile', JSON.stringify(user)); // Cache user data
                 populateUserData(user);
-            } else {
-                // Se não estiver autenticado, redireciona para a página inicial
+            } else if (!cachedUser) {
+                // If not authenticated and no cache, redirect
                 window.location.href = '/';
             }
         } catch (error) {
-            console.error('Erro ao buscar dados do usuário:', error);
-            window.location.href = '/';
+            console.error('Error fetching user data:', error);
+            if (!cachedUser) {
+                window.location.href = '/';
+            }
         }
     }
 
     function populateUserData(user) {
         document.getElementById('userAvatar').src = user.avatar || 'https://via.placeholder.com/100';
         document.getElementById('userName').textContent = user.displayName;
-        // O e-mail não está no objeto de usuário, será necessário adicioná-lo
-        document.getElementById('userEmail').textContent = user.email || 'E-mail não disponível';
+        document.getElementById('userEmail').textContent = user.email || 'E-mail not available';
     }
 
     async function logout() {
         try {
             await fetch('/auth/logout', { method: 'POST' });
-            window.location.href = '/'; // Redireciona para a home após o logout
+            // Clear cached data on logout
+            localStorage.removeItem('userProfile');
+            localStorage.removeItem('downloadHistory');
+            window.location.href = '/';
         } catch (error) {
-            console.error('Erro ao fazer logout:', error);
-            alert('Erro ao tentar fazer logout.');
+            console.error('Error during logout:', error);
+            alert('Error trying to logout.');
         }
     }
 
     if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
-    // --- Lógica de Downloads ---
+    // --- Downloads Logic ---
     async function fetchDownloads() {
+        // Try to load from cache first
+        const cachedDownloads = localStorage.getItem('downloadHistory');
+        if (cachedDownloads) {
+            renderDownloads(JSON.parse(cachedDownloads));
+        }
+
         try {
             const response = await fetch('/api/user/downloads');
             if (response.ok) {
                 const downloads = await response.json();
+                localStorage.setItem('downloadHistory', JSON.stringify(downloads)); // Cache downloads
                 renderDownloads(downloads);
             } else {
-                console.error('Erro ao buscar downloads');
+                console.error('Error fetching downloads');
             }
         } catch (error) {
-            console.error('Erro ao buscar downloads:', error);
+            console.error('Error fetching downloads:', error);
         }
     }
 
     function renderDownloads(downloads) {
         const container = document.getElementById('downloadedVideos');
-        if (downloads.length === 0) {
-            container.innerHTML = '<p>Nenhum vídeo baixado recentemente.</p>';
+        if (!downloads || downloads.length === 0) {
+            container.innerHTML = '<p>No videos downloaded recently.</p>';
             return;
         }
 
@@ -99,7 +118,15 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
-    // Carregar dados do usuário e downloads ao carregar a página
+    function clearHistory() {
+        localStorage.removeItem('downloadHistory');
+        renderDownloads([]); // Re-render to show empty state
+    }
+
+    if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
+
+
+    // Initial data load
     fetchUser();
     fetchDownloads();
 });
