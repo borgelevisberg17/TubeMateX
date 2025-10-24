@@ -1,0 +1,157 @@
+/* Settings page specific styles */
+
+:root {
+    --card-background: rgba(255, 255, 255, 0.05);
+    --card-border: rgba(255, 255, 255, 0.2);
+    --hover-background: rgba(255, 255, 255, 0.1);
+}
+
+body.light-mode {
+    --card-background: #ffffff;
+    --card-border: #e0e0e0;
+    --hover-background: #f7f7f7;
+}
+
+.settings-main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.settings-card {
+    background: var(--card-background);
+    border: 1px solid var(--card-border);
+    border-radius: 15px;
+    padding: 25px;
+    transition: all 0.3s ease;
+}
+
+.settings-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.settings-card h3 {
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.user-avatar-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 3px solid var(--primary);
+    margin-bottom: 15px;
+}
+
+.user-details h2 {
+    font-size: 1.8em;
+    margin-bottom: 5px;
+}
+
+.user-details p {
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 20px;
+}
+
+body.light-mode .user-details p {
+    color: #666;
+}
+
+.logout-btn-main {
+    width: 100%;
+    padding: 12px;
+    background: var(--error);
+    font-size: 1em;
+}
+
+.settings-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.settings-item:last-child {
+    border-bottom: none;
+}
+
+.settings-select {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    border: 1px solid var(--card-border);
+}
+
+body.light-mode .settings-select {
+    background: #f0f2f5;
+}
+
+#downloadedVideos .download-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: background 0.3s;
+}
+
+#downloadedVideos .download-item:hover {
+    background: var(--hover-background);
+}
+
+.download-title {
+    font-weight: bold;
+}
+
+.download-meta {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+body.light-mode .download-meta {
+    color: #666;
+}
+
+.download-link {
+    font-size: 1.2em;
+    color: var(--primary);
+}
+
+.btn-secondary {
+    margin-top: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .settings-main {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .user-profile-card {
+        grid-column: 1 / -1; /* Span across both columns */
+        flex-direction: row;
+        text-align: left;
+    }
+
+    .user-avatar-large {
+        margin-right: 25px;
+        margin-bottom: 0;
+    }
+}

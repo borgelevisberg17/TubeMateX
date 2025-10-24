@@ -6,35 +6,40 @@
     <title>TubeMateX - Settings</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/index.css">
+    <link rel="stylesheet" href="/css/settings.css">
 </head>
 <body>
     <div class="container">
         <!-- Header Section -->
-        <div class="header">
+        <header class="header">
             <a href="/" class="logo">TubeMateX</a>
             <p class="subtitle">Configurações da Conta</p>
             <div class="theme-switcher">
                 <input type="checkbox" id="themeToggle">
                 <label for="themeToggle"></label>
             </div>
-        </div>
+        </header>
 
-        <!-- Settings Card -->
-        <div class="settings-card">
-            <div class="user-profile-section">
-                <img src="https://via.placeholder.com/100" alt="User Avatar" id="userAvatar" class="settings-avatar">
+        <main class="settings-main">
+            <!-- User Profile Section -->
+            <section class="settings-card user-profile-card">
+                <img src="https://via.placeholder.com/100" alt="User Avatar" id="userAvatar" class="user-avatar-large">
                 <div class="user-details">
                     <h2 id="userName">Carregando...</h2>
                     <p id="userEmail">Carregando...</p>
                 </div>
-            </div>
+                <button id="logoutBtn" class="logout-btn-main">
+                    <i class="fas fa-sign-out-alt"></i> Sair
+                </button>
+            </section>
 
-            <div class="settings-section">
-                <h3>Preferências</h3>
+            <!-- Preferences Section -->
+            <section class="settings-card">
+                <h3><i class="fas fa-sliders-h"></i> Preferências</h3>
                 <div class="settings-item">
                     <span>Modo Escuro</span>
                     <div class="theme-switcher">
-                        <input type="checkbox" id="settingsThemeToggle">
+                        <input type="checkbox" id="settingsThemeToggle" class="settings-toggle">
                         <label for="settingsThemeToggle"></label>
                     </div>
                 </div>
@@ -45,22 +50,17 @@
                         <option value="en">English</option>
                     </select>
                 </div>
-            </div>
+            </section>
 
-            <div class="settings-section">
-                <h3>Downloads</h3>
+            <!-- Downloads History Section -->
+            <section class="settings-card">
+                <h3><i class="fas fa-history"></i> Histórico de Downloads</h3>
                 <div id="downloadedVideos">
                     <p>Nenhum vídeo baixado recentemente.</p>
                 </div>
-            </div>
-
-            <div class="settings-section">
-                <h3>Conta</h3>
-                <button id="logoutBtn" class="logout-btn-settings">
-                    <i class="fas fa-sign-out-alt"></i> Sair (Logout)
-                </button>
-            </div>
-        </div>
+                <button id="clearHistoryBtn" class="btn-secondary">Limpar Histórico</button>
+            </section>
+        </main>
 
         <!-- Footer Section -->
         <footer class="footer">
