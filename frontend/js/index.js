@@ -225,17 +225,30 @@ function handleUrlInput() {
 
 // Atualiza a UI baseada no status de login do usuário
 async function updateUserStatus() {
+    // Tenta carregar o usuário do localStorage para uma UI mais rápida
+    const cachedUser = localStorage.getItem('userProfile');
+    if (cachedUser) {
+        renderUserProfile(JSON.parse(cachedUser));
+    }
+
     try {
         const response = await fetch('/api/user');
         if (response.ok) {
             const user = await response.json();
+            // Armazena no localStorage para carregamentos futuros
+            localStorage.setItem('userProfile', JSON.stringify(user));
             renderUserProfile(user);
         } else {
+            // Limpa o cache se o usuário não estiver autenticado
+            localStorage.removeItem('userProfile');
             renderLoginButton();
         }
     } catch (error) {
         console.error('Erro ao verificar status de login:', error);
-        renderLoginButton(); // Assume deslogado em caso de erro
+        // Se a API falhar, confia no cache, mas eventualmente pode querer deslogar
+        if (!cachedUser) {
+            renderLoginButton();
+        }
     }
 }
 
@@ -243,7 +256,7 @@ async function updateUserStatus() {
 function renderUserProfile(user) {
     const profileContainer = document.getElementById('userProfile');
     profileContainer.innerHTML = `
-        <a href="/settings" class="user-info-link">
+        <a href="/profile" class="user-info-link">
             <div class="user-info">
                 <img src="${user.avatar}" alt="Avatar" class="user-avatar">
                 <span>${user.displayName}</span>
@@ -266,6 +279,7 @@ function renderLoginButton() {
 async function logout() {
     try {
         await fetch('/auth/logout', { method: 'POST' });
+        localStorage.removeItem('userProfile'); // Limpa o cache
         showNotification('Logout bem-sucedido!');
         updateUserStatus(); // Atualiza a UI para o estado de deslogado
     } catch (error) {
