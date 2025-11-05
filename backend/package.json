@@ -18,16 +18,18 @@
   "author": "Borge",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.12.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "express-session": "^1.18.2",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "play-dl": "^1.9.7",
-    "yt-dlp-exec": "^1.0.2"
-  },
+  "axios": "^1.12.2",
+  "connect-sqlite3": "^0.9.16",
+  "sqlite3": "^5.1.7",
+  "cors": "^2.8.5",
+  "dotenv": "^16.4.7",
+  "express": "^4.21.2",
+  "express-session": "^1.18.2",
+  "passport": "^0.7.0",
+  "passport-google-oauth20": "^2.0.0",
+  "play-dl": "^1.9.7",
+  "yt-dlp-exec": "^1.0.2"
+},
   "devDependencies": {
     "@types/express-session": "^1.18.2",
     "@types/passport": "^1.0.17",
