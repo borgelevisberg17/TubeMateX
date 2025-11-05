@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfil do Usuário - TubeMateX</title>
+    <link rel="stylesheet" href="/css/profile.css">
+</head>
+<body>
+    <div class="container">
+        <div class="profile-header">
+            <img id="user-avatar" src="https://via.placeholder.com/150" alt="Avatar do Usuário" class="avatar">
+            <h1 id="user-display-name">Nome do Usuário</h1>
+            <p id="user-email">email@example.com</p>
+        </div>
+
+        <div class="profile-content">
+            <h2>Estatísticas de Download</h2>
+            <div class="stats">
+                <div class="stat-item">
+                    <h3>Total de Downloads</h3>
+                    <p id="total-downloads">0</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Downloads de MP4</h3>
+                    <p id="mp4-downloads">0</p>
+                </div>
+                <div class="stat-item">
+                    <h3>Downloads de MP3</h3>
+                    <p id="mp3-downloads">0</p>
+                </div>
+            </div>
+
+            <h2>Histórico de Downloads Recentes</h2>
+            <div id="download-history">
+                <!-- O histórico será preenchido pelo JavaScript -->
+            </div>
+        </div>
+    </div>
+    <script src="/js/profile.js"></script>
+</body>
+</html>

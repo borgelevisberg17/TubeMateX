@@ -6,12 +6,38 @@ const fs = require('fs');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const SQLiteStore = require('connect-sqlite3')(session);
 
 const ytdlp = require('yt-dlp-exec');
 const play = require('play-dl');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// --- Configuração de Rate Limiting ---
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // Limite de 100 requisições por IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Muitas requisições, tente novamente em 15 minutos.'
+});
+
+const downloadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 20, // Limite de 20 downloads por IP por hora
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Limite de downloads excedido, tente novamente em uma hora.'
+});
+
+// Aplicar a rotas específicas
+app.use('/auth', apiLimiter);
+app.use('/api', apiLimiter);
+app.use('/video-info', apiLimiter);
+app.use('/download', downloadLimiter);
+
 
 // --- Configuração de Autenticação (OAuth com Passport) ---
 
@@ -21,6 +47,10 @@ if (!process.env.SESSION_SECRET || !process.env.GOOGLE_CLIENT_ID || !process.env
 }
 
 app.use(session({
+    store: new SQLiteStore({
+        db: 'sessions.sqlite',
+        dir: '/tmp',
+    }),
     secret: process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
     saveUninitialized: true,
@@ -112,10 +142,26 @@ app.get('/api/user', (req, res) => {
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Histórico
-const historyFile = process.env.HISTORY_FILE || path.join(__dirname, '/downloadHistory.json');
-let history = [];
-if (fs.existsSync(historyFile)) {
-  history = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+const historyDir = process.env.HISTORY_DIR || path.join(__dirname, 'history');
+if (!fs.existsSync(historyDir)) {
+    fs.mkdirSync(historyDir);
+}
+
+function getUserHistoryPath(userId) {
+    return path.join(historyDir, `${userId}.json`);
+}
+
+function loadUserHistory(userId) {
+    const userHistoryPath = getUserHistoryPath(userId);
+    if (fs.existsSync(userHistoryPath)) {
+        return JSON.parse(fs.readFileSync(userHistoryPath, 'utf-8'));
+    }
+    return [];
+}
+
+function saveUserHistory(userId, history) {
+    const userHistoryPath = getUserHistoryPath(userId);
+    fs.writeFileSync(userHistoryPath, JSON.stringify(history, null, 2));
 }
 
 // Página inicial
@@ -138,6 +184,11 @@ app.get('/legacy', (req, res) => {
 app.get('/settings', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/settings.html'));
 });
+
+app.get('/profile', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/profile.html'));
+});
+
 // Obter info do vídeo
 app.get('/video-info', async (req, res) => {
   const { url } = req.query;
@@ -187,23 +238,37 @@ app.post('/download', async (req, res) => {
         }
 
         // O yt-dlp-exec retorna uma promessa que resolve quando o download é concluído.
+        let formatOptions = {};
+        switch (format) {
+            case 'mp3':
+                formatOptions = { format: 'bestaudio/best', extractAudio: true, audioFormat: 'mp3' };
+                break;
+            case 'opus':
+                formatOptions = { format: 'bestaudio/best', extractAudio: true, audioFormat: 'opus' };
+                break;
+            case 'webm':
+                formatOptions = { format: 'bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best' };
+                break;
+            case 'best':
+                formatOptions = { format: 'best' };
+                break;
+            case 'mp4':
+            default:
+                formatOptions = { format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' };
+                break;
+        }
+
         await ytdlp.exec(url, {
             output: outputPath,
-            // Corrigido para usar as opções de formato corretas para yt-dlp
-            format: format === 'mp3'
-                ? 'bestaudio/best'
-                : 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            // Adiciona a flag '-x' para extrair áudio para mp3
-            ...(format === 'mp3' && { extractAudio: true, audioFormat: 'mp3' })
+            ...formatOptions,
         });
 
         // Salva no histórico apenas se o usuário estiver logado
         if (req.isAuthenticated()) {
             const userId = req.user.id;
-            if (!history[userId]) {
-                history[userId] = [];
-            }
-            history[userId].unshift({
+            let userHistory = loadUserHistory(userId);
+
+            userHistory.unshift({
                 filename,
                 title: info.video_details.title,
                 format,
@@ -213,12 +278,13 @@ app.post('/download', async (req, res) => {
             });
 
             // Limpa o histórico antigo se exceder o limite
-            if (history[userId].length > 20) {
-                const oldestItem = history[userId].pop();
+            if (userHistory.length > 20) {
+                const oldestItem = userHistory.pop();
                 if (fs.existsSync(oldestItem.path)) {
                     fs.unlinkSync(oldestItem.path);
                 }
             }
+            saveUserHistory(userId, userHistory);
         }
 
         res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
@@ -226,11 +292,18 @@ app.post('/download', async (req, res) => {
     } catch (err) {
         const errorMessage = err.stderr || err.message;
         console.error(`[Erro no download]: ${errorMessage}`);
-        if (errorMessage.includes('Sign in') || errorMessage.includes('age-restricted')) {
-            res.status(401).json({ error: 'Este vídeo é restrito. Por favor, faça login para continuar.', requiresAuth: true });
-        } else {
-            res.status(500).json({ error: 'Erro ao gerar link de download. Verifique a URL e tente novamente.' });
+
+        if (errorMessage.includes('Unsupported URL')) {
+            return res.status(400).json({ error: 'URL não suportada. Verifique o link e tente novamente.' });
         }
+        if (errorMessage.includes('Sign in') || errorMessage.includes('age-restricted')) {
+            return res.status(401).json({ error: 'Este vídeo é restrito. Por favor, faça login para continuar.', requiresAuth: true });
+        }
+        if (errorMessage.includes('Video unavailable')) {
+            return res.status(404).json({ error: 'O vídeo não está disponível. Pode ter sido removido ou ser privado.' });
+        }
+
+        res.status(500).json({ error: 'Erro interno no servidor ao tentar baixar o vídeo.' });
     }
 });
 
@@ -240,25 +313,41 @@ app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 // Limpeza de arquivos expirados
 setInterval(() => {
     const now = Date.now();
-    for (const userId in history) {
-        history[userId] = history[userId].filter(item => {
-            if (item.expires < now) {
-                if (fs.existsSync(item.path)) {
-                    console.log(`Excluindo arquivo expirado: ${item.path}`);
-                    fs.unlinkSync(item.path);
+    fs.readdir(historyDir, (err, files) => {
+        if (err) {
+            console.error('Erro ao ler o diretório de histórico:', err);
+            return;
+        }
+
+        files.forEach(file => {
+            if (path.extname(file) === '.json') {
+                const userId = path.basename(file, '.json');
+                let userHistory = loadUserHistory(userId);
+                const updatedHistory = userHistory.filter(item => {
+                    if (item.expires && item.expires < now) {
+                        if (fs.existsSync(item.path)) {
+                            console.log(`Excluindo arquivo expirado: ${item.path}`);
+                            fs.unlinkSync(item.path);
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (updatedHistory.length < userHistory.length) {
+                    saveUserHistory(userId, updatedHistory);
                 }
-                return false;
             }
-            return true;
         });
-    }
-}, 60000); // Executa a cada minuto
+    });
+}, 3600000); // Executa a cada hora
 
 // Rota para obter histórico
 app.get('/history', (req, res) => {
     if (req.isAuthenticated()) {
         const userId = req.user.id;
-        res.json(history[userId] || []);
+        const userHistory = loadUserHistory(userId);
+        res.json(userHistory);
     } else {
         res.json([]);
     }
@@ -267,7 +356,8 @@ app.get('/history', (req, res) => {
 app.get('/api/user/downloads', (req, res) => {
     if (req.isAuthenticated()) {
         const userId = req.user.id;
-        res.json(history[userId] || []);
+        const userHistory = loadUserHistory(userId);
+        res.json(userHistory);
     } else {
         res.status(401).json({ message: 'Não autenticado' });
     }
@@ -275,11 +365,16 @@ app.get('/api/user/downloads', (req, res) => {
 
 // Limpar histórico
 app.post('/clear-history', (req, res) => {
-  history = [];
-  if (fs.existsSync(historyFile)) {
-    fs.unlinkSync(historyFile); // Remove o arquivo para limpar completamente
-  }
-  res.json({ message: 'Histórico limpo com sucesso!' });
+    if (req.isAuthenticated()) {
+        const userId = req.user.id;
+        const userHistoryPath = getUserHistoryPath(userId);
+        if (fs.existsSync(userHistoryPath)) {
+            fs.unlinkSync(userHistoryPath);
+        }
+        res.json({ message: 'Histórico limpo com sucesso!' });
+    } else {
+        res.status(401).json({ error: 'Não autenticado' });
+    }
 });
 
 // Inicializar servidor
