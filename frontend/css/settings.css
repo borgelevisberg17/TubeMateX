@@ -5,11 +5,12 @@
     --card-border: rgba(255, 255, 255, 0.2);
     --hover-background: rgba(255, 255, 255, 0.1);
 }
-
-body.light-mode {
-    --card-background: #ffffff;
-    --card-border: #e0e0e0;
-    --hover-background: #f7f7f7;
+.header a {
+    text-decoration: none;
+    font-size: 3em;
+    font-weight: 900;
+    color: var(--text-primary);
+    margin-bottom: 5px;
 }
 
 .settings-main {
@@ -65,10 +66,6 @@ body.light-mode {
     margin-bottom: 20px;
 }
 
-body.light-mode .user-details p {
-    color: #666;
-}
-
 .logout-btn-main {
     width: 100%;
     padding: 12px;
@@ -96,10 +93,6 @@ body.light-mode .user-details p {
     border: 1px solid var(--card-border);
 }
 
-body.light-mode .settings-select {
-    background: #f0f2f5;
-}
-
 #downloadedVideos .download-item {
     display: flex;
     justify-content: space-between;
@@ -123,10 +116,6 @@ body.light-mode .settings-select {
     color: rgba(255, 255, 255, 0.7);
 }
 
-body.light-mode .download-meta {
-    color: #666;
-}
-
 .download-link {
     font-size: 1.2em;
     color: var(--primary);
@@ -139,6 +128,10 @@ body.light-mode .download-meta {
     width: 100%;
 }
 
+@media (max-width: 768px) {
+    .header a {
+        font-size: 1rem;
+    }}
 @media (min-width: 768px) {
     .settings-main {
         grid-template-columns: repeat(2, 1fr);

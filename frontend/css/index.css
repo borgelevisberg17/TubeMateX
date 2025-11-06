@@ -21,7 +21,6 @@ body {
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-
     color: var(--text-primary);
     min-height: 100vh;
     display: flex;
@@ -276,8 +275,8 @@ button:hover {
 /* User Profile & Theme Switcher */
 .user-profile {
     position: absolute;
-    top: 20px;
-    right: 80px;
+    top: 10px;
+    right: 20px;
     display: flex;
     align-items: center;
 }
@@ -294,41 +293,74 @@ button:hover {
     text-decoration: none;
     color: var(--text-primary);
 }
-
+.user-info span,
+.user-display-name {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 1.1rem;
+}
 .user-avatar {
     width: 28px;
     height: 28px;
     border-radius: 50%;
 }
 
-.theme-switcher {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-}
-
-/* Light Mode */
-body.light-mode {
-    --background-color: #f9f9f9;
-    --surface-color: #ffffff;
-    --secondary-color: #f2f2f2;
-    --text-primary: #030303;
-    --text-secondary: #606060;
-}
-
-body.light-mode .download-card,
-body.light-mode .history-item,
-body.light-mode .login-btn,
-body.light-mode .user-info {
-    border: 1px solid #e0e0e0;
-}
-
-body.light-mode input[type="url"] {
-    border: 1px solid #cccccc;
-}
 /* Responsiviness */
 @media (max-width: 994px) {
     .input-group {
         flex-direction: column;
+    }
+}
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    button {
+        width: 100%;
+    }
+
+    .format-selector {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+
+    .history-item {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .history-thumbnail {
+        width: 100%;
+        height: auto;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo {
+        font-size: 2em;
+    }
+
+    .subtitle {
+        font-size: 1em;
+    }
+
+    .download-card {
+        padding: 20px;
+    }
+
+    input[type="url"],
+    button {
+        padding: 12px;
+        font-size: 0.9em;
+    }
+
+    .format-option {
+        padding: 12px;
     }
 }

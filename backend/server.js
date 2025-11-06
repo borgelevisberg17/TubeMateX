@@ -91,8 +91,8 @@ passport.use(new GoogleStrategy({
     callbackURL: (process.env.BASE_URL || `http://localhost:${PORT}`) + '/auth/google/callback'
 },
 (accessToken, refreshToken, profile, done) => {
-    // Neste callback, você normalmente salvaria o usuário no banco de dados.
-    // Para este exemplo, vamos apenas passar o perfil do usuário para a próxima etapa.
+    // Neste callback, normalmente salvaria o usuário no banco de dados.
+    // Fica pra depois, por enquanto apenas passa o perfil do usuário para a próxima etapa.
     // O `accessToken` pode ser usado para fazer chamadas à API do Google em nome do usuário.
     // Também pode ser armazenado para fazer o play-dl funcionar com o login do user
     profile.accessToken = accessToken;
