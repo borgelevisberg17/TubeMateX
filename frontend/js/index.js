@@ -1,7 +1,7 @@
 // Seleção de formato
 const formatOptions = document.querySelectorAll(".format-option");
 let selectedFormat = "mp4";
-
+const urlBase = "https://tubematex-backend.onrender.com";
 formatOptions.forEach(option => {
     option.addEventListener("click", () => {
         formatOptions.forEach(opt => opt.classList.remove("active"));
@@ -44,7 +44,7 @@ async function startDownload() {
     try {
         showNotification("Solicitando link de download...");
 
-        const response = await fetch("/download", {
+        const response = await fetch(`${urlBase}/download`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, format: selectedFormat })
@@ -88,7 +88,7 @@ async function startDownload() {
 // Carregar histórico
 async function loadHistory() {
     try {
-        const response = await fetch("/history");
+        const response = await fetch(`${urlBase}/history`);
         const history = await response.json();
         renderHistory(history);
     } catch (error) {
@@ -155,7 +155,7 @@ async function getVideoInfo() {
 
     try {
         const response = await fetch(
-            `/video-info?url=${encodeURIComponent(url)}`
+            `${urlBase}/video-info?url=${encodeURIComponent(url)}`
         );
         if (!response.ok) {
             videoInfoContainer.style.display = "none";
@@ -185,7 +185,7 @@ async function clearHistory() {
     }
 
     try {
-        const response = await fetch("/clear-history", {
+        const response = await fetch(`${urlBase}/clear-history`, {
             method: "POST"
         });
 
@@ -225,7 +225,7 @@ async function updateUserStatus() {
     }
 
     try {
-        const response = await fetch("/api/user");
+        const response = await fetch(`${urlBase}/api/user`);
         if (response.ok) {
             const user = await response.json();
             // Armazena no localStorage para carregamentos futuros
@@ -271,7 +271,7 @@ function renderLoginButton() {
 // Executa o logout
 async function logout() {
     try {
-        await fetch("/auth/logout", { method: "POST" });
+        await fetch(`${urlBase}/auth/logout`, { method: "POST" });
         localStorage.removeItem("userProfile"); // Limpa o cache
         showNotification("Logout bem-sucedido!");
         updateUserStatus(); // Atualiza a UI para o estado de deslogado
