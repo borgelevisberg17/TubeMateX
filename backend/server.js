@@ -216,84 +216,75 @@ app.get('/video-info', async (req, res) => {
 });
 
 // Rota de download
-app.post('/download', (req, res) => {
+app.post('/download', async (req, res) => {
     const { url, format } = req.body;
     if (!url || !format) {
         return res.status(400).json({ error: 'URL ou formato não fornecido.' });
     }
 
-    // Usar uma Promise explícita para garantir que todos os erros sejam capturados
-    // e a resposta seja sempre um JSON.
-    new Promise((resolve, reject) => {
-        (async () => {
-            try {
-                if (req.isAuthenticated() && req.user.accessToken) {
-                    play.setToken({ youtube: { access_token: req.user.accessToken } });
+    try {
+        if (req.isAuthenticated() && req.user.accessToken) {
+            play.setToken({ youtube: { access_token: req.user.accessToken } });
+        }
+
+        const info = await play.video_info(url);
+        const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
+        const filename = `${title}.${format}`;
+        const downloadsDir = path.join(__dirname, 'downloads');
+        const outputPath = path.join(downloadsDir, filename);
+
+        if (!fs.existsSync(downloadsDir)) {
+            fs.mkdirSync(downloadsDir);
+        }
+
+        let formatOptions = {};
+        switch (format) {
+            case 'mp3': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'mp3' }; break;
+            case 'opus': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'opus' }; break;
+            case 'webm': formatOptions = { f: 'bestvideo[ext=webm]+bestaudio[ext=webm]/best' }; break;
+            case 'best': formatOptions = { f: 'best' }; break;
+            case 'mp4': default: formatOptions = { f: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best' }; break;
+        }
+
+        // Usar uma Promise para o processo do ytdlp
+        await new Promise((resolve, reject) => {
+            const process = ytdlp.exec(url, { o: outputPath, ...formatOptions });
+            process.on('close', () => {
+                // Verificar se o arquivo foi realmente criado antes de resolver
+                if (fs.existsSync(outputPath)) {
+                    resolve();
+                } else {
+                    reject(new Error('Falha na criação do arquivo, a saída pode estar vazia.'));
                 }
+            });
+            process.on('error', err => reject(err));
+        });
 
-                const info = await play.video_info(url);
-                const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
-                const filename = `${title}.${format}`;
-                const outputPath = path.join(__dirname, 'downloads', filename);
+        if (req.isAuthenticated()) {
+            const userId = req.user.id;
+            let userHistory = loadUserHistory(userId);
+            userHistory.unshift({
+                filename,
+                title: info.video_details.title,
+                format,
+                date: new Date().toISOString(),
+                path: outputPath,
+                expires: Date.now() + 3600000 // 1 hora
+            });
 
-                if (!fs.existsSync(path.join(__dirname, 'downloads'))) {
-                    fs.mkdirSync(path.join(__dirname, 'downloads'));
+            if (userHistory.length > 20) {
+                const oldestItem = userHistory.pop();
+                if (fs.existsSync(oldestItem.path)) {
+                    fs.unlinkSync(oldestItem.path);
                 }
-
-                let formatOptions = {};
-                switch (format) {
-                    case 'mp3': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'mp3' }; break;
-                    case 'opus': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'opus' }; break;
-                    case 'webm': formatOptions = { f: 'bestvideo[ext=webm]+bestaudio[ext=webm]/best' }; break;
-                    case 'best': formatOptions = { f: 'best' }; break;
-                    case 'mp4': default: formatOptions = { f: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best' }; break;
-                }
-
-                const readable = ytdlp.exec(url, { o: outputPath, ...formatOptions });
-
-                readable.on('close', () => {
-                    if (req.isAuthenticated()) {
-                        const userId = req.user.id;
-                        let userHistory = loadUserHistory(userId);
-                        userHistory.unshift({
-                            filename,
-                            title: info.video_details.title,
-                            format,
-                            date: new Date().toISOString(),
-                            path: outputPath,
-                            expires: Date.now() + 3600000 // 1 hora
-                        });
-
-                        if (userHistory.length > 20) {
-                            const oldestItem = userHistory.pop();
-                            if (fs.existsSync(oldestItem.path)) {
-                                fs.unlinkSync(oldestItem.path);
-                            }
-                        }
-                        saveUserHistory(userId, userHistory);
-                    }
-                    // Resolva a promessa com os dados de sucesso
-                    resolve({ downloadUrl: `/downloads/${filename}`, title: filename });
-                });
-
-                readable.on('error', err => {
-                    // Rejeita a promessa com o erro
-                    reject(err);
-                });
-
-            } catch (err) {
-                // Captura erros síncronos (ex: play.video_info falhando)
-                reject(err);
             }
-        })();
-    })
-    .then(data => {
-        // Se a promessa for resolvida, envia a resposta de sucesso
-        res.json(data);
-    })
-    .catch(err => {
-        // Se a promessa for rejeitada, lida com o erro e envia uma resposta de erro
-        const errorMessage = err.stderr || err.message;
+            saveUserHistory(userId, userHistory);
+        }
+
+        res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
+
+    } catch (err) {
+        const errorMessage = err.stderr || err.message || 'Erro desconhecido';
         console.error(`[Erro no download]: ${errorMessage}`);
 
         if (errorMessage.includes('Unsupported URL')) {
@@ -306,7 +297,7 @@ app.post('/download', (req, res) => {
             return res.status(404).json({ error: 'O vídeo não está disponível.' });
         }
         res.status(500).json({ error: 'Erro interno ao processar o download.' });
-    });
+    }
 });
 
 // Rota para servir arquivos baixados
