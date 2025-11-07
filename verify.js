@@ -13,17 +13,18 @@ const path = require('path');
         await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
         await page.screenshot({ path: screenshotInitial });
 
-        const urlInput = await page.waitForSelector('input[name="url"]', { timeout: 10000 });
+        const urlInput = await page.waitForSelector('#videoUrl', { timeout: 10000 });
         await urlInput.type('https://www.youtube.com/watch?v=CgEOtoJieHM');
         console.log('URL entered.');
 
-        await page.selectOption('select[name="format"]', 'mp3');
+        // The format selector is a div, so we click on the desired format
+        await page.click('div[data-format="mp3"]');
         console.log('Format selected.');
 
-        await page.click('button[type="submit"]');
+        await page.click('button');
         console.log('Download button clicked.');
 
-        await page.waitForSelector('#status-messages a', { timeout: 10000 });
+        await page.waitForSelector('#status', { timeout: 10000 });
         console.log('Download link appeared.');
 
         await page.screenshot({ path: screenshotFinal });
