@@ -143,9 +143,9 @@ app.get('/api/user', (req, res) => {
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Histórico
-const historyDir = process.env.HISTORY_DIR || path.join(__dirname, 'history');
+const historyDir = process.env.HISTORY_DIR || path.join('/tmp', 'history');
 if (!fs.existsSync(historyDir)) {
-    fs.mkdirSync(historyDir);
+    fs.mkdirSync(historyDir, { recursive: true });
 }
 
 function getUserHistoryPath(userId) {
@@ -230,31 +230,41 @@ app.post('/download', async (req, res) => {
         const info = await play.video_info(url);
         const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
         const filename = `${title}.${format}`;
-        const downloadsDir = path.join(__dirname, 'downloads');
+        const downloadsDir = path.join('/tmp', 'downloads');
         const outputPath = path.join(downloadsDir, filename);
 
         if (!fs.existsSync(downloadsDir)) {
-            fs.mkdirSync(downloadsDir);
+            fs.mkdirSync(downloadsDir, { recursive: true });
         }
 
-        let formatOptions = {};
+        let formatOptions = {
+            'no-check-certificates': true,
+            'no-warnings': true
+        };
         switch (format) {
-            case 'mp3': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'mp3' }; break;
-            case 'opus': formatOptions = { f: 'bestaudio', 'extract-audio': true, 'audio-format': 'opus' }; break;
-            case 'webm': formatOptions = { f: 'bestvideo[ext=webm]+bestaudio[ext=webm]/best' }; break;
-            case 'best': formatOptions = { f: 'best' }; break;
-            case 'mp4': default: formatOptions = { f: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best' }; break;
+            case 'mp3': formatOptions = { ...formatOptions, f: 'bestaudio', 'extract-audio': true, 'audio-format': 'mp3' }; break;
+            case 'opus': formatOptions = { ...formatOptions, f: 'bestaudio', 'extract-audio': true, 'audio-format': 'opus' }; break;
+            case 'webm': formatOptions = { ...formatOptions, f: 'best[ext=webm]/best' }; break;
+            case 'best': formatOptions = { ...formatOptions, f: 'best' }; break;
+            case 'mp4': default: formatOptions = { ...formatOptions, f: 'best[ext=mp4]/best' }; break;
         }
 
         // Usar uma Promise para o processo do ytdlp
         await new Promise((resolve, reject) => {
             const process = ytdlp.exec(url, { o: outputPath, ...formatOptions });
-            process.on('close', () => {
-                // Verificar se o arquivo foi realmente criado antes de resolver
-                if (fs.existsSync(outputPath)) {
+            // Importante: ytdlp.exec retorna uma Promise que também é um ChildProcess.
+            // Para evitar unhandledRejection se o processo falhar antes de anexarmos os eventos,
+            // ou se ele falhar internamente na lib tinyspawn.
+            process.catch(err => {
+                // Se o erro ainda não foi tratado pelos eventos 'error' ou 'close'
+                // Esta captura garante que a Promise global não seja rejeitada sem tratamento.
+            });
+
+            process.on('close', (code) => {
+                if (code === 0 && fs.existsSync(outputPath)) {
                     resolve();
                 } else {
-                    reject(new Error('Falha na criação do arquivo, a saída pode estar vazia.'));
+                    reject(new Error(`Falha no download (código ${code}). Arquivo não criado.`));
                 }
             });
             process.on('error', err => reject(err));
@@ -301,7 +311,7 @@ app.post('/download', async (req, res) => {
 });
 
 // Rota para servir arquivos baixados
-app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+app.use('/downloads', express.static(path.join('/tmp', 'downloads')));
 
 // Limpeza de arquivos expirados
 setInterval(() => {

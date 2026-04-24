@@ -12,7 +12,31 @@
   ],
   "routes": [
     {
+      "src": "/download",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/video-info",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/history",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/clear-history",
+      "dest": "backend/server.js"
+    },
+    {
       "src": "/api/(.*)",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/downloads/(.*)",
       "dest": "backend/server.js"
     },
     {
