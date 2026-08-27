@@ -294,8 +294,17 @@
     } catch { /* login é opcional */ }
   }
 
+  async function loadPlatforms() {
+    const grid = $('#platformGrid'); if (!grid) return;
+    try { const response = await fetch('/api/platforms'); if (!response.ok) throw new Error(); const platforms = await response.json(); $('#platformsSummary').textContent = `${platforms.length} plataformas reconhecidas pelo backend`; grid.innerHTML = platforms.map(platform => `<article class="platform-card ${platform.mode === 'metadata-only' ? 'is-limited' : ''}"><div class="platform-card-top"><strong>${escapeHtml(platform.label)}</strong><span class="platform-status">${platform.mode === 'metadata-only' ? 'Catálogo' : 'URL direta'}</span></div><p>${escapeHtml(platform.note || (platform.mode === 'metadata-only' ? 'Disponível para metadata; não é download direto.' : 'Download quando a URL pública for compatível.'))}</p><button type="button" class="platform-use" data-platform="${escapeHtml(platform.id)}">Usar link</button></article>`).join(''); }
+    catch { $('#platformsSummary').textContent = 'Não foi possível consultar as plataformas agora.'; grid.innerHTML = '<div class="platform-loading">Backend indisponível. Tenta atualizar.</div>'; }
+  }
+
   function init() {
     initTheme();
+    loadPlatforms();
+    $('#refreshPlatforms')?.addEventListener('click', loadPlatforms);
+    $('#platformGrid')?.addEventListener('click', event => { if (event.target.closest('.platform-use')) { $('#videoUrl').focus(); document.querySelector('.quick-download')?.scrollIntoView({ behavior:'smooth', block:'center' }); } });
     $$('.format-option').forEach(option => option.addEventListener('click', () => setSelectedFormat(option.dataset.format)));
     state.quality = localStorage.getItem('tubematex-quality') || 'auto';
     $('#qualitySelector').value = state.quality;
