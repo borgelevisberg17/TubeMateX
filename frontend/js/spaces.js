@@ -87,14 +87,12 @@
     }
     function setHero(item) {
       heroItem = item ? register(item) : null;
-      if (!heroItem) { heroTitle.textContent = 'Descobrir algo real'; heroMeta.innerHTML = '<span>Fontes públicas</span>'; heroDescription.textContent = 'O catálogo não encontrou um destaque com imagem agora. Pesquisa um título ou abre Ao vivo para consultar novas fontes.'; heroSource.textContent = 'Sem destaque disponível neste momento'; heroBackdrop.style.backgroundImage = ''; return; }
-      heroTitle.textContent = heroItem.title;
-      heroMeta.innerHTML = metaText(heroItem).map(value => `<span>${esc(value)}</span>`).join('');
-      heroDescription.textContent = heroItem.description || `${typeLabel(heroItem)} encontrado em ${heroItem.site}. Consulta a origem e verifica a disponibilidade antes de reproduzir.`;
-      heroSource.textContent = `${heroItem.site} · ${heroItem.live ? 'canal live público' : 'metadata e reprodução conforme a fonte'}`;
-      heroBackdrop.style.backgroundImage = heroItem.thumbnail ? `url("${heroItem.thumbnail.replace(/"/g, '')}")` : '';
-      heroList.classList.toggle('is-saved', listItems().some(entry => keyOf(entry) === keyOf(heroItem)));
-      heroList.textContent = listItems().some(entry => keyOf(entry) === keyOf(heroItem)) ? '✓' : '＋';
+      heroEyebrow.textContent = 'TubeMateX Cine';
+      heroTitle.textContent = 'Entretenimento com origem.';
+      heroMeta.innerHTML = '<span>Filmes</span><span>Séries</span><span>TV ao vivo</span>';
+      heroDescription.textContent = 'Uma experiência para descobrir cinema público, séries, anime, doramas, novelas, documentários e canais ao vivo — com a origem, a disponibilidade e as limitações visíveis antes de assistir.';
+      heroSource.textContent = heroItem?.thumbnail ? `${heroItem.site} · imagem de catálogo público` : 'Fontes públicas filtradas · sem catálogo proprietário';
+      heroBackdrop.style.backgroundImage = heroItem?.thumbnail ? `url("${heroItem.thumbnail.replace(/"/g, '')}")` : '';
     }
     function showDetail(item) {
       detailItem = register(item); if (!detailItem) return;
@@ -183,7 +181,7 @@
     $('#iptvQuery')?.addEventListener('keydown', event => { if (event.key === 'Enter') loadIptv(); });
     $('#toggleIptv')?.addEventListener('click', event => { const body = $('#iptvBody'); const collapsed = body.hidden; body.hidden = !collapsed; event.currentTarget.textContent = collapsed ? 'Recolher' : 'Expandir'; event.currentTarget.setAttribute('aria-expanded', String(collapsed)); });
     document.addEventListener('click', event => { const cardEl = event.target.closest('.ent-card'); if (cardEl) { const item = itemMap.get(cardEl.dataset.itemId); if (item && event.target.closest('[data-action="play"]')) playItem(item); if (item && event.target.closest('[data-action="details"]')) showDetail(item); if (item && event.target.closest('[data-action="list"]')) toggleList(item); if (item && event.target.closest('[data-action="download"]')) downloadItem(item); } });
-    heroPlay?.addEventListener('click', () => heroItem && playItem(heroItem)); heroMore?.addEventListener('click', () => heroItem && showDetail(heroItem)); heroList?.addEventListener('click', () => heroItem && toggleList(heroItem));
+    heroPlay?.addEventListener('click', () => $('#entertainmentRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroMore?.addEventListener('click', () => $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroList?.addEventListener('click', () => $('#iptvSourceList')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     $('#closeDetail')?.addEventListener('click', () => { detailDrawer.hidden = true; }); detailDrawer?.addEventListener('click', event => { if (event.target.matches('[data-close-detail]')) detailDrawer.hidden = true; }); detailPlay?.addEventListener('click', () => { if (detailItem) { detailDrawer.hidden = true; playItem(detailItem); } }); detailList?.addEventListener('click', () => detailItem && toggleList(detailItem));
     async function openExternalPlayer(protocol) { if (!detailItem) return; try { let url = detailItem.url; if (!detailItem.directStream && !detailItem.live) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(detailItem.url)}&type=video`); const payload = await response.json().catch(() => ({})); if (!response.ok || !payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream externa.'); url = payload.url; } notify(`A abrir no ${protocol.toUpperCase()}…`, 'success'); window.location.assign(`${protocol}://${url}`); } catch (error) { notify(`${protocol.toUpperCase()} indisponível: ${error.message || 'abre a fonte oficial.'}`, 'error'); } }
     detailDownload?.addEventListener('click', () => detailItem && downloadItem(detailItem));

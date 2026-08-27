@@ -86,3 +86,10 @@ O artigo da Oficina da Net recomenda fontes oficiais como EBC/TV Brasil, TV Cult
 A documentação oficial do [iptv-org/iptv](https://github.com/iptv-org/iptv) descreve o projeto como uma coleção de canais IPTV publicamente disponíveis, orientada para players com suporte a transmissão live. O repositório esclarece que não armazena ficheiros de vídeo, mas links submetidos publicamente, e que não controla o destino desses links. A API expõe canais, feeds, logos, streams, guias e blocklist, mas não constitui um catálogo VOD hierárquico com temporadas e episódios. Assim, o TubeMateX Cine pode carregar automaticamente todos os canais aprovados como live, mas só deve mostrar temporadas e episódios quando uma fonte VOD separada fornecer essa estrutura e URLs verificáveis.
 
 Para reprodução HLS em browsers Chromium, a referência técnica do [hls.js](https://github.com/video-dev/hls.js/) confirma o uso de MediaSource Extensions sobre o elemento HTML5 video; o fallback nativo continua necessário em ambientes com suporte nativo a HLS. VLC e mpv serão apresentados como destinos externos opcionais através de links/protocolos locais, sem fingir que o browser consegue abrir uma aplicação instalada ou transferir headers privados para uma origem externa.
+
+
+## Atualização — separação editorial entre Social e Cine
+
+A experiência TubeMateX Cine foi reposicionada para não funcionar como uma lista de trailers do YouTube. O endpoint dedicado `/api/entertainment/home` agora usa Internet Archive para vídeo público e iptv-org filtrado para canais/feeds live. A pesquisa dedicada `/api/entertainment/search` também exclui YouTube e informa essa política no contrato. YouTube continua disponível nos fluxos de Social, onde vídeos curtos, criadores e URLs diretos são o contexto adequado.
+
+O hero do Cine é institucional: apresenta a proposta de descoberta de filmes, séries, anime, doramas, novelas, documentários e televisão pública, usando uma imagem real de catálogo apenas como ambientação visual. O título do hero não é um trailer aleatório nem uma promessa de catálogo proprietário.

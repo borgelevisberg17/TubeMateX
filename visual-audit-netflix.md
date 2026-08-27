@@ -24,3 +24,10 @@ As capturas finais confirmam que o footer global aparece no Cine com seis destin
 No desktop, a hierarquia é cinematográfica: hero amplo, rails independentes para destaque, filmes, séries, anime, dorama, documentários, notícias e canais públicos. No mobile, os rails mantêm cards legíveis em scroll horizontal, os filtros live passam para uma coluna e o footer adapta-se para uma grelha de duas colunas. As capturas desktop e mobile não apresentam overflow horizontal.
 
 O drawer de detalhe inclui player interno HTML5/HLS, destino VLC e destino mpv, além de download VOD e painel de temporadas/episódios condicionado à existência de uma playlist real. Canais live continuam sem botão de download.
+
+
+## Revisão — Cine institucional sem YouTube
+
+As capturas finais em desktop e mobile mostram o hero com a mensagem fixa **“Entretenimento com origem.”**, descrição institucional e CTAs **“Explorar catálogo”** e **“Ver canais ao vivo”**. A imagem de fundo continua a vir de uma fonte real apenas como ambientação visual; o título não é um trailer nem um vídeo aleatório.
+
+A consulta real confirmou `hero: Internet Archive`, `sites: [Internet Archive, IPTV público · iptv-org]` e `youtubeBadges: 0` tanto em desktop como em mobile. O layout não apresenta overflow horizontal. O YouTube permanece reservado aos fluxos de Social e não aparece nos rails principais do Cine.

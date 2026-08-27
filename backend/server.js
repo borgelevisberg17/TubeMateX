@@ -693,14 +693,14 @@ function uniqueMedia(items, limit = 18) {
 async function buildEntertainmentHome() {
     if (entertainmentHomeCache.expiresAt > Date.now() && entertainmentHomeCache.value) return entertainmentHomeCache.value;
     const jobs = [
-        ['featured', 'Em destaque agora', Promise.all([searchDiscovery('film trailer official', 'film', 8, 'youtube'), searchDiscovery('public domain film', 'film', 8, 'youtube')])],
-        ['films', 'Filmes públicos e cinema', Promise.all([searchDiscovery('full public domain film', 'film', 8, 'youtube'), fetchArchiveDiscovery('film', 8).catch(() => [])])],
-        ['series', 'Séries e episódios públicos', searchDiscovery('official web series full episode', 'film', 8, 'youtube')],
-        ['anime', 'Anime e animação', searchDiscovery('anime official trailer animation', 'film', 8, 'youtube')],
-        ['dorama', 'Dorama e drama asiático', searchDiscovery('k-drama official trailer', 'film', 8, 'youtube')],
-        ['documentary', 'Documentários e factual', Promise.all([searchDiscovery('documentary full film', 'film', 8, 'youtube'), fetchArchiveDiscovery('documentary', 6).catch(() => [])])],
-        ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(12, { category: 'news' }).catch(() => [])],
-        ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(12, { category: 'entertainment' }).catch(() => [])]
+        ['featured', 'Em destaque no Cine', Promise.all([fetchArchiveDiscovery('film', 8).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'entertainment' }).catch(() => [])])],
+        ['films', 'Filmes públicos e cinema', fetchArchiveDiscovery('film', 14).catch(() => [])],
+        ['series', 'Séries e canais de séries', fetchPublicIptvDiscovery(14, { category: 'series' }).catch(() => [])],
+        ['anime', 'Anime e animação', fetchPublicIptvDiscovery(14, { category: 'animation' }).catch(() => [])],
+        ['dorama', 'Dorama e drama asiático', fetchPublicIptvDiscovery(14, { query: 'drama' }).catch(() => [])],
+        ['documentary', 'Documentários e factual', fetchArchiveDiscovery('documentary', 10).catch(() => [])],
+        ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(14, { category: 'news' }).catch(() => [])],
+        ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(14, { category: 'entertainment' }).catch(() => [])]
     ];
     const settled = await Promise.all(jobs.map(async ([id, title, promise]) => {
         try {
@@ -928,6 +928,15 @@ app.get('/api/entertainment/home', apiLimiter, async (req, res) => {
         console.error('[entertainment-home]', error.message);
         res.status(502).json({ error: 'Não foi possível carregar a home de Entretenimento agora.', errorCode: errorCode(error) });
     }
+});
+app.get('/api/entertainment/search', apiLimiter, async (req, res) => {
+    const query = String(req.query.q || '').trim().slice(0, 80);
+    if (query.length < 2) return res.status(400).json({ error: 'Indica pelo menos 2 caracteres para pesquisar.' });
+    try {
+        const [archive, channels] = await Promise.all([fetchArchiveDiscovery(query, 12).catch(() => []), fetchPublicIptvDiscovery(24, { query }).catch(() => [])]);
+        const results = uniqueMedia([...archive, ...channels], 24);
+        res.json({ query, results, sources: ['Internet Archive', 'IPTV público · iptv-org'], note: 'O Cine não inclui resultados YouTube; essa fonte pertence ao espaço Social.' });
+    } catch (error) { res.status(502).json({ error: 'Não foi possível pesquisar o catálogo Cine agora.', errorCode: errorCode(error) }); }
 });
 app.get('/api/discover', apiLimiter, async (req, res) => {
     const area = ['home', 'music', 'social', 'entertainment'].includes(String(req.query.area || '').toLowerCase()) ? String(req.query.area).toLowerCase() : 'home';

@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
         id: 'film-1', title: 'Filme público de demonstração',
         url: 'https://www.youtube.com/watch?v=film-1',
         thumbnail: 'https://i.ytimg.com/vi/film-1/hqdefault.jpg',
-        site: 'YouTube', uploader: 'Canal oficial',
+        site: 'Internet Archive', uploader: 'Catálogo público',
         description: 'Metadata real fornecida pela origem.', duration: 540, kind: 'film'
       };
       const series = { ...film, id: 'series-1', title: 'Série pública com episódios', kind: 'series', playlistUrl: 'https://www.youtube.com/playlist?list=series-1' };
@@ -53,8 +53,9 @@ const { chromium } = require('playwright');
       for (const selector of ['.entertainment-topbar', '#entHero', '#entertainmentRows', '#iptvSection', '#iptvSourceList', '#entSearchZone']) {
         if (await page.locator(selector).count() !== 1) throw new Error(`sem ${selector}`);
       }
-      if (!(await page.locator('#heroTitle').textContent()).includes('Filme público')) throw new Error('hero real não foi renderizado');
+      if (!(await page.locator('#heroTitle').textContent()).includes('Entretenimento com origem')) throw new Error('hero institucional não foi renderizado');
       if ((await page.locator('.ent-card').count()) < 3) throw new Error('rails cinematográficos não foram renderizados');
+      if ((await page.locator('.ent-card-badge').allTextContents()).some(text => /youtube/i.test(text))) throw new Error('YouTube apareceu nos rails principais do Cine');
       if (!(await page.locator('#iptvSourceList').textContent()).includes('bloqueada')) throw new Error('estado da fonte bloqueada não foi exposto');
       await page.locator('.ent-card').first().locator('[data-action="details"]').click();
       if (await page.locator('#entDetailDrawer').getAttribute('hidden') !== null) throw new Error('drawer de detalhes não abriu');
