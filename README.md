@@ -3,7 +3,7 @@
 O **TubeMateX** é um downloader multi-site para conteúdos públicos e autorizados. A aplicação oferece uma interface de utilizador moderna, seleção de formatos de vídeo e áudio, pré-visualização de metadados, fila de downloads, progresso em tempo real via Server-Sent Events e histórico persistente por navegador ou sessão.
 
 > Usa o TubeMateX apenas para conteúdos que tens autorização para guardar. A aplicação não foi desenhada para contornar DRM, paywalls, autenticação de terceiros ou restrições de acesso.
-
+ 
 ## Arquitetura
 
 O frontend é servido pelo Express e utiliza HTML, CSS e JavaScript vanilla, sem uma etapa de compilação obrigatória. O backend usa Node.js, Express, SQLite relacional, sessões SQLite e `@openanime/youtube-dl-exec`, que fornece o motor yt-dlp. O banco `tubematex.sqlite` contém as tabelas `users` e `downloads`, com índices por proprietário e favoritos. O ffmpeg é necessário no sistema para juntar vídeo e áudio e para converter formatos de áudio. A interface também pode ser instalada como PWA, com cache controlado da shell e sem colocar endpoints dinâmicos de download em cache.
