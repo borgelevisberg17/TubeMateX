@@ -219,6 +219,7 @@
       const playerArtist = $('#playerArtist'); if (playerArtist) playerArtist.textContent = isVideo ? 'Vídeo · aberto no palco grande' : 'Áudio · mini player';
       const playerCover = $('#playerCover'); if (playerCover) playerCover.style.backgroundImage = result.thumbnail ? `url("${escapeHtml(result.thumbnail)}")` : 'linear-gradient(135deg,#162b40,#263649)';
       const media = isVideo ? stageVideo : audio;
+      media.onerror = () => { $('#mediaStage').hidden = true; showNotification('A fonte não permitiu a reprodução neste navegador. Tenta outra qualidade ou outra fonte.', 'error'); };
       media.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(media.duration); };
       media.ontimeupdate = () => { if (media.duration) { $('#playerCurrent').textContent = formatTime(media.currentTime); $('#playerSeek').value = String((media.currentTime / media.duration) * 100); } };
       try { await media.play(); } catch { showNotification('Pré-visualização carregada. Pressiona reproduzir para iniciar.', 'success'); }
@@ -313,7 +314,7 @@
       document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
     $('#playerSeek')?.addEventListener('input', event => { const media = $('#mediaStage').hidden ? $('#miniAudio') : $('#mediaVideo'); if (media?.duration) media.currentTime = (Number(event.target.value) / 100) * media.duration; });
-    $('#closeStage')?.addEventListener('click', () => { $('#mediaStage').hidden = true; $('#mediaVideo').pause(); });
+    $('#closeStage')?.addEventListener('click', () => { const video = $('#mediaVideo'); $('#mediaStage').hidden = true; video.pause(); video.removeAttribute('src'); video.load(); });
     document.querySelector('.play-button')?.addEventListener('click', event => {
       const media = $('#mediaStage').hidden ? $('#miniAudio') : $('#mediaVideo');
       const playing = event.currentTarget.dataset.playing === 'true';
