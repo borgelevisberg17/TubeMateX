@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const net = require('net');
 const dns = require('dns').promises;
 const session = require('express-session');
@@ -294,6 +295,21 @@ async function addHistory(ownerId, entry) {
 
 function clientHistory(items) {
     return items.map(({ storedName, ...entry }) => entry);
+}
+
+const conversionFormats = {
+    mp3: { extension: 'mp3', type: 'audio', args: ['-vn', '-c:a', 'libmp3lame', '-q:a', '2'] },
+    opus: { extension: 'opus', type: 'audio', args: ['-vn', '-c:a', 'libopus', '-b:a', '160k'] },
+    mp4: { extension: 'mp4', type: 'video', args: ['-c:v', 'libx264', '-c:a', 'aac', '-movflags', '+faststart'] },
+    webm: { extension: 'webm', type: 'video', args: ['-c:v', 'libvpx-vp9', '-c:a', 'libopus', '-deadline', 'good'] }
+};
+
+function convertMedia(inputPath, outputPath, preset) {
+    return new Promise((resolve, reject) => {
+        const process = spawn('ffmpeg', ['-y', '-i', inputPath, ...preset.args, outputPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = ''; process.stderr.on('data', chunk => { stderr += chunk.toString(); });
+        process.on('error', reject); process.on('close', code => code === 0 ? resolve() : reject(new Error(stderr.slice(-500) || 'A conversão falhou.')));
+    });
 }
 
 function storedPath(storedName) {
@@ -958,6 +974,29 @@ app.get('/api/downloads/:id/events', async (req, res) => {
     });
 });
 
+app.post('/api/downloads/:id/convert', async (req, res) => {
+    const ownerId = getVisitorId(req, res);
+    const requested = String(req.body?.format || '').toLowerCase();
+    const preset = conversionFormats[requested];
+    if (!preset) return res.status(400).json({ error: 'Formato de conversão não suportado.' });
+    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
+    const historyItem = (await loadHistory(ownerId)).find(item => item.id === req.params.id);
+    if (!job && !historyItem) return res.status(404).json({ error: 'Download não encontrado.' });
+    if ((job || historyItem).ownerId && (job || historyItem).ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este ficheiro.' });
+    if (job && job.status !== 'completed') return res.status(409).json({ error: 'A conversão só está disponível após o download terminar.' });
+    const inputPath = job?.filePath || storedPath(historyItem?.storedName);
+    if (!inputPath || !fs.existsSync(inputPath)) return res.status(404).json({ error: 'O ficheiro original já não está disponível.' });
+    const conversionId = `${req.params.id}-convert-${requested}-${Date.now()}`;
+    const outputName = `${path.basename(inputPath, path.extname(inputPath))}.${preset.extension}`;
+    const outputPath = path.join(DOWNLOAD_DIR, `${conversionId}.${preset.extension}`);
+    try {
+        await convertMedia(inputPath, outputPath, preset);
+        const entry = { id: conversionId, title: `${job?.title || historyItem?.title || 'Ficheiro'} · ${preset.extension.toUpperCase()}`, thumbnail: job?.thumbnail || historyItem?.thumbnail, format: requested, formatLabel: requested.toUpperCase(), quality: historyItem?.quality || job?.quality, qualityLabel: historyItem?.qualityLabel || job?.qualityLabel, site: job?.site || historyItem?.site, size: fs.statSync(outputPath).size, fileName: outputName, storedName: path.basename(outputPath), createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), downloadUrl: `/api/downloads/${conversionId}/file` };
+        await addHistory(ownerId, entry);
+        res.status(201).json({ ...clientHistory([entry])[0], downloadUrl: `/api/downloads/${conversionId}/file` });
+    } catch (error) { if (fs.existsSync(outputPath)) fs.rmSync(outputPath, { force: true }); res.status(422).json({ error: error.message || 'A conversão falhou.' }); }
+});
+
 app.get('/api/downloads/:id/file', async (req, res) => {
     const ownerId = getVisitorId(req, res);
     const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
@@ -998,6 +1037,19 @@ app.patch('/api/library/:id/favorite', async (req, res) => {
 app.get('/api/history', async (req, res) => {
     const ownerId = getVisitorId(req, res);
     res.json(clientHistory(await loadHistory(ownerId)));
+});
+
+function csvValue(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
+app.get('/api/history/export.json', async (req, res) => {
+    const ownerId = getVisitorId(req, res);
+    res.setHeader('Content-Disposition', 'attachment; filename="tubematex-history.json"');
+    res.json(clientHistory(await loadHistory(ownerId)));
+});
+app.get('/api/history/export.csv', async (req, res) => {
+    const ownerId = getVisitorId(req, res); const items = clientHistory(await loadHistory(ownerId));
+    const columns = ['id','title','format','formatLabel','quality','qualityLabel','site','size','createdAt','completedAt','downloadUrl','favorite'];
+    const csv = [columns.join(','), ...items.map(item => columns.map(column => csvValue(item[column])).join(','))].join('\\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', 'attachment; filename="tubematex-history.csv"'); res.send(`\\ufeff${csv}`);
 });
 app.get('/api/user/downloads', async (req, res) => {
     const ownerId = getVisitorId(req, res);

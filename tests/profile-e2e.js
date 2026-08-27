@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = []; let conversionCalled = false;
+  page.on('pageerror', error => errors.push(error.message));
+  const item = { id:'history-1', title:'Ficheiro original', format:'mp4', formatLabel:'MP4', quality:'720', qualityLabel:'Até 720p', site:'Vimeo', size:1024, createdAt:new Date().toISOString(), completedAt:new Date().toISOString(), downloadUrl:'/api/downloads/history-1/file', favorite:false };
+  await page.route('**/api/history', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify([item]) }));
+  await page.route('**/api/user', route => route.fulfill({ status:401, body:'{}' }));
+  await page.route('**/api/library?**', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ items:[item], total:1, offset:0, hasMore:false, facets:{ formats:['mp4'], sites:['Vimeo'] } }) }));
+  await page.route('**/api/downloads/history-1/convert', async route => { conversionCalled=true; const payload=route.request().postDataJSON(); assert.equal(payload.format,'webm'); await route.fulfill({ status:201, contentType:'application/json', body:JSON.stringify({ ...item, id:'converted-1', format:'webm', downloadUrl:'/api/downloads/converted-1/file' }) }); });
+  await page.goto('http://localhost:4173/profile', { waitUntil:'networkidle' });
+  await page.locator('.export-button[href$=".csv"]').waitFor();
+  assert.equal(await page.locator('.export-button').count(), 2);
+  await page.locator('#downloadHistory [data-convert-format]').selectOption('webm');
+  await page.waitForTimeout(250);
+  assert.equal(conversionCalled, true);
+  assert.deepEqual(errors, []);
+  await browser.close(); console.log('PROFILE E2E OK: export CSV/JSON e conversão pós-download.');
+})().catch(error => { console.error(error); process.exit(1); });
