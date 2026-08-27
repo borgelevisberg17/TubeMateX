@@ -828,9 +828,13 @@ app.get('/api/media/stream', apiLimiter, async (req, res) => {
             socketTimeout: 15,
             format: type === 'video' ? 'best[ext=mp4]/best' : 'bestaudio/best'
         });
-        const selected = result.requested_formats?.at(-1) || result;
-        const streamUrl = selected.url || result.url;
-        if (!streamUrl) return res.status(422).json({ error: 'Esta fonte não disponibilizou uma URL de reprodução.' });
+        const requestedFormats = Array.isArray(result.requested_formats) ? result.requested_formats : [];
+        const combined = result.url && result.vcodec !== 'none' && result.acodec !== 'none' ? result : null;
+        const selected = type === 'video'
+            ? (combined || requestedFormats.find(item => item.url && item.vcodec !== 'none' && item.acodec !== 'none') || requestedFormats.find(item => item.url && item.vcodec !== 'none') || result)
+            : (result.url && result.acodec !== 'none' ? result : requestedFormats.find(item => item.url && item.acodec !== 'none') || result);
+        const streamUrl = selected.url;
+        if (!streamUrl) return res.status(422).json({ error: 'Esta fonte não disponibilizou uma URL de reprodução compatível. Tenta outra qualidade ou fonte.' });
         res.json({
             url: streamUrl,
             title: result.title || 'Pré-visualização',
@@ -1054,6 +1058,13 @@ app.get('/api/history/export.csv', async (req, res) => {
 app.get('/api/user/downloads', async (req, res) => {
     const ownerId = getVisitorId(req, res);
     res.json(clientHistory(await loadHistory(ownerId)));
+});
+
+app.delete('/api/history/:id', async (req, res) => {
+    const ownerId = getVisitorId(req, res); const item = (await loadHistory(ownerId)).find(entry => entry.id === req.params.id);
+    if (!item) return res.status(404).json({ error: 'Item não encontrado no histórico.' });
+    const job = jobs.get(item.id); const filePath = job?.filePath || storedPath(item.storedName); if (filePath && fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
+    await dbRun('DELETE FROM downloads WHERE id = ? AND owner_id = ?', [req.params.id, ownerId]); res.json({ message: 'Item removido.' });
 });
 
 app.delete('/api/history', async (req, res) => {

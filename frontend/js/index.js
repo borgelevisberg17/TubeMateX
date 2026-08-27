@@ -201,36 +201,30 @@
   window.TubeMateX = window.TubeMateX || {};
   window.TubeMateX.preview = async (url, title = 'Pré-visualização', type = 'audio') => {
     if (!url) { showNotification('Este resultado ainda não tem uma URL de stream disponível.', 'error'); return; }
-    const audio = $('#miniAudio');
-    const video = $('#miniVideo');
-    if (!audio || !video) return;
+    const audio = $('#miniAudio'); const stageVideo = $('#mediaVideo'); const miniVideo = $('#miniVideo');
+    if (!audio || !stageVideo) return;
     showNotification('A preparar a pré-visualização…', 'success');
     try {
       const response = await fetch(`/api/media/stream?url=${encodeURIComponent(url)}&type=${encodeURIComponent(type)}`);
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.url) throw new Error(friendlyResponseError(response, result.error || 'Não foi possível iniciar a pré-visualização.'));
+      if (!response.ok || !result.url) throw new Error(friendlyResponseError(response, result.error || 'Esta fonte não disponibilizou uma pré-visualização compatível.'));
       const isVideo = type === 'video' || result.type === 'video';
-      audio.pause(); video.pause();
-      if (isVideo) { video.src = result.url; video.hidden = false; audio.removeAttribute('src'); $('#mediaVideo').src = result.url; $('#stageTitle').textContent = result.title || title; $('#mediaStage').hidden = false; }
-      else { audio.src = result.url; video.removeAttribute('src'); video.hidden = true; }
-      audio.dataset.sourceUrl = url; video.dataset.sourceUrl = url;
-      audio.dataset.title = result.title || title;
-      $('#playerEmpty').hidden = true;
-      $('#playerContent').hidden = false;
-      const playerTitle = $('#playerTitle');
-      if (playerTitle) playerTitle.textContent = result.title || title;
-      const playerArtist = $('#playerArtist');
-      if (playerArtist) playerArtist.textContent = 'Pré-visualização · '+(result.type === 'video' ? 'vídeo' : 'áudio');
-      const playerCover = $('#playerCover');
-      if (playerCover) playerCover.style.backgroundImage = result.thumbnail ? `url("${escapeHtml(result.thumbnail)}")` : 'linear-gradient(135deg,#162b40,#263649)';
-      const media = isVideo ? video : audio;
+      audio.pause(); stageVideo.pause(); miniVideo?.pause();
+      audio.removeAttribute('src'); stageVideo.removeAttribute('src'); miniVideo?.removeAttribute('src');
+      if (isVideo) { stageVideo.src = result.url; $('#stageTitle').textContent = result.title || title; $('#mediaStage').hidden = false; if (miniVideo) miniVideo.hidden = true; }
+      else { audio.src = result.url; $('#mediaStage').hidden = true; if (miniVideo) miniVideo.hidden = true; }
+      audio.dataset.sourceUrl = url; stageVideo.dataset.sourceUrl = url; audio.dataset.title = result.title || title;
+      $('#playerEmpty').hidden = true; $('#playerContent').hidden = false;
+      const playerTitle = $('#playerTitle'); if (playerTitle) playerTitle.textContent = result.title || title;
+      const playerArtist = $('#playerArtist'); if (playerArtist) playerArtist.textContent = isVideo ? 'Vídeo · aberto no palco grande' : 'Áudio · mini player';
+      const playerCover = $('#playerCover'); if (playerCover) playerCover.style.backgroundImage = result.thumbnail ? `url("${escapeHtml(result.thumbnail)}")` : 'linear-gradient(135deg,#162b40,#263649)';
+      const media = isVideo ? stageVideo : audio;
       media.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(media.duration); };
       media.ontimeupdate = () => { if (media.duration) { $('#playerCurrent').textContent = formatTime(media.currentTime); $('#playerSeek').value = String((media.currentTime / media.duration) * 100); } };
-      await media.play();
-      const playButton = $('#playButton');
-      if (playButton) { playButton.dataset.playing = 'true'; playButton.classList.add('is-playing'); }
-      showNotification('Pré-visualização iniciada no mini player.', 'success');
-    } catch (error) { showNotification(error.message, 'error'); }
+      try { await media.play(); } catch { showNotification('Pré-visualização carregada. Pressiona reproduzir para iniciar.', 'success'); }
+      const playButton = $('#playButton'); if (playButton) { playButton.dataset.playing = String(!media.paused); playButton.classList.toggle('is-playing', !media.paused); }
+      showNotification(isVideo ? 'Vídeo aberto no player grande.' : 'Áudio carregado no mini player.', 'success');
+    } catch (error) { $('#mediaStage').hidden = true; showNotification(error.message, 'error'); }
   };
   window.TubeMateX.download = (url, format = 'mp4') => {
     $('#videoUrl').value = url;
@@ -318,10 +312,10 @@
       else showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
       document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
-    $('#playerSeek')?.addEventListener('input', event => { const media = $('#miniVideo').hidden ? $('#miniAudio') : $('#miniVideo'); if (media?.duration) media.currentTime = (Number(event.target.value) / 100) * media.duration; });
+    $('#playerSeek')?.addEventListener('input', event => { const media = $('#mediaStage').hidden ? $('#miniAudio') : $('#mediaVideo'); if (media?.duration) media.currentTime = (Number(event.target.value) / 100) * media.duration; });
     $('#closeStage')?.addEventListener('click', () => { $('#mediaStage').hidden = true; $('#mediaVideo').pause(); });
     document.querySelector('.play-button')?.addEventListener('click', event => {
-      const media = $('#miniVideo').hidden ? $('#miniAudio') : $('#miniVideo');
+      const media = $('#mediaStage').hidden ? $('#miniAudio') : $('#mediaVideo');
       const playing = event.currentTarget.dataset.playing === 'true';
       if (!media?.src) { showNotification('Escolhe um resultado para iniciar a pré-visualização.', 'error'); return; }
       if (playing) media.pause(); else media.play().catch(() => {});
