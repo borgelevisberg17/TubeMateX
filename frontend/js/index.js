@@ -55,6 +55,8 @@
       option.classList.toggle('active', active);
       option.setAttribute('aria-checked', String(active));
     });
+    const quickFormat = $('#quickFormat');
+    if (quickFormat) quickFormat.value = format.toUpperCase();
     $('#selectedFormatLabel').textContent = formatLabels[format] || format.toUpperCase();
     $('#qualityControl').hidden = !videoFormats.has(format);
   }
@@ -222,7 +224,22 @@
     $('#qualitySelector').value = state.quality;
     $('#qualitySelector').addEventListener('change', event => { state.quality = event.target.value; localStorage.setItem('tubematex-quality', state.quality); });
     setSelectedFormat(state.format);
+    $('#quickFormat')?.addEventListener('change', event => setSelectedFormat(event.target.value.toLowerCase()));
     $('#downloadForm').addEventListener('submit', startDownload);
+    document.querySelectorAll('.preview-button').forEach(button => button.addEventListener('click', () => {
+      const card = button.closest('.search-result');
+      const title = card?.querySelector('strong')?.textContent || 'conteúdo selecionado';
+      const playerTitle = document.querySelector('.mini-player h2');
+      if (playerTitle) playerTitle.textContent = title;
+      document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
+    }));
+    document.querySelector('.play-button')?.addEventListener('click', event => {
+      const playing = event.currentTarget.dataset.playing === 'true';
+      event.currentTarget.dataset.playing = String(!playing);
+      event.currentTarget.textContent = playing ? '▶' : 'Ⅱ';
+      showNotification(playing ? 'Pré-visualização pausada.' : 'Pré-visualização iniciada.', 'success');
+    });
     $('#videoUrl').addEventListener('input', event => {
       $('#clearUrl').hidden = !event.target.value;
       clearTimeout(state.infoTimer);

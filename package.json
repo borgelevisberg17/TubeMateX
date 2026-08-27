@@ -9,7 +9,10 @@
     "vercel-build": "apt-get update && apt-get install -y python3-pip && pip3 install --upgrade yt-dlp"
   },
   "dependencies": {
+    "@openanime/youtube-dl-exec": "^3.0.10",
     "axios": "^1.12.2",
+    "bullmq": "^6.3.1",
+    "connect-redis": "^10.0.0",
     "connect-sqlite3": "^0.9.16",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -19,10 +22,9 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "play-dl": "^1.9.7",
+    "playwright": "^1.56.1",
     "sqlite3": "^5.1.7",
-    "yt-dlp-exec": "^1.0.2",
-    "@openanime/youtube-dl-exec": "^3.0.10",
-    "playwright": "^1.56.1"
+    "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {
     "@types/express-session": "^1.18.2",

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#78e7d0" />
+  <meta name="theme-color" content="#08131f" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="description" content="TubeMateX — descarrega conteúdos públicos de plataformas suportadas num só lugar." />
-  <title>TubeMateX — Downloader multi-site</title>
+  <meta name="description" content="TubeMateX — pesquisa, pré-visualização e downloads num só espaço." />
+  <title>TubeMateX — Media Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -14,132 +14,43 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar" aria-label="Navegação principal">
-      <a class="brand" href="/" aria-label="TubeMateX início">
-        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span>TubeMate<span class="brand-accent">X</span></span>
-      </a>
-      <nav class="topbar-nav" aria-label="Links principais">
-        <a class="nav-link active" href="/">Início</a>
-        <a class="nav-link" href="#search">Pesquisar</a>
-        <a class="nav-link" href="#history">Histórico</a>
-        <a class="nav-link" href="/terms">Termos</a>
-      </nav>
-      <div class="topbar-actions">
-        <button class="icon-button" id="themeToggle" type="button" aria-label="Mudar tema" title="Mudar tema"><span id="themeIcon"></span></button>
-        <div id="userProfile" class="user-profile">
-          <a href="/auth/google" class="login-link"><span class="google-dot">G</span><span>Entrar</span></a>
-        </div>
-      </div>
+    <header class="command-bar">
+      <a class="brand" href="/" aria-label="TubeMateX início"><span class="brand-mark"><span></span><span></span><span></span></span><span>TubeMate<span class="brand-accent">X</span></span></a>
+      <form class="global-search" id="searchForm"><span class="search-icon">⌕</span><input id="searchQuery" type="search" placeholder="Pesquisar vídeos, músicas ou playlists…" minlength="2" autocomplete="off" required /><kbd>Ctrl K</kbd><button type="submit" aria-label="Pesquisar">↵</button></form>
+      <div class="command-actions"><button class="icon-button" type="button" aria-label="Notificações">♢<b>3</b></button><button class="icon-button" id="themeToggle" type="button" aria-label="Mudar tema"><span id="themeIcon"></span></button><a class="avatar" href="/profile" aria-label="Abrir perfil">U</a><span class="chevron">⌄</span></div>
     </header>
 
-    <main>
-      <section class="hero-section" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <div class="eyebrow"><span class="eyebrow-dot"></span>Downloader multi-site</div>
-          <h1 id="hero-title">O teu conteúdo.<br /><span>Do teu jeito.</span></h1>
-          <p class="hero-subtitle">Guarda vídeos e áudio de plataformas suportadas com uma experiência simples, rápida e transparente.</p>
-          <div class="trust-row" aria-label="Características do serviço">
-            <span><span class="trust-icon">✓</span> Sem registo obrigatório</span>
-            <span><span class="trust-icon">✓</span> Ficheiros temporários</span>
-            <span><span class="trust-icon">✓</span> Conteúdo autorizado</span>
-          </div>
+    <div class="command-layout">
+      <aside class="filter-rail" aria-label="Filtros de pesquisa">
+        <section class="filter-group"><div class="filter-title"><span>⌘</span><strong>Fontes</strong><span>⌃</span></div><button class="filter-active">Todas as fontes <em>128</em></button><button class="filter-row"><i class="source-dot youtube">▶</i>YouTube <em>52</em></button><button class="filter-row"><i class="source-dot music">◉</i>YouTube Music <em>28</em></button><button class="filter-row"><i class="source-dot sound">⌁</i>SoundCloud <em>19</em></button><button class="filter-row"><i class="source-dot vimeo">V</i>Vimeo <em>12</em></button><button class="filter-row"><i class="source-dot">d</i>Dailymotion <em>9</em></button><button class="filter-row"><i class="source-dot">▰</i>Bandcamp <em>8</em></button><button class="more-link">Mostrar mais⌄</button></section>
+        <section class="filter-group"><div class="filter-title"><span>▣</span><strong>Tipo</strong><span>⌃</span></div><button class="filter-active">♫ Música <em>128</em></button><button class="filter-row">▷ Vídeo <em>84</em></button><button class="filter-row">☷ Playlist <em>36</em></button><button class="filter-row">♧ Podcast <em>14</em></button></section>
+        <section class="filter-group"><div class="filter-title"><span>◉</span><strong>Qualidade</strong><span>⌃</span></div><button class="filter-active">Qualquer qualidade <em>128</em></button><button class="filter-row">320 kbps <em>86</em></button><button class="filter-row">256 kbps <em>64</em></button><button class="filter-row">128 kbps <em>32</em></button><button class="filter-row">Até 128 kbps <em>12</em></button></section>
+      </aside>
+
+      <main class="results-area">
+        <div class="results-heading"><div><span class="section-kicker">PESQUISA GLOBAL · 128 RESULTADOS</span><h1>Resultados para <span>música</span></h1><p id="searchStatus">Pesquise em fontes públicas e pré-visualize antes de descarregar.</p></div><div class="result-tools"><select aria-label="Ordenar resultados"><option>Mais relevantes</option><option>Mais recentes</option><option>Mais populares</option></select><button class="filter-button" type="button">⌘</button></div></div>
+        <div class="search-results" id="searchResults">
+          <article class="search-result demo-result"><div class="search-result-thumb cover cover-road"><span class="duration-badge">3:45</span></div><div class="search-result-copy"><strong>Horizontes (Ao Vivo)</strong><span class="creator">Banda Aurora</span><span>◉ YouTube Music · 2,1 mi visualizações · há 2 semanas</span><div class="result-tags"><b>♫ Música</b><b>320 kbps</b><b>MP3</b></div></div><div class="search-result-actions"><button class="preview-button" type="button">▷ Pré-visualizar</button><button class="result-download" type="button">↓&nbsp; Baixar</button><span class="kebab">⋮</span></div></article>
+          <article class="search-result demo-result"><div class="search-result-thumb cover cover-city"><span class="duration-badge">4:12</span></div><div class="search-result-copy"><strong>Noite da Cidade (Remix)</strong><span class="creator">DJ Nexus</span><span>⌁ SoundCloud · 1,8 mi visualizações · há 1 mês</span><div class="result-tags"><b>♫ Música</b><b>320 kbps</b><b>MP3</b></div></div><div class="search-result-actions"><button class="preview-button" type="button">▷ Pré-visualizar</button><button class="result-download" type="button">↓&nbsp; Baixar</button><span class="kebab">⋮</span></div></article>
+          <article class="search-result demo-result"><div class="search-result-thumb cover cover-ocean"><span class="duration-badge">3:28</span></div><div class="search-result-copy"><strong>Maré Alta</strong><span class="creator">Lia Carvalho</span><span>▶ YouTube · 950 mil visualizações · há 3 semanas</span><div class="result-tags"><b>♫ Música</b><b>256 kbps</b><b>MP3</b></div></div><div class="search-result-actions"><button class="preview-button" type="button">▷ Pré-visualizar</button><button class="result-download" type="button">↓&nbsp; Baixar</button><span class="kebab">⋮</span></div></article>
+          <article class="search-result demo-result"><div class="search-result-thumb cover cover-planet"><span class="duration-badge">5:01</span></div><div class="search-result-copy"><strong>Órbita</strong><span class="creator">Satélite 7</span><span>⌁ SoundCloud · 620 mil visualizações · há 2 meses</span><div class="result-tags"><b>♫ Música</b><b>256 kbps</b><b>MP3</b></div></div><div class="search-result-actions"><button class="preview-button" type="button">▷ Pré-visualizar</button><button class="result-download" type="button">↓&nbsp; Baixar</button><span class="kebab">⋮</span></div></article>
+          <article class="search-result demo-result"><div class="search-result-thumb cover cover-room"><span class="duration-badge">2:59</span></div><div class="search-result-copy"><strong>Silêncio Interior</strong><span class="creator">Piano & Alma</span><span>▣ Vimeo · 410 mil visualizações · há 1 mês</span><div class="result-tags"><b>♫ Música</b><b>128 kbps</b><b>MP3</b></div></div><div class="search-result-actions"><button class="preview-button" type="button">▷ Pré-visualizar</button><button class="result-download" type="button">↓&nbsp; Baixar</button><span class="kebab">⋮</span></div></article>
         </div>
-        <div class="hero-orb" aria-hidden="true"><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div><div class="orb-core">↓</div></div>
-      </section>
+      </main>
 
-      <section class="search-section panel" id="search" aria-labelledby="search-title">
-        <div class="panel-heading compact"><div><span class="section-kicker">PESQUISA NO BROWSER</span><h2 id="search-title">Encontra música e vídeos.</h2></div><span class="secure-badge"><span>●</span> Multi-site</span></div>
-        <form class="browser-search-form" id="searchForm">
-          <label class="browser-search-input"><span aria-hidden="true">⌕</span><input id="searchQuery" type="search" placeholder="Pesquisa por artista, música, canal ou vídeo…" minlength="2" autocomplete="off" required /></label>
-          <select id="searchType" aria-label="Tipo de conteúdo"><option value="all">Tudo</option><option value="music">Música</option><option value="video">Vídeos</option><option value="film">Filmes</option></select>
-          <select id="searchSource" aria-label="Fonte de pesquisa"><option value="all">Busca Global · todas as streams</option><option value="youtube">YouTube</option><option value="soundcloud">SoundCloud</option><option value="vimeo">Vimeo</option><option value="twitch">Twitch</option></select>
-          <button class="secondary-button" type="submit"><span>Pesquisar</span><span>↗</span></button>
-        </form>
-        <p class="search-help" id="searchStatus">A Busca Global consulta todas as streams configuradas e combina música, vídeos e filmes sem duplicados.</p>
-        <div class="search-results" id="searchResults" aria-live="polite"></div>
-      </section>
+      <aside class="utility-rail" aria-label="Mini player e fila de downloads">
+        <section class="utility-card mini-player"><div class="utility-heading"><strong>Mini player</strong><button type="button">⌄</button></div><div class="player-cover cover cover-road"></div><h2>Horizontes (Ao Vivo)</h2><p>Banda Aurora</p><div class="waveform"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="time-row"><span>1:42</span><span>3:45</span></div><div class="player-controls"><button>⤨</button><button>|◀</button><button class="play-button">▶</button><button>▶|</button><button>⤨</button></div><div class="volume-row"><span>⌁</span><div class="volume-track"><i></i></div><span>80%</span></div></section>
+        <section class="utility-card download-queue"><div class="utility-heading"><strong>⇩ &nbsp; Fila de downloads</strong><em>3</em></div><div class="queue-item"><div class="queue-thumb cover-road"></div><div><strong>Horizontes (Ao Vivo)</strong><span>MP3 · 320 kbps</span><div class="queue-progress"><i style="width:72%"></i></div></div><b>72%</b><button>×</button></div><div class="queue-item"><div class="queue-thumb cover-city"></div><div><strong>Noite da Cidade</strong><span>MP3 · 320 kbps</span><div class="queue-progress blue"><i style="width:45%"></i></div></div><b>45%</b><button>×</button></div><div class="queue-item"><div class="queue-thumb cover-ocean"></div><div><strong>Maré Alta</strong><span>MP3 · 256 kbps</span><div class="queue-progress blue"><i style="width:18%"></i></div></div><b>18%</b><button>×</button></div><a href="#history" class="all-downloads">☷ &nbsp; Ver todos os downloads</a></section>
+      </aside>
+    </div>
 
-      <section class="workspace-grid" aria-label="Área de download">
-        <div class="download-card panel">
-          <div class="panel-heading">
-            <div>
-              <span class="section-kicker">01 / COLOCAR LINK</span>
-              <h2>Começa por aqui</h2>
-            </div>
-            <span class="secure-badge"><span>●</span> Seguro</span>
-          </div>
-
-          <form id="downloadForm" novalidate>
-            <label class="input-label" for="videoUrl">URL do conteúdo</label>
-            <div class="url-input-wrap" id="urlInputWrap">
-              <span class="input-leading" aria-hidden="true">↗</span>
-              <input type="url" id="videoUrl" autocomplete="url" placeholder="Cola aqui o link de qualquer plataforma suportada…" required />
-              <button class="clear-input" id="clearUrl" type="button" aria-label="Limpar URL" hidden>×</button>
-            </div>
-            <p class="field-help" id="urlHelp">Aceitamos links públicos de vídeo e áudio. Não suportamos DRM, paywalls ou conteúdos privados.</p>
-
-            <div class="supported-sites" aria-label="Plataformas suportadas">
-              <span class="site-label">PLATAFORMAS</span>
-              <span class="site-pill"><span class="site-logo youtube">▶</span>YouTube</span>
-              <span class="site-pill"><span class="site-logo vimeo">V</span>Vimeo</span>
-              <span class="site-pill"><span class="site-logo soundcloud">⌁</span>SoundCloud</span>
-              <span class="site-pill muted-pill">+ muitas mais</span>
-            </div>
-
-            <div class="media-preview" id="videoInfo" aria-live="polite" hidden></div>
-
-            <div class="download-options">
-              <div class="option-heading"><div><span class="section-kicker">02 / FORMATO</span><h3>Escolhe o formato</h3></div><span id="selectedFormatLabel">MP4 · Vídeo</span></div>
-              <div class="format-grid" role="radiogroup" aria-label="Formato de saída">
-                <button class="format-option active" data-format="mp4" type="button" role="radio" aria-checked="true"><span class="format-icon">▣</span><span><strong>MP4</strong><small>Vídeo · Alta compatibilidade</small></span><span class="radio-dot"></span></button>
-                <button class="format-option" data-format="mp3" type="button" role="radio" aria-checked="false"><span class="format-icon">♫</span><span><strong>MP3</strong><small>Áudio · Qualidade máxima</small></span><span class="radio-dot"></span></button>
-                <button class="format-option" data-format="webm" type="button" role="radio" aria-checked="false"><span class="format-icon">◇</span><span><strong>WEBM</strong><small>Vídeo · Leve e aberto</small></span><span class="radio-dot"></span></button>
-                <button class="format-option" data-format="opus" type="button" role="radio" aria-checked="false"><span class="format-icon">◌</span><span><strong>OPUS</strong><small>Áudio · Eficiente</small></span><span class="radio-dot"></span></button>
-              </div>
-              <div class="quality-control" id="qualityControl">
-                <label for="qualitySelector"><span>Qualidade de vídeo</span><small>Mais qualidade pode significar um ficheiro maior.</small></label>
-                <select id="qualitySelector" aria-label="Qualidade de vídeo">
-                  <option value="auto">Automática · melhor disponível</option>
-                  <option value="1080">Até 1080p · alta qualidade</option>
-                  <option value="720">Até 720p · equilibrada</option>
-                  <option value="480">Até 480p · mais rápida</option>
-                </select>
-              </div>
-            </div>
-
-            <button class="primary-button" id="downloadButton" type="submit"><span id="downloadButtonIcon">↓</span><span id="downloadButtonText">Descarregar conteúdo</span><span class="button-arrow">↗</span></button>
-          </form>
-
-          <div class="job-status" id="jobStatus" aria-live="polite" hidden>
-            <div class="status-topline"><span id="statusLabel">A preparar…</span><span id="statusPercent">0%</span></div>
-            <div class="progress-track"><div class="progress-value" id="progressValue"></div></div>
-            <div class="status-bottomline"><span id="statusDetail">O pedido foi adicionado à fila.</span><button type="button" class="cancel-job" id="cancelJob" hidden>Parar</button></div>
-          </div>
-        </div>
-
-        <aside class="quick-panel panel">
-          <div class="panel-heading compact"><div><span class="section-kicker">GUIA RÁPIDO</span><h2>Como funciona</h2></div><span class="sparkle">✦</span></div>
-          <ol class="steps-list">
-            <li><span class="step-number">01</span><div><strong>Cola o link</strong><p>Usa o URL público do conteúdo que queres guardar.</p></div></li>
-            <li><span class="step-number">02</span><div><strong>Escolhe o formato</strong><p>Vídeo ou áudio, com opções para cada utilização.</p></div></li>
-            <li><span class="step-number">03</span><div><strong>Descarrega</strong><p>Acompanha o progresso e recebe o teu ficheiro.</p></div></li>
-          </ol>
-          <div class="tip-card"><span class="tip-icon">i</span><p><strong>Uma nota importante</strong><br />Usa o TubeMateX apenas com conteúdos que tens autorização para descarregar.</p></div>
-        </aside>
-      </section>
-
-      <section class="history-section" id="history" aria-labelledby="historyTitle">
-        <div class="section-heading"><div><span class="section-kicker">03 / A TUA ATIVIDADE</span><h2 id="historyTitle">Downloads recentes</h2></div><button class="ghost-button" id="clearHistory" type="button" hidden>Limpar histórico</button></div>
-        <div class="history-container" id="historyContainer"><div class="empty-state"><div class="empty-icon">◴</div><h3>Ainda não há downloads</h3><p>Os teus ficheiros recentes aparecem aqui para acesso rápido.</p></div></div>
-      </section>
-    </main>
-
-    <footer class="footer"><div class="footer-brand"><span class="brand-mark small"><span></span><span></span><span></span></span><strong>TubeMateX</strong></div><p>Descarrega apenas conteúdos públicos e autorizados.</p><div class="footer-links"><a href="/policy">Privacidade</a><a href="/terms">Termos</a><a href="/legacy">Aviso legal</a><a href="https://github.com/borgelevisberg17/TubeMateX" target="_blank" rel="noopener">GitHub ↗</a></div><small>© 2026 TubeMateX</small></footer>
+    <section class="quick-download" aria-label="Iniciar download"><div class="quick-step"><b>1</b><label>Colar link</label><div class="quick-input"><span>↗</span><input id="videoUrl" type="url" placeholder="Cole o link do vídeo, música ou playlist aqui…" autocomplete="url" /><button id="clearUrl" type="button" hidden>×</button></div></div><div class="quick-step"><b class="purple">2</b><label>Escolher formato</label><div class="quick-select"><span>♫</span><select id="quickFormat" aria-label="Formato"><option>MP3</option><option>MP4</option><option>WEBM</option><option>OPUS</option></select><span>320 kbps⌄</span></div></div><div class="quick-step action-step"><b>3</b><label>Iniciar download</label><button class="start-button" id="downloadButton" type="submit" form="downloadForm"><span id="downloadButtonIcon">↓</span><span id="downloadButtonText">Iniciar download</span></button></div></section>
+    <form id="downloadForm" hidden><input type="hidden" id="qualitySelector" value="auto" /><select id="formatSelector"><option value="mp4">MP4</option></select></form>
+    <div id="videoInfo" hidden></div><div id="qualityControl" hidden></div><div id="selectedFormatLabel" hidden></div><div id="jobStatus" hidden><span id="statusLabel"></span><span id="statusPercent"></span><div id="progressValue"></div><span id="statusDetail"></span><button id="cancelJob" type="button"></button></div>
+    <section class="history-section" id="history"><div class="section-heading"><div><span class="section-kicker">ATIVIDADE RECENTE</span><h2>Downloads recentes</h2></div><button class="ghost-button" id="clearHistory" type="button" hidden>Limpar histórico</button></div><div class="history-container" id="historyContainer"><div class="empty-state"><div class="empty-icon">◴</div><h3>Ainda não há downloads</h3><p>Os teus ficheiros recentes aparecem aqui.</p></div></div></section>
+    <footer class="footer"><strong>TubeMate<span class="brand-accent">X</span></strong><span>Descarrega apenas conteúdos públicos e autorizados.</span><a href="/terms">Termos</a><a href="/policy">Privacidade</a><a href="/profile">Biblioteca</a></footer>
   </div>
   <div class="notification" id="notification" role="status" aria-live="polite"></div>
-  <script src="/js/index.js"></script>
-  <script src="/js/search.js"></script>
-  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));</script>
+  <script src="/js/index.js"></script><script src="/js/search.js"></script><script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));</script>
 </body>
 </html>
