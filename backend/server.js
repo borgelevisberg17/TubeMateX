@@ -108,7 +108,12 @@ const SUPPORTED_PLATFORMS = [
     { id: 'soundcloud', label: 'SoundCloud', mode: 'download' }, { id: 'vimeo', label: 'Vimeo', mode: 'download' },
     { id: 'twitch', label: 'Twitch', mode: 'download' }, { id: 'dailymotion', label: 'Dailymotion', mode: 'download' },
     { id: 'bandcamp', label: 'Bandcamp', mode: 'download' }, { id: 'audiomack', label: 'Audiomack', mode: 'download' },
-    { id: 'mixcloud', label: 'Mixcloud', mode: 'download' }, { id: 'apple-podcasts', label: 'Apple Podcasts', mode: 'download' },
+    { id: 'mixcloud', label: 'Mixcloud', mode: 'download' }, { id: 'tiktok', label: 'TikTok', mode: 'download' },
+    { id: 'instagram', label: 'Instagram', mode: 'download', note: 'Pode exigir URL pública ou autenticação.' },
+    { id: 'facebook', label: 'Facebook', mode: 'download', note: 'Pode exigir URL pública ou autenticação.' },
+    { id: 'reddit', label: 'Reddit', mode: 'download' }, { id: 'bilibili', label: 'Bilibili', mode: 'download' },
+    { id: 'kick', label: 'Kick', mode: 'download' }, { id: 'archive', label: 'Archive.org', mode: 'download' },
+    { id: 'audius', label: 'Audius', mode: 'download' }, { id: 'apple-podcasts', label: 'Apple Podcasts', mode: 'download' },
     { id: 'spotify', label: 'Spotify', mode: 'metadata-only', note: 'O catálogo usa áudio protegido; pesquisa numa fonte autorizada é necessária.' },
     { id: 'apple-music', label: 'Apple Music', mode: 'metadata-only', note: 'As faixas do catálogo usam proteção; Apple Music Connect pode ser compatível.' }
 ];
