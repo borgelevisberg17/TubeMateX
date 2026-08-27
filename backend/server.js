@@ -12,6 +12,13 @@ const ytdlp = require('yt-dlp-exec');
 const play = require('play-dl');
 const rateLimit = require('express-rate-limit');
 
+const ytdlpOptions = {
+    noWarnings: true,
+    quiet: true,
+    noCheckCertificate: true,
+    preferFreeFormats: true
+};
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -41,15 +48,19 @@ app.use('/download', downloadLimiter);
 
 // --- Configuração de Autenticação (OAuth com Passport) ---
 
-if (!process.env.SESSION_SECRET || !process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    console.error('[FATAL] Variáveis de ambiente para OAuth (SESSION_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) não estão definidas.');
-    // Em um ambiente de produção real, você poderia querer encerrar aqui: process.exit(1);
+if (!process.env.SESSION_SECRET) {
+    console.warn('[WARN] SESSION_SECRET não está definida. Usando valor padrão de desenvolvimento. Defina SESSION_SECRET no arquivo .env para produção.');
+}
+
+const sessionDir = path.join(__dirname, 'tmp');
+if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
 }
 
 app.use(session({
     store: new SQLiteStore({
         db: 'sessions.sqlite',
-        dir: '/tmp',
+        dir: sessionDir,
     }),
     secret: process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
@@ -85,31 +96,41 @@ app.use(express.urlencoded({ extended: true }));
 
 // --- Rotas de Autenticação ---
 
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: (process.env.BASE_URL || `http://localhost:${PORT}`) + '/auth/google/callback'
-},
-(accessToken, refreshToken, profile, done) => {
-    // Neste callback, normalmente salvaria o usuário no banco de dados.
-    // Fica pra depois, por enquanto apenas passa o perfil do usuário para a próxima etapa.
-    // O `accessToken` pode ser usado para fazer chamadas à API do Google em nome do usuário.
-    // Também pode ser armazenado para fazer o play-dl funcionar com o login do user
-    profile.accessToken = accessToken;
-    return done(null, profile);
-}));
+const googleAuthEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+if (googleAuthEnabled) {
+    passport.use(new GoogleStrategy({
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: (process.env.BASE_URL || `http://localhost:${PORT}`) + '/auth/google/callback'
+    },
+    (accessToken, refreshToken, profile, done) => {
+        profile.accessToken = accessToken;
+        return done(null, profile);
+    }));
+} else {
+    console.warn('[WARN] Google OAuth não configurado. Rotas /auth/google e /auth/google/callback estarão desabilitadas.');
+}
 
 // Rota para iniciar a autenticação com o Google
-app.get('/auth/google',
-    passport.authenticate('google', { scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly'] }));
+if (googleAuthEnabled) {
+    app.get('/auth/google',
+        passport.authenticate('google', { scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly'] }));
 
-// Rota de callback que o Google chama após o login do usuário
-app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/?auth=failed' }), // Redireciona em caso de falha
-    (req, res) => {
-        // Login bem-sucedido, redireciona para a página principal.
-        res.redirect('/?auth=success');
+    // Rota de callback que o Google chama após o login do usuário
+    app.get('/auth/google/callback',
+        passport.authenticate('google', { failureRedirect: '/?auth=failed' }),
+        (req, res) => {
+            res.redirect('/?auth=success');
+        });
+} else {
+    app.get('/auth/google', (req, res) => {
+        res.status(503).json({ error: 'Google OAuth não está configurado. Crie um arquivo .env com GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.' });
     });
+    app.get('/auth/google/callback', (req, res) => {
+        res.status(503).json({ error: 'Google OAuth não está configurado. Crie um arquivo .env com GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.' });
+    });
+}
 
 // Rota de logout
 app.post('/auth/logout', (req, res, next) => {
