@@ -18,6 +18,12 @@
     return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
   }
 
+  function formatTime(seconds) {
+    if (!Number.isFinite(Number(seconds))) return '0:00';
+    const value = Math.max(0, Math.floor(Number(seconds)));
+    return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
+  }
+
   function formatBytes(bytes) {
     if (!bytes) return '';
     const units = ['B', 'KB', 'MB', 'GB'];
@@ -188,13 +194,19 @@
       audio.src = result.url;
       audio.dataset.sourceUrl = url;
       audio.dataset.title = result.title || title;
-      const playerTitle = $('.mini-player h2');
+      $('#playerEmpty').hidden = true;
+      $('#playerContent').hidden = false;
+      const playerTitle = $('#playerTitle');
       if (playerTitle) playerTitle.textContent = result.title || title;
-      const playerArtist = $('.mini-player p');
-      if (playerArtist) playerArtist.textContent = 'Pré-visualização';
+      const playerArtist = $('#playerArtist');
+      if (playerArtist) playerArtist.textContent = 'Pré-visualização · '+(result.type === 'video' ? 'vídeo' : 'áudio');
+      const playerCover = $('#playerCover');
+      if (playerCover) playerCover.style.backgroundImage = result.thumbnail ? `url("${escapeHtml(result.thumbnail)}")` : 'linear-gradient(135deg,#162b40,#263649)';
+      audio.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(audio.duration); };
+      audio.ontimeupdate = () => { if (audio.duration) { $('#playerCurrent').textContent = formatTime(audio.currentTime); $('#playerSeek').value = String((audio.currentTime / audio.duration) * 100); } };
       await audio.play();
-      const playButton = $('.play-button');
-      if (playButton) { playButton.dataset.playing = 'true'; playButton.textContent = 'Ⅱ'; }
+      const playButton = $('#playButton');
+      if (playButton) { playButton.dataset.playing = 'true'; playButton.classList.add('is-playing'); }
       showNotification('Pré-visualização iniciada no mini player.', 'success');
     } catch (error) { showNotification(error.message, 'error'); }
   };
@@ -270,13 +282,14 @@
       else showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
       document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
+    $('#playerSeek')?.addEventListener('input', event => { const audio = $('#miniAudio'); if (audio?.duration) audio.currentTime = (Number(event.target.value) / 100) * audio.duration; });
     document.querySelector('.play-button')?.addEventListener('click', event => {
       const audio = $('#miniAudio');
       const playing = event.currentTarget.dataset.playing === 'true';
       if (!audio?.src) { showNotification('Escolhe um resultado para iniciar a pré-visualização.', 'error'); return; }
       if (playing) audio.pause(); else audio.play().catch(() => {});
       event.currentTarget.dataset.playing = String(!playing);
-      event.currentTarget.textContent = playing ? '▶' : 'Ⅱ';
+      event.currentTarget.classList.toggle('is-playing', !playing);
     });
     $('#videoUrl').addEventListener('input', event => {
       $('#clearUrl').hidden = !event.target.value;
