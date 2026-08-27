@@ -30,6 +30,12 @@
       if (response.ok) renderUser(await response.json());
     } catch (error) { console.warn('Sessão indisponível', error); }
   }
+  async function loadCapabilities() {
+    try { const response = await fetch('/api/capabilities'); if (!response.ok) throw new Error(); const data = await response.json(); $('#backendStatus').textContent = 'Online'; $('#backendStatus').classList.add('is-online'); $('#capabilityFormats').textContent = data.formats?.length || 0; $('#capabilityPlatforms').textContent = data.platforms?.length || 0; $('#capabilityConcurrency').textContent = data.maxConcurrentDownloads || 1; $('#capabilityNote').textContent = 'Capacidades carregadas do backend atual.'; }
+    catch { $('#backendStatus').textContent = 'Indisponível'; $('#backendStatus').classList.add('is-error'); $('#capabilityNote').textContent = 'Não foi possível consultar o backend agora.'; }
+  }
+  function loadPreferences() { $('#defaultFormat').value = localStorage.getItem('tubematex-default-format') || 'mp4'; $('#autoplayToggle').checked = localStorage.getItem('tubematex-autoplay') !== 'false'; }
+
   async function logout() {
     if (!window.confirm('Queres terminar a sessão?')) return;
     try { await fetch('/auth/logout', { method: 'POST' }); window.location.href = '/'; }
@@ -46,10 +52,13 @@
   document.addEventListener('DOMContentLoaded', () => {
     setTheme(savedTheme);
     $('#settingsThemeToggle').addEventListener('change', event => setTheme(event.target.checked ? 'dark' : 'light'));
+    loadPreferences();
     $('#languageSelector').value = localStorage.getItem('tubematex-language') || 'pt-pt';
+    $('#defaultFormat').addEventListener('change', event => { localStorage.setItem('tubematex-default-format', event.target.value); notify('Formato padrão guardado.'); });
+    $('#autoplayToggle').addEventListener('change', event => { localStorage.setItem('tubematex-autoplay', String(event.target.checked)); notify('Preferência de reprodução guardada.'); });
     $('#languageSelector').addEventListener('change', event => { localStorage.setItem('tubematex-language', event.target.value); notify('Preferência de idioma guardada.'); });
     $('#clearHistoryBtn').addEventListener('click', clearHistory);
     $('#loginOrLogout').addEventListener('click', event => { if (event.currentTarget.classList.contains('logout-action')) { event.preventDefault(); logout(); } });
-    initUser();
+    initUser(); loadCapabilities();
   });
 })();

@@ -1,5 +1,5 @@
 (() => {
-  const state = { format: 'mp4', quality: 'auto', job: null, jobs: new Map(), eventSources: new Map(), infoTimer: null, infoRequest: null, pausedAll: false };
+  const state = { format: localStorage.getItem('tubematex-default-format') || 'mp4', quality: 'auto', job: null, jobs: new Map(), eventSources: new Map(), infoTimer: null, infoRequest: null, pausedAll: false };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -222,7 +222,7 @@
       media.onerror = () => { $('#mediaStage').hidden = true; showNotification('A fonte não permitiu a reprodução neste navegador. Tenta outra qualidade ou outra fonte.', 'error'); };
       media.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(media.duration); };
       media.ontimeupdate = () => { if (media.duration) { $('#playerCurrent').textContent = formatTime(media.currentTime); $('#playerSeek').value = String((media.currentTime / media.duration) * 100); } };
-      try { await media.play(); } catch { showNotification('Pré-visualização carregada. Pressiona reproduzir para iniciar.', 'success'); }
+      if (localStorage.getItem('tubematex-autoplay') !== 'false') { try { await media.play(); } catch { showNotification('Pré-visualização carregada. Pressiona reproduzir para iniciar.', 'success'); } }
       const playButton = $('#playButton'); if (playButton) { playButton.dataset.playing = String(!media.paused); playButton.classList.toggle('is-playing', !media.paused); }
       showNotification(isVideo ? 'Vídeo aberto no player grande.' : 'Áudio carregado no mini player.', 'success');
     } catch (error) { $('#mediaStage').hidden = true; showNotification(error.message, 'error'); }
