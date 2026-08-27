@@ -511,8 +511,10 @@ function findOutputFile(job) {
     const candidates = fs.readdirSync(DOWNLOAD_DIR)
         .filter(file => file.startsWith(`${job.id}.`))
         .map(file => path.join(DOWNLOAD_DIR, file))
-        .filter(file => fs.statSync(file).isFile());
-    return candidates[0] || null;
+        .filter(file => fs.statSync(file).isFile())
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    const expectedExt = job.format === 'mp3' || job.format === 'opus' ? job.format : job.format === 'webm' ? 'webm' : job.format === 'mp4' ? 'mp4' : null;
+    return (expectedExt && candidates.find(file => path.extname(file).slice(1).toLowerCase() === expectedExt)) || candidates[0] || null;
 }
 
 function optionsFor(job) {
@@ -533,10 +535,10 @@ function optionsFor(job) {
     return {
         ...options,
         format: job.format === 'webm'
-            ? `bv*${cap}[ext=webm]+ba[ext=webm]/b${cap}[ext=webm]/b`
+            ? `bv*${cap}[ext=webm]+ba[ext=webm]/bv*${cap}[ext=webm]/bv*${cap}`
             : job.format === 'best'
-                ? `bv*${cap}+ba/b`
-                : `bv*${cap}[ext=mp4]+ba[ext=m4a]/b${cap}[ext=mp4]/b`,
+                ? `bv*${cap}+ba/bv*${cap}`
+                : `bv*${cap}[ext=mp4]+ba[ext=m4a]/bv*${cap}[ext=mp4]/bv*${cap}`,
         mergeOutputFormat: job.format === 'webm' ? 'webm' : 'mp4'
     };
 }

@@ -2,7 +2,8 @@
   const $ = selector => document.querySelector(selector);
   const esc = value => String(value || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
   const duration = seconds => { const value = Number(seconds || 0); if (!value) return ''; const min = Math.floor(value / 60); return `${min}:${String(Math.floor(value % 60)).padStart(2, '0')}`; };
-  const state = { source: 'all', type: 'all', sort: 'relevance', results: [] };
+  const pageCategory = location.pathname.endsWith('/music') || location.pathname.endsWith('/music.html') ? 'music' : location.pathname.endsWith('/social') || location.pathname.endsWith('/social.html') ? 'video' : location.pathname.endsWith('/entertainment') || location.pathname.endsWith('/entertainment.html') ? 'film' : 'all';
+  const state = { source: 'all', type: pageCategory, sort: 'relevance', results: [] };
   const notify = message => { const status = $('#searchStatus'); if (status) status.textContent = message; };
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   function render(results) {
@@ -30,6 +31,9 @@
   }
   function setFilter(group, value) { state[group] = value; document.querySelectorAll(`[data-${group}]`).forEach(button => button.classList.toggle('active', button.dataset[group] === value)); if ($('#searchQuery').value.trim().length >= 2) search(); }
   document.addEventListener('DOMContentLoaded', () => {
+    const headings = { music: ['Música e áudio', 'Pesquisa focada em música, podcasts e áudio público.'], video: ['Redes sociais', 'Pesquisa focada em vídeos sociais e transmissões públicas.'], film: ['Filmes e séries', 'Pesquisa focada em vídeo longo, episódios e conteúdo audiovisual público.'], all: ['Pesquise para começar', 'Os resultados reais da API aparecem aqui.'] };
+    const heading = headings[pageCategory]; if (heading) { $('#resultsTitle').textContent = heading[0]; $('#searchStatus').textContent = heading[1]; }
+    document.querySelectorAll('[data-type]').forEach(button => button.classList.toggle('active', button.dataset.type === pageCategory || (pageCategory === 'all' && button.dataset.type === 'all')));
     $('#searchForm').addEventListener('submit', search);
     $('#sourceFilters').addEventListener('click', event => { const button = event.target.closest('[data-source]'); if (button) setFilter('source', button.dataset.source); });
     $('#typeFilters').addEventListener('click', event => { const button = event.target.closest('[data-type]'); if (button) setFilter('type', button.dataset.type); });
