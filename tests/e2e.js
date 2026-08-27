@@ -3,6 +3,7 @@ const { chromium } = require('playwright');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
+  const base = process.env.TEST_BASE_URL || 'http://localhost:4173';
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -11,7 +12,7 @@ const { chromium } = require('playwright');
   await page.route('**/api/search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [{ title: 'Vídeo E2E', url: 'https://example.com/video', thumbnail: '', duration: 90, site: 'Vimeo', uploader: 'Teste', kind: 'video' }], unavailableSources: [] }) }));
   await page.route('**/api/media/stream?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: 'https://example.com/video.mp4', title: 'Vídeo E2E', type: 'video', duration: 90 }) }));
   await page.route('**/api/downloads', async route => { if (route.request().method() === 'POST') { const payload = route.request().postDataJSON(); assert.equal(payload.format, 'webm'); assert.equal(payload.quality, '720'); await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ job: { id: 'e2e-job', title: 'Vídeo E2E', format: 'webm', status: 'queued', progress: { percent: 0, label: 'Na fila…' } } }) }); } else await route.continue(); });
-  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   assert.equal(await page.locator('#searchResults').count(), 1);
   await page.locator('#searchQuery').fill('teste e2e');
   await page.locator('#searchForm').evaluate(form => form.requestSubmit());

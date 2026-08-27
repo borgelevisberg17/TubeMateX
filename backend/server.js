@@ -585,7 +585,8 @@ async function searchYtdlpProvider(provider, query, limit, type) {
         duration: Number(entry.duration || 0),
         site: provider === 'scsearch' ? 'SoundCloud' : 'YouTube',
         uploader: entry.uploader || entry.channel || null,
-        kind: type
+        kind: type,
+        playlistUrl: entry.playlist_webpage_url || entry.playlist_url || null
     })).filter(entry => entry.url);
 }
 
@@ -684,6 +685,37 @@ async function fetchArchiveDiscovery(term, limit) {
     return items.filter(Boolean);
 }
 const searchDiscovery = (...args) => searchMedia(...args).then(payload => payload.results || []).catch(() => []);
+const entertainmentHomeCache = { expiresAt: 0, value: null };
+function uniqueMedia(items, limit = 18) {
+    const seen = new Set();
+    return (items || []).filter(item => item?.url && !seen.has(item.url) && seen.add(item.url)).slice(0, limit);
+}
+async function buildEntertainmentHome() {
+    if (entertainmentHomeCache.expiresAt > Date.now() && entertainmentHomeCache.value) return entertainmentHomeCache.value;
+    const jobs = [
+        ['featured', 'Em destaque agora', Promise.all([searchDiscovery('film trailer official', 'film', 8, 'youtube'), searchDiscovery('public domain film', 'film', 8, 'youtube')])],
+        ['films', 'Filmes públicos e cinema', Promise.all([searchDiscovery('full public domain film', 'film', 8, 'youtube'), fetchArchiveDiscovery('film', 8).catch(() => [])])],
+        ['series', 'Séries e episódios públicos', searchDiscovery('official web series full episode', 'film', 8, 'youtube')],
+        ['anime', 'Anime e animação', searchDiscovery('anime official trailer animation', 'film', 8, 'youtube')],
+        ['dorama', 'Dorama e drama asiático', searchDiscovery('k-drama official trailer', 'film', 8, 'youtube')],
+        ['documentary', 'Documentários e factual', Promise.all([searchDiscovery('documentary full film', 'film', 8, 'youtube'), fetchArchiveDiscovery('documentary', 6).catch(() => [])])],
+        ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(12, { category: 'news' }).catch(() => [])],
+        ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(12, { category: 'entertainment' }).catch(() => [])]
+    ];
+    const settled = await Promise.all(jobs.map(async ([id, title, promise]) => {
+        try {
+            const value = await promise;
+            const groups = Array.isArray(value) && value.every(item => Array.isArray(item)) ? value.flat() : value;
+            return { id, title, items: uniqueMedia(groups, id === 'featured' ? 12 : 18) };
+        } catch { return { id, title, items: [] }; }
+    }));
+    const featured = settled.find(row => row.id === 'featured')?.items || [];
+    const hero = featured.find(item => item.thumbnail) || featured[0] || null;
+    const value = { hero, rows: settled.filter(row => row.items.length), generatedAt: new Date().toISOString() };
+    entertainmentHomeCache.expiresAt = Date.now() + 5 * 60 * 1000;
+    entertainmentHomeCache.value = value;
+    return value;
+}
 async function discoverMedia(area, limit) {
     const cacheKey = `${area}:${limit}`; const cached = discoverCache.get(cacheKey); if (cached && cached.expiresAt > Date.now()) return cached.value;
     const term = shuffled(DISCOVERY_TERMS[area] || DISCOVERY_TERMS.home)[0]; let results = [];
@@ -888,6 +920,15 @@ app.get('/api/capabilities', (req, res) => res.json({
 }));
 
 app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
+app.get('/api/entertainment/home', apiLimiter, async (req, res) => {
+    try {
+        const home = await buildEntertainmentHome();
+        res.json({ ...home, note: 'Rails gerados a partir de fontes públicas e auditadas; cada item mantém a sua origem e limitações.' });
+    } catch (error) {
+        console.error('[entertainment-home]', error.message);
+        res.status(502).json({ error: 'Não foi possível carregar a home de Entretenimento agora.', errorCode: errorCode(error) });
+    }
+});
 app.get('/api/discover', apiLimiter, async (req, res) => {
     const area = ['home', 'music', 'social', 'entertainment'].includes(String(req.query.area || '').toLowerCase()) ? String(req.query.area).toLowerCase() : 'home';
     const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 12);
@@ -915,6 +956,22 @@ app.get('/api/search', apiLimiter, async (req, res) => {
     }
 });
 
+async function fetchPlaylistInfo(url) {
+    const result = await ytdlp(url, { ...YT_DLP_COMMON_OPTIONS, dumpSingleJson: true, flatPlaylist: true, skipDownload: true, noWarnings: true, noCheckCertificates: true, socketTimeout: 20, playlistEnd: 100 });
+    const extractor = result.extractor_key || result.extractor || new URL(url).hostname;
+    const entries = (Array.isArray(result.entries) ? result.entries : []).filter(entry => entry && (entry.id || entry.url)).map((entry, index) => {
+        const entryUrl = entry.webpage_url || entry.original_url || entry.url || (entry.id && /youtube/i.test(extractor) ? `https://www.youtube.com/watch?v=${encodeURIComponent(entry.id)}` : null);
+        return entryUrl ? { id: `episode-${entry.id || index + 1}`, title: entry.title || `Episódio ${index + 1}`, url: entryUrl, thumbnail: entry.thumbnail || null, duration: Number(entry.duration || 0), uploader: entry.uploader || result.uploader || null, site: extractor, kind: 'series', episodeNumber: Number(entry.episode_number || entry.playlist_index || index + 1), seasonNumber: Number(entry.season_number || 1) } : null;
+    }).filter(Boolean);
+    const seasons = [...new Set(entries.map(entry => entry.seasonNumber || 1))].sort((a, b) => a - b).map(seasonNumber => ({ seasonNumber, title: `Temporada ${seasonNumber}`, episodes: entries.filter(entry => (entry.seasonNumber || 1) === seasonNumber) }));
+    return { title: result.title || 'Série da fonte', site: extractor, seasons };
+}
+app.get('/api/media/playlist', apiLimiter, async (req, res) => {
+    const url = await validateUrl(req.query.url);
+    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
+    try { res.json(await fetchPlaylistInfo(url)); }
+    catch (error) { console.error('[playlist]', error?.stderr || error?.message || error); res.status(422).json({ error: 'Esta fonte não expõe uma lista pública de episódios compatível.', errorCode: errorCode(error) }); }
+});
 app.get('/api/media/info', apiLimiter, async (req, res) => {
     const url = await validateUrl(req.query.url);
     if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });

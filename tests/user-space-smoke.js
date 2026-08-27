@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 (async () => {
   const browser = await chromium.launch({ headless:true });
+  const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
   try {
     for (const width of [1440, 768, 390]) {
       const context = await browser.newContext({ viewport:{ width, height:900 } });
@@ -12,10 +13,10 @@ const path = require('path');
       await page.route('**/api/library**', route => route.fulfill({status:200, contentType:'application/json', body:JSON.stringify({items:[{id:'demo-1',title:'Ficheiro de teste',format:'mp4',formatLabel:'MP4',site:'YouTube',createdAt:'2026-08-27T10:00:00.000Z',favorite:true}],total:1,offset:0,limit:24,hasMore:false,facets:{sites:['YouTube']}})}));
       for (const routePath of ['/profile','/settings']) {
         const errors=[]; page.on('pageerror', error => errors.push(error.message));
-        const response = await page.goto(`http://localhost:3000${routePath}`, {waitUntil:'networkidle'});
+        const response = await page.goto(`${base}${routePath}`, {waitUntil:'networkidle'});
         if (!response || !response.ok()) throw new Error(`${routePath} falhou em ${width}px`);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-        if (overflow) throw new Error(`${routePath} tem overflow em ${width}px`);
+        if (overflow) throw new Error(`${routePath} tem overflow em ${width}px`); if (await page.locator('.tmx-space-footer').count() !== 1) throw new Error(`${routePath} sem footer global`);
         if (routePath === '/profile') { if (await page.locator('.export-button').count() !== 2) throw new Error('Biblioteca sem exportações'); if (await page.locator('#downloadHistory [data-convert-format]').count() !== 1) throw new Error('Biblioteca sem conversão'); }
         if (routePath === '/settings') { for (const selector of ['#defaultFormat','#autoplayToggle','#backendStatus','#capabilityPlatforms']) if (await page.locator(selector).count() !== 1) throw new Error(`Definições sem ${selector}`); }
         if (errors.length) throw new Error(`${routePath} JS: ${errors.join('; ')}`);

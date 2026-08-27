@@ -79,3 +79,10 @@ O artigo da Oficina da Net recomenda fontes oficiais como EBC/TV Brasil, TV Cult
 [10]: https://github.com/iptv-org/iptv#readme — README oficial do iptv-org/iptv.
 [11]: https://www.oficinadanet.com.br/iptv/62987-listas-iptv-gratis-2025 — artigo consultado em 27/08/2026.
 [12]: https://jethrojeff.com/ — página consultada em 27/08/2026; não é uma playlist IPTV.
+
+
+## Atualização — escopo IPTV e players externos
+
+A documentação oficial do [iptv-org/iptv](https://github.com/iptv-org/iptv) descreve o projeto como uma coleção de canais IPTV publicamente disponíveis, orientada para players com suporte a transmissão live. O repositório esclarece que não armazena ficheiros de vídeo, mas links submetidos publicamente, e que não controla o destino desses links. A API expõe canais, feeds, logos, streams, guias e blocklist, mas não constitui um catálogo VOD hierárquico com temporadas e episódios. Assim, o TubeMateX Cine pode carregar automaticamente todos os canais aprovados como live, mas só deve mostrar temporadas e episódios quando uma fonte VOD separada fornecer essa estrutura e URLs verificáveis.
+
+Para reprodução HLS em browsers Chromium, a referência técnica do [hls.js](https://github.com/video-dev/hls.js/) confirma o uso de MediaSource Extensions sobre o elemento HTML5 video; o fallback nativo continua necessário em ambientes com suporte nativo a HLS. VLC e mpv serão apresentados como destinos externos opcionais através de links/protocolos locais, sem fingir que o browser consegue abrir uma aplicação instalada ou transferir headers privados para uma origem externa.

@@ -1,15 +1,15 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
-const base = 'http://localhost:3000';
+const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const contexts = [];
   const pages = [];
   const routes = [
-    { path:'/music.html', body:'music', required:['#spaceAudio','#spacePlayerBody','.track-list'] },
-    { path:'/social.html', body:'social', required:['#videoDrawer','.social-grid','#spaceVideo'] },
-    { path:'/entertainment.html', body:'entertainment', required:['.entertainment-hero','.catalog-grid','#videoDrawer'] }
+    { path:'/music.html', body:'music', required:['#spaceAudio','#spacePlayerBody','.track-list','.tmx-space-footer'] },
+    { path:'/social.html', body:'social', required:['#videoDrawer','.social-grid','#spaceVideo','.tmx-space-footer'] },
+    { path:'/entertainment.html', body:'entertainment', required:['.entertainment-topbar','#entHero','#entertainmentRows','#iptvSection','#videoDrawer','.tmx-space-footer'] }
   ];
   try {
     for (const width of [1440, 768, 390]) {
