@@ -784,6 +784,37 @@ app.get('/api/media/info', apiLimiter, async (req, res) => {
     }
 });
 
+app.get('/api/media/stream', apiLimiter, async (req, res) => {
+    const url = await validateUrl(req.query.url);
+    const type = String(req.query.type || 'audio').toLowerCase() === 'video' ? 'video' : 'audio';
+    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
+    try {
+        const result = await ytdlp(url, {
+            dumpSingleJson: true,
+            skipDownload: true,
+            noWarnings: true,
+            noPlaylist: true,
+            noCheckCertificates: true,
+            socketTimeout: 15,
+            format: type === 'video' ? 'best[ext=mp4]/best' : 'bestaudio/best'
+        });
+        const selected = result.requested_formats?.at(-1) || result;
+        const streamUrl = selected.url || result.url;
+        if (!streamUrl) return res.status(422).json({ error: 'Esta fonte não disponibilizou uma URL de reprodução.' });
+        res.json({
+            url: streamUrl,
+            title: result.title || 'Pré-visualização',
+            thumbnail: result.thumbnail || null,
+            duration: Number(result.duration || 0),
+            mimeType: selected.mime || (type === 'video' ? 'video/mp4' : 'audio/mpeg'),
+            type
+        });
+    } catch (error) {
+        console.error('[stream]', error?.stderr || error?.message || error);
+        res.status(422).json({ error: translateError(error) });
+    }
+});
+
 app.post('/api/downloads', downloadLimiter, async (req, res) => {
     const url = await validateUrl(req.body?.url);
     const format = String(req.body?.format || 'mp4').toLowerCase();

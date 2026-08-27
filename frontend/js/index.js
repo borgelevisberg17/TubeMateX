@@ -38,14 +38,16 @@
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('tubematex-theme', theme);
     $('#themeIcon').className = theme === 'light' ? icons.sun : icons.moon;
-    $('#themeToggle').setAttribute('aria-label', theme === 'light' ? 'Ativar tema escuro' : 'Ativar tema claro');
+    $('#themeToggle').setAttribute('aria-label', 'Modo escuro ativo');
   }
 
   function initTheme() {
-    const saved = localStorage.getItem('tubematex-theme');
-    const preferred = window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    setTheme(saved || preferred);
-    $('#themeToggle').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
+    setTheme('dark');
+    const toggle = $('#themeToggle');
+    toggle?.addEventListener('click', () => {
+      setTheme('dark');
+      showNotification('Modo escuro Command Center ativo.', 'success');
+    });
   }
 
   function setSelectedFormat(format) {
@@ -95,8 +97,21 @@
     }
   }
 
+  function renderLiveQueue(job) {
+    const container = $('#liveQueue');
+    if (!container || !job) return;
+    const progress = Math.max(0, Math.min(100, Number(job.progress?.percent || 0)));
+    const statusLabel = job.progress?.label || job.status || 'Na fila…';
+    const safeTitle = escapeHtml(job.title || 'Download em preparação');
+    const statusDetail = job.error || (job.status === 'completed' ? 'Concluído' : statusLabel);
+    container.innerHTML = `<div class="queue-live-item ${escapeHtml(job.status || '')}"><div class="live-item-top"><strong>${safeTitle}</strong><b>${Math.round(progress)}%</b></div><div class="live-item-meta"><span>${escapeHtml(job.formatLabel || job.format || 'Ficheiro')}</span><span>${escapeHtml(statusDetail)}</span>${job.progress?.speed ? `<span>${escapeHtml(job.progress.speed)}</span>` : ''}</div><div class="queue-progress"><i style="width:${progress}%"></i></div><div class="live-item-actions">${job.status === 'completed' && job.downloadUrl ? `<a href="${escapeHtml(job.downloadUrl)}">Guardar ficheiro ↗</a>` : ''}${['queued','fetching','downloading'].includes(job.status) ? '<button type="button" data-cancel-live-job="'+escapeHtml(job.id)+'">Parar</button>' : ''}</div></div>`;
+    const count = $('#queueCount');
+    if (count) count.textContent = job.status === 'completed' ? '4' : '3';
+  }
+
   function updateJob(job) {
     state.job = job;
+    renderLiveQueue(job);
     const status = $('#jobStatus');
     const progress = Math.max(0, Math.min(100, Number(job.progress?.percent || 0)));
     status.hidden = false;
@@ -161,6 +176,28 @@
   }
 
   window.TubeMateX = window.TubeMateX || {};
+  window.TubeMateX.preview = async (url, title = 'Pré-visualização', type = 'audio') => {
+    if (!url) { showNotification('Este resultado ainda não tem uma URL de stream disponível.', 'error'); return; }
+    const audio = $('#miniAudio');
+    if (!audio) return;
+    showNotification('A preparar a pré-visualização…', 'success');
+    try {
+      const response = await fetch(`/api/media/stream?url=${encodeURIComponent(url)}&type=${encodeURIComponent(type)}`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) throw new Error(result.error || 'Não foi possível iniciar a pré-visualização.');
+      audio.src = result.url;
+      audio.dataset.sourceUrl = url;
+      audio.dataset.title = result.title || title;
+      const playerTitle = $('.mini-player h2');
+      if (playerTitle) playerTitle.textContent = result.title || title;
+      const playerArtist = $('.mini-player p');
+      if (playerArtist) playerArtist.textContent = 'Pré-visualização';
+      await audio.play();
+      const playButton = $('.play-button');
+      if (playButton) { playButton.dataset.playing = 'true'; playButton.textContent = 'Ⅱ'; }
+      showNotification('Pré-visualização iniciada no mini player.', 'success');
+    } catch (error) { showNotification(error.message, 'error'); }
+  };
   window.TubeMateX.download = (url, format = 'mp4') => {
     $('#videoUrl').value = url;
     $('#clearUrl').hidden = false;
@@ -229,16 +266,17 @@
     document.querySelectorAll('.preview-button').forEach(button => button.addEventListener('click', () => {
       const card = button.closest('.search-result');
       const title = card?.querySelector('strong')?.textContent || 'conteúdo selecionado';
-      const playerTitle = document.querySelector('.mini-player h2');
-      if (playerTitle) playerTitle.textContent = title;
+      if (button.dataset.previewUrl) window.TubeMateX.preview(button.dataset.previewUrl, title, button.dataset.previewType || 'audio');
+      else showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
       document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
     }));
     document.querySelector('.play-button')?.addEventListener('click', event => {
+      const audio = $('#miniAudio');
       const playing = event.currentTarget.dataset.playing === 'true';
+      if (!audio?.src) { showNotification('Escolhe um resultado para iniciar a pré-visualização.', 'error'); return; }
+      if (playing) audio.pause(); else audio.play().catch(() => {});
       event.currentTarget.dataset.playing = String(!playing);
       event.currentTarget.textContent = playing ? '▶' : 'Ⅱ';
-      showNotification(playing ? 'Pré-visualização pausada.' : 'Pré-visualização iniciada.', 'success');
     });
     $('#videoUrl').addEventListener('input', event => {
       $('#clearUrl').hidden = !event.target.value;
@@ -259,6 +297,11 @@
     document.addEventListener('keydown', event => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') $('#downloadForm').requestSubmit();
       if (event.key === 'Escape' && document.activeElement === $('#videoUrl')) $('#clearUrl').click();
+    });
+    $('#liveQueue')?.addEventListener('click', event => {
+      const cancelButton = event.target.closest('[data-cancel-live-job]');
+      if (!cancelButton) return;
+      $('#cancelJob').click();
     });
     $('#cancelJob').addEventListener('click', async () => {
       if (!state.job?.id) return;
