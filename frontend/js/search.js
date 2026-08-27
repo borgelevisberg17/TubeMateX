@@ -20,12 +20,12 @@
     const params = new URLSearchParams({ q: query, type: state.type, source: state.source, limit: '12' });
     try {
       const response = await fetch(`/api/search?${params}`); const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'A pesquisa não está disponível.');
+      if (!response.ok) { if (response.status === 429) { const retry = response.headers.get('Retry-After'); const wait = retry ? `${retry} segundos` : 'alguns segundos'; $('#searchResults').innerHTML = `<div class="rate-limit-card"><svg class="icon"><use href="#i-bell"></use></svg><div><strong>Limite temporário atingido</strong><p>A fonte recebeu muitos pedidos. Aguarda ${wait} e tenta novamente.</p></div></div>`; throw new Error(`Limite temporário: aguarda ${wait}.`); } throw new Error(result.error || 'A pesquisa não está disponível.'); }
       render(result.results || []);
       $('#resultsTitle').textContent = `Resultados para “${query}”`;
       const unavailable = result.unavailableSources?.length ? ` Fontes indisponíveis: ${result.unavailableSources.join(', ')}.` : '';
       notify(`${result.results?.length || 0} resultados reais encontrados.${unavailable}`);
-    } catch (error) { $('#searchResults').innerHTML = `<div class="initial-state"><div class="state-icon">${icon('file')}</div><h2>Não foi possível pesquisar</h2><p>${esc(error.message)}</p></div>`; notify('A pesquisa falhou.'); }
+    } catch (error) { if (!error.message.startsWith('Limite temporário')) $('#searchResults').innerHTML = `<div class="initial-state"><div class="state-icon">${icon('file')}</div><h2>Não foi possível pesquisar</h2><p>${esc(error.message)}</p></div>`; notify(error.message.startsWith('Limite temporário') ? error.message : 'A pesquisa falhou.'); }
     finally { button.disabled = false; button.classList.remove('is-loading'); }
   }
   function setFilter(group, value) { state[group] = value; document.querySelectorAll(`[data-${group}]`).forEach(button => button.classList.toggle('active', button.dataset[group] === value)); if ($('#searchQuery').value.trim().length >= 2) search(); }
