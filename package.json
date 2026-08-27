@@ -20,7 +20,9 @@
     "passport-google-oauth20": "^2.0.0",
     "play-dl": "^1.9.7",
     "sqlite3": "^5.1.7",
-    "yt-dlp-exec": "^1.0.2"
+    "yt-dlp-exec": "^1.0.2",
+    "@openanime/youtube-dl-exec": "^3.0.10",
+    "playwright": "^1.56.1"
   },
   "devDependencies": {
     "@types/express-session": "^1.18.2",

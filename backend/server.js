@@ -3,12 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { Readable } = require('stream');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const SQLiteStore = require('connect-sqlite3')(session);
 
-const ytdlp = require('yt-dlp-exec');
+const ytdlp = require('@openanime/youtube-dl-exec');
 const play = require('play-dl');
 const rateLimit = require('express-rate-limit');
 
@@ -163,9 +164,9 @@ app.get('/api/user', (req, res) => {
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Histórico
-const historyDir = process.env.HISTORY_DIR || path.join(__dirname, 'history');
+const historyDir = process.env.HISTORY_DIR || path.join('/tmp', 'history');
 if (!fs.existsSync(historyDir)) {
-    fs.mkdirSync(historyDir);
+    fs.mkdirSync(historyDir, { recursive: true });
 }
 
 function getUserHistoryPath(userId) {
@@ -212,27 +213,27 @@ app.get('/profile', (req, res) => {
 
 // Obter info do vídeo
 app.get('/video-info', async (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: 'URL não fornecida.' });
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL não fornecida.' });
 
-  try {
-    // Primeiro tenta com play-dl (agora com suporte a cookies)
-    const info = await play.video_info(url);
-    res.json({ title: info.video_details.title, thumbnail: info.video_details.thumbnails[0].url });
-  } catch (err) {
-    console.warn(`[play-dl falhou]: ${err.message}, tentando com yt-dlp...`);
     try {
-      // Fallback para yt-dlp com as opções de cookie
-      const info = await ytdlp(url, {
-        ...ytdlpOptions,
-        dumpSingleJson: true,
-      });
-      res.json({ title: info.title, thumbnail: info.thumbnail });
-    } catch (err2) {
-      console.error(`[Erro ao obter informações]: ${err2.message}`);
-      res.status(500).json({ error: 'Erro ao obter informações do vídeo.' });
+        // Usa play-dl para info, que é mais rápido e leve
+        const info = await play.video_info(url);
+        res.json({
+            title: info.video_details.title,
+            thumbnail: info.video_details.thumbnails[0].url
+        });
+    } catch (err) {
+        console.error(`[Erro ao obter informações com play-dl]: ${err.message}`);
+        // Fallback para yt-dlp se o play-dl falhar
+        try {
+            const info = await ytdlp(url, { dumpSingleJson: true });
+            res.json({ title: info.title, thumbnail: info.thumbnail });
+        } catch (err2) {
+            console.error(`[Erro ao obter informações com yt-dlp]: ${err2.message}`);
+            res.status(500).json({ error: 'Erro ao obter informações do vídeo.' });
+        }
     }
-  }
 });
 
 // Rota de download
@@ -243,7 +244,6 @@ app.post('/download', async (req, res) => {
     }
 
     try {
-        // Se o usuário estiver autenticado, usar o token dele pode ajudar com vídeos privados/restritos
         if (req.isAuthenticated() && req.user.accessToken) {
             play.setToken({ youtube: { access_token: req.user.accessToken } });
         }
@@ -251,54 +251,58 @@ app.post('/download', async (req, res) => {
         const info = await play.video_info(url);
         const title = info.video_details.title.replace(/[<>:"/\\|?*]+/g, '');
         const filename = `${title}.${format}`;
-        const outputPath = path.join(__dirname, 'downloads', filename);
+        const downloadsDir = path.join('/tmp', 'downloads');
+        const outputPath = path.join(downloadsDir, filename);
 
-        // Garante que o diretório de downloads exista
-        if (!fs.existsSync(path.join(__dirname, 'downloads'))) {
-            fs.mkdirSync(path.join(__dirname, 'downloads'));
+        if (!fs.existsSync(downloadsDir)) {
+            fs.mkdirSync(downloadsDir, { recursive: true });
         }
 
-        // O yt-dlp-exec retorna uma promessa que resolve quando o download é concluído.
-        let formatOptions = {};
+        let formatOptions = {
+            'no-check-certificates': true,
+            'no-warnings': true
+        };
         switch (format) {
-            case 'mp3':
-                formatOptions = { format: 'bestaudio/best', extractAudio: true, audioFormat: 'mp3' };
-                break;
-            case 'opus':
-                formatOptions = { format: 'bestaudio/best', extractAudio: true, audioFormat: 'opus' };
-                break;
-            case 'webm':
-                formatOptions = { format: 'bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best' };
-                break;
-            case 'best':
-                formatOptions = { format: 'best' };
-                break;
-            case 'mp4':
-            default:
-                formatOptions = { format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' };
-                break;
+            case 'mp3': formatOptions = { ...formatOptions, f: 'bestaudio', 'extract-audio': true, 'audio-format': 'mp3' }; break;
+            case 'opus': formatOptions = { ...formatOptions, f: 'bestaudio', 'extract-audio': true, 'audio-format': 'opus' }; break;
+            case 'webm': formatOptions = { ...formatOptions, f: 'best[ext=webm]/best' }; break;
+            case 'best': formatOptions = { ...formatOptions, f: 'best' }; break;
+            case 'mp4': default: formatOptions = { ...formatOptions, f: 'best[ext=mp4]/best' }; break;
         }
 
-        await ytdlp.exec(url, {
-            output: outputPath,
-            ...formatOptions,
+        // Usar uma Promise para o processo do ytdlp
+        await new Promise((resolve, reject) => {
+            const process = ytdlp.exec(url, { o: outputPath, ...formatOptions });
+            // Importante: ytdlp.exec retorna uma Promise que também é um ChildProcess.
+            // Para evitar unhandledRejection se o processo falhar antes de anexarmos os eventos,
+            // ou se ele falhar internamente na lib tinyspawn.
+            process.catch(err => {
+                // Se o erro ainda não foi tratado pelos eventos 'error' ou 'close'
+                // Esta captura garante que a Promise global não seja rejeitada sem tratamento.
+            });
+
+            process.on('close', (code) => {
+                if (code === 0 && fs.existsSync(outputPath)) {
+                    resolve();
+                } else {
+                    reject(new Error(`Falha no download (código ${code}). Arquivo não criado.`));
+                }
+            });
+            process.on('error', err => reject(err));
         });
 
-        // Salva no histórico apenas se o usuário estiver logado
         if (req.isAuthenticated()) {
             const userId = req.user.id;
             let userHistory = loadUserHistory(userId);
-
             userHistory.unshift({
                 filename,
                 title: info.video_details.title,
                 format,
                 date: new Date().toISOString(),
                 path: outputPath,
-                expires: Date.now() + 3600000 // 1 hora a partir de agora
+                expires: Date.now() + 3600000 // 1 hora
             });
 
-            // Limpa o histórico antigo se exceder o limite
             if (userHistory.length > 20) {
                 const oldestItem = userHistory.pop();
                 if (fs.existsSync(oldestItem.path)) {
@@ -311,25 +315,24 @@ app.post('/download', async (req, res) => {
         res.json({ downloadUrl: `/downloads/${filename}`, title: filename });
 
     } catch (err) {
-        const errorMessage = err.stderr || err.message;
+        const errorMessage = err.stderr || err.message || 'Erro desconhecido';
         console.error(`[Erro no download]: ${errorMessage}`);
 
         if (errorMessage.includes('Unsupported URL')) {
-            return res.status(400).json({ error: 'URL não suportada. Verifique o link e tente novamente.' });
+            return res.status(400).json({ error: 'URL não suportada. Verifique o link.' });
         }
         if (errorMessage.includes('Sign in') || errorMessage.includes('age-restricted')) {
-            return res.status(401).json({ error: 'Este vídeo é restrito. Por favor, faça login para continuar.', requiresAuth: true });
+            return res.status(401).json({ error: 'Vídeo restrito. Faça login para continuar.', requiresAuth: true });
         }
         if (errorMessage.includes('Video unavailable')) {
-            return res.status(404).json({ error: 'O vídeo não está disponível. Pode ter sido removido ou ser privado.' });
+            return res.status(404).json({ error: 'O vídeo não está disponível.' });
         }
-
-        res.status(500).json({ error: 'Erro interno no servidor ao tentar baixar o vídeo.' });
+        res.status(500).json({ error: 'Erro interno ao processar o download.' });
     }
 });
 
 // Rota para servir arquivos baixados
-app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
+app.use('/downloads', express.static(path.join('/tmp', 'downloads')));
 
 // Limpeza de arquivos expirados
 setInterval(() => {

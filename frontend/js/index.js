@@ -1,7 +1,7 @@
 // Seleção de formato
 const formatOptions = document.querySelectorAll(".format-option");
 let selectedFormat = "mp4";
-const urlBase = "https://tubematex-backend.onrender.com";
+const urlBase = "";
 formatOptions.forEach(option => {
     option.addEventListener("click", () => {
         formatOptions.forEach(opt => opt.classList.remove("active"));
@@ -50,8 +50,20 @@ async function startDownload() {
             body: JSON.stringify({ url, format: selectedFormat })
         });
 
-        const result = await response.json();
+        if (!response.ok) {
+            // Tenta extrair a mensagem de erro do corpo da resposta
+            let errorMsg = "Erro desconhecido no servidor.";
+            try {
+                const errorResult = await response.json();
+                errorMsg = errorResult.error || errorMsg;
+            } catch (e) {
+                // Se o corpo não for JSON, usa o status da resposta
+                errorMsg = `Erro ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMsg);
+        }
 
+        const result = await response.json();
         if (!response.ok) {
             throw new Error(result.error || "Erro desconhecido no servidor.");
         }
