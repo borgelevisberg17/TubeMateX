@@ -1,0 +1,11 @@
+{
+  "name": "TubeMateX",
+  "short_name": "TubeMateX",
+  "description": "Downloader multi-site para conteúdos públicos e autorizados.",
+  "lang": "pt-PT",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080d18",
+  "theme_color": "#78e7d0",
+  "icons": [{ "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

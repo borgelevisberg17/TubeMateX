@@ -1,122 +1,55 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const themeToggle = document.getElementById("themeToggle");
-    const settingsThemeToggle = document.getElementById("settingsThemeToggle");
-    const body = document.body;
-    const logoutBtn = document.getElementById("logoutBtn");
-    const clearHistoryBtn = document.getElementById("clearHistoryBtn");
-const urlBase = "https://tubematex-backend.onrender.com";
-    // --- Authentication Logic ---
-    async function fetchUser() {
-        // Try to load from cache first
-        const cachedUser = localStorage.getItem("userProfile");
-        if (cachedUser) {
-            populateUserData(JSON.parse(cachedUser));
-        }
+(() => {
+  const $ = selector => document.querySelector(selector);
+  const esc = value => String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+  const savedTheme = localStorage.getItem('tubematex-theme') || (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
 
-        try {
-            const response = await fetch(`${urlBase}/api/user`);
-            if (response.ok) {
-                const user = await response.json();
-                localStorage.setItem("userProfile", JSON.stringify(user)); // Cache user data
-                populateUserData(user);
-            } else if (!cachedUser) {
-                // If not authenticated and no cache, redirect
-                window.location.href = "/";
-            }
-        } catch (error) {
-            console.error("Error fetching user data:", error);
-            if (!cachedUser) {
-                window.location.href = "/";
-            }
-        }
-    }
-
-    function populateUserData(user) {
-        document.getElementById("userAvatar").src =
-            user.avatar || "https://via.placeholder.com/100";
-        document.getElementById("userName").textContent = user.displayName;
-        document.getElementById("userEmail").textContent =
-            user.email || "E-mail not available";
-    }
-
-    async function logout() {
-        try {
-            await fetch(`${urlBase}/auth/logout`, { method: "POST" });
-            // Clear cached data on logout
-            localStorage.removeItem("userProfile");
-            localStorage.removeItem("downloadHistory");
-            window.location.href = "/";
-        } catch (error) {
-            console.error("Error during logout:", error);
-            alert("Error trying to logout.");
-        }
-    }
-
-    if (logoutBtn) logoutBtn.addEventListener("click", logout);
-
-    // --- Downloads Logic ---
-    async function fetchDownloads() {
-        // Try to load from cache first
-        const cachedDownloads = localStorage.getItem("downloadHistory");
-        if (cachedDownloads) {
-            renderDownloads(JSON.parse(cachedDownloads));
-        }
-
-        try {
-            const response = await fetch(`${urlBase}/api/user/downloads`);
-            if (response.ok) {
-                const downloads = await response.json();
-                localStorage.setItem(
-                    "downloadHistory",
-                    JSON.stringify(downloads)
-                ); // Cache downloads
-                renderDownloads(downloads);
-            } else {
-                console.error("Error fetching downloads");
-            }
-        } catch (error) {
-            console.error("Error fetching downloads:", error);
-        }
-    }
-
-    function renderDownloads(downloads) {
-        const container = document.getElementById("downloadedVideos");
-        if (!downloads || downloads.length === 0) {
-            container.innerHTML = "<p>No videos downloaded recently.</p>";
-            return;
-        }
-
-        container.innerHTML = downloads
-            .map(
-                item => `
-            <div class="download-item">
-                <div class="download-info">
-                    <div class="download-title">${item.title}</div>
-                    <div class="download-meta">
-                        <span>${item.format.toUpperCase()}</span> •
-                        <span>${new Date(item.date).toLocaleString()}</span>
-                    </div>
-                </div>
-                <a href="/downloads/${
-                    item.filename
-                }" class="download-link" download="${item.filename}">
-                    <i class="fas fa-download"></i>
-                </a>
-            </div>
-        `
-            )
-            .join("");
-    }
-
-    function clearHistory() {
-        localStorage.removeItem("downloadHistory");
-        renderDownloads([]); // Re-render to show empty state
-    }
-
-    if (clearHistoryBtn)
-        clearHistoryBtn.addEventListener("click", clearHistory);
-
-    // Initial data load
-    fetchUser();
-    fetchDownloads();
-});
+  function notify(message, type = 'success') {
+    const element = $('#notification');
+    element.textContent = message;
+    element.className = `notification ${type} show`;
+    setTimeout(() => element.classList.remove('show'), 3500);
+  }
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('tubematex-theme', theme);
+    $('#settingsThemeToggle').checked = theme === 'dark';
+  }
+  function renderUser(user) {
+    if (!user) return;
+    $('#settingsUserName').textContent = user.displayName || 'Utilizador';
+    $('#settingsUserEmail').textContent = user.email || 'Conta Google';
+    $('#sessionDescription').textContent = 'A tua conta está ligada nesta sessão.';
+    $('#loginOrLogout').textContent = 'Sair';
+    $('#loginOrLogout').removeAttribute('href');
+    $('#loginOrLogout').classList.add('logout-action');
+    if (user.avatar) $('#settingsAvatar').innerHTML = `<img src="${esc(user.avatar)}" alt="" />`;
+  }
+  async function initUser() {
+    try {
+      const response = await fetch('/api/user');
+      if (response.ok) renderUser(await response.json());
+    } catch (error) { console.warn('Sessão indisponível', error); }
+  }
+  async function logout() {
+    if (!window.confirm('Queres terminar a sessão?')) return;
+    try { await fetch('/auth/logout', { method: 'POST' }); window.location.href = '/'; }
+    catch { notify('Não foi possível terminar a sessão.', 'error'); }
+  }
+  async function clearHistory() {
+    if (!window.confirm('Queres eliminar todo o histórico deste navegador?')) return;
+    try {
+      const response = await fetch('/api/history', { method: 'DELETE' });
+      if (!response.ok) throw new Error();
+      notify('Histórico eliminado.', 'success');
+    } catch { notify('Não foi possível eliminar o histórico.', 'error'); }
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    setTheme(savedTheme);
+    $('#settingsThemeToggle').addEventListener('change', event => setTheme(event.target.checked ? 'dark' : 'light'));
+    $('#languageSelector').value = localStorage.getItem('tubematex-language') || 'pt-pt';
+    $('#languageSelector').addEventListener('change', event => { localStorage.setItem('tubematex-language', event.target.value); notify('Preferência de idioma guardada.'); });
+    $('#clearHistoryBtn').addEventListener('click', clearHistory);
+    $('#loginOrLogout').addEventListener('click', event => { if (event.currentTarget.classList.contains('logout-action')) { event.preventDefault(); logout(); } });
+    initUser();
+  });
+})();

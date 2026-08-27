@@ -1,77 +1,82 @@
-document.addEventListener("DOMContentLoaded", () => {
-    fetchUserAndHistory();
-});
-const urlBase = "https://tubematex-backend.onrender.com";
-async function fetchUserAndHistory() {
+(() => {
+  const $ = selector => document.querySelector(selector);
+  const state = { q: '', format: 'all', site: 'all', favorite: false, sort: 'recent', offset: 0, limit: 24, total: 0, loading: false };
+  const esc = value => String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+  const date = value => value ? new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value)) : '—';
+
+  function notify(message, type = 'success') {
+    const element = $('#notification'); element.textContent = message; element.className = `notification ${type} show`;
+    clearTimeout(notify.timer); notify.timer = setTimeout(() => element.classList.remove('show'), 3400);
+  }
+  function emptyMessage() {
+    if (state.favorite) return '<div class="user-empty"><strong>Ainda não tens favoritos.</strong><br />Marca a estrela num download para o encontrares aqui.</div>';
+    if (state.q || state.format !== 'all' || state.site !== 'all') return '<div class="user-empty"><strong>Nenhum resultado encontrado.</strong><br />Experimenta remover um filtro ou pesquisar outro termo.</div>';
+    return '<div class="user-empty">Ainda não tens downloads concluídos. <a href="/">Começa por colar um link.</a></div>';
+  }
+  function renderItems(items, append = false) {
+    const container = $('#downloadHistory');
+    if (!append && !items.length) { container.innerHTML = emptyMessage(); return; }
+    const html = items.map(item => `<article class="history-item"><div class="history-thumb ${item.thumbnail ? '' : 'history-placeholder'}">${item.thumbnail ? `<img class="history-image" src="${esc(item.thumbnail)}" alt="" loading="lazy" />` : '◉'}</div><div class="history-info"><div class="history-title" title="${esc(item.title)}">${esc(item.title || 'Download')}</div><div class="history-meta"><span>${esc(item.formatLabel || item.format || 'Ficheiro')}${item.qualityLabel ? ` · ${esc(item.qualityLabel)}` : ''}</span><span>${esc(item.site || 'Plataforma')}</span><span>${date(item.completedAt || item.createdAt)}${item.size ? ` · ${Math.max(1, Math.round(item.size / 1024 / 1024))} MB` : ''}</span></div></div><button class="favorite-button ${item.favorite ? 'active' : ''}" data-favorite-id="${esc(item.id)}" type="button" aria-label="${item.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" aria-pressed="${Boolean(item.favorite)}">★</button>${item.downloadUrl ? `<a class="history-action" href="${esc(item.downloadUrl)}">Guardar ↗</a>` : ''}</article>`).join('');
+    if (append) container.insertAdjacentHTML('beforeend', html); else container.innerHTML = html;
+  }
+  function renderFacets(facets) {
+    if (!facets?.sites) return;
+    const select = $('#librarySite'); const current = state.site;
+    select.innerHTML = '<option value="all">Todas as plataformas</option>' + facets.sites.map(site => `<option value="${esc(site.toLowerCase())}">${esc(site)}</option>`).join('');
+    select.value = facets.sites.some(site => site.toLowerCase() === current) ? current : 'all';
+    state.site = select.value;
+  }
+  function updateCount() { $('#libraryCount').textContent = `${state.total} ${state.total === 1 ? 'resultado' : 'resultados'}`; }
+  function updateLoadMore(hasMore) { $('#loadMore').hidden = !hasMore; $('#loadMore').disabled = state.loading; }
+  async function loadLibrary({ append = false } = {}) {
+    if (state.loading) return;
+    state.loading = true; updateLoadMore(false);
+    if (!append) $('#downloadHistory').classList.add('is-loading');
+    const params = new URLSearchParams({ q: state.q, format: state.format, site: state.site, favorite: state.favorite ? 'true' : 'all', sort: state.sort, limit: String(state.limit), offset: String(append ? state.offset : 0) });
     try {
-        // Fetch user info
-        const userResponse = await fetch(`${urlBase}/api/user`);
-        if (!userResponse.ok) {
-            if (userResponse.status === 401) {
-                window.location.href = "/?auth=required";
-            }
-            throw new Error("Falha ao buscar dados do usuário.");
-        }
-        const user = await userResponse.json();
-
-        // Fetch download history
-        const historyResponse = await fetch(`${urlBase}/api/user/downloads`);
-        if (!historyResponse.ok) {
-            throw new Error("Falha ao buscar histórico de downloads.");
-        }
-        const history = await historyResponse.json();
-
-        populateProfile(user, history);
-    } catch (error) {
-        console.error("Erro:", error);
-        document.body.innerHTML = `<p style="color: red; text-align: center;">${error.message}</p>`;
-    }
-}
-
-function populateProfile(user, history) {
-    // Populate header
-    document.getElementById("user-avatar").src =
-        user.avatar || "https://via.placeholder.com/150";
-    document.getElementById("user-display-name").textContent =
-        user.displayName || "Usuário";
-    document.getElementById("user-email").textContent =
-        user.email || "Nenhum e-mail fornecido";
-
-    // Calculate and populate stats
-    const totalDownloads = history.length;
-    const mp4Downloads = history.filter(item => item.format === "mp4").length;
-    const mp3Downloads = history.filter(item => item.format === "mp3").length;
-
-    document.getElementById("total-downloads").textContent = totalDownloads;
-    document.getElementById("mp4-downloads").textContent = mp4Downloads;
-    document.getElementById("mp3-downloads").textContent = mp3Downloads;
-
-    // Populate history
-    const historyContainer = document.getElementById("download-history");
-    historyContainer.innerHTML = ""; // Clear existing
-    if (history.length === 0) {
-        historyContainer.innerHTML = "<p>Nenhum download encontrado.</p>";
-        return;
-    }
-
-    history.slice(0, 10).forEach(item => {
-        // Mostra apenas os 10 mais recentes
-        const historyItem = document.createElement("div");
-        historyItem.className = "history-item";
-
-        const title = document.createElement("div");
-        title.className = "history-title";
-        title.textContent = item.title;
-        title.title = item.title;
-
-        const meta = document.createElement("div");
-        meta.className = "history-meta";
-        const format = item.format.toUpperCase();
-        const date = new Date(item.date).toLocaleDateString();
-        meta.textContent = `${format} - ${date}`;
-
-        historyItem.appendChild(title);
-        historyItem.appendChild(meta);
-        historyContainer.appendChild(historyItem);
-    });
-}
+      const response = await fetch(`/api/library?${params}`);
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      state.total = Number(result.total || 0); state.offset = Number(result.offset || 0) + result.items.length;
+      renderFacets(result.facets); renderItems(result.items, append); updateCount(); updateLoadMore(result.hasMore);
+    } catch { $('#downloadHistory').innerHTML = '<div class="user-empty">Não foi possível carregar a biblioteca. Tenta novamente.</div>'; notify('A biblioteca está temporariamente indisponível.', 'error'); }
+    finally { state.loading = false; $('#downloadHistory').classList.remove('is-loading'); updateLoadMore(Boolean($('#loadMore').hidden === false)); }
+  }
+  async function toggleFavorite(id, button) {
+    button.disabled = true;
+    const next = button.getAttribute('aria-pressed') !== 'true';
+    try {
+      const response = await fetch(`/api/library/${encodeURIComponent(id)}/favorite`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite: next }) });
+      if (!response.ok) throw new Error();
+      button.classList.toggle('active', next); button.setAttribute('aria-pressed', String(next)); button.setAttribute('aria-label', next ? 'Remover dos favoritos' : 'Adicionar aos favoritos');
+      if (state.favorite && !next) loadLibrary(); else notify(next ? 'Adicionado aos favoritos.' : 'Removido dos favoritos.');
+    } catch { notify('Não foi possível atualizar o favorito.', 'error'); }
+    finally { button.disabled = false; }
+  }
+  async function loadUserAndStats() {
+    try {
+      const [historyResponse, userResponse] = await Promise.all([fetch('/api/history'), fetch('/api/user')]);
+      const items = historyResponse.ok ? await historyResponse.json() : [];
+      $('#totalDownloads').textContent = items.length;
+      $('#videoDownloads').textContent = items.filter(item => !['mp3', 'opus'].includes(String(item.format).toLowerCase())).length;
+      $('#audioDownloads').textContent = items.filter(item => ['mp3', 'opus'].includes(String(item.format).toLowerCase())).length;
+      if (userResponse.ok) {
+        const user = await userResponse.json(); $('#userName').textContent = user.displayName || 'Utilizador'; $('#userEmail').textContent = user.email || 'Conta Google'; $('#userState').textContent = 'Ligado';
+        if (user.avatar) $('#userAvatar').innerHTML = `<img src="${esc(user.avatar)}" alt="" />`;
+      }
+    } catch (error) { console.warn('Perfil indisponível', error); }
+  }
+  function debounce(callback, delay = 320) { let timer; return (...args) => { clearTimeout(timer); timer = setTimeout(() => callback(...args), delay); }; }
+  document.addEventListener('DOMContentLoaded', () => {
+    $('[data-filter-format="all"]').classList.add('active');
+    document.querySelectorAll('[data-filter-format]').forEach(button => button.addEventListener('click', () => { document.querySelectorAll('[data-filter-format]').forEach(item => item.classList.remove('active')); button.classList.add('active'); state.format = button.dataset.filterFormat; state.offset = 0; loadLibrary(); }));
+    $('#librarySearch').addEventListener('input', debounce(event => { state.q = event.target.value.trim(); state.offset = 0; loadLibrary(); }));
+    $('#librarySort').addEventListener('change', event => { state.sort = event.target.value; state.offset = 0; loadLibrary(); });
+    $('#librarySite').addEventListener('change', event => { state.site = event.target.value; state.offset = 0; loadLibrary(); });
+    $('#favoritesOnly').addEventListener('change', event => { state.favorite = event.target.checked; state.offset = 0; loadLibrary(); });
+    $('#loadMore').addEventListener('click', () => loadLibrary({ append: true }));
+    $('#downloadHistory').addEventListener('click', event => { const button = event.target.closest('[data-favorite-id]'); if (button) toggleFavorite(button.dataset.favoriteId, button); });
+    loadUserAndStats(); loadLibrary();
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+})();

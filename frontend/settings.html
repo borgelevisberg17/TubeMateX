@@ -1,105 +1,14 @@
 <!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>TubeMateX - Settings</title>
-        <link
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-            rel="stylesheet"
-        />
-        <link rel="stylesheet" href="/css/index.css" />
-        <link rel="stylesheet" href="/css/settings.css" />
-    </head>
-    <body>
-        <div class="container">
-            <!-- Header Section -->
-            <header class="header">
-                <a href="/" class="logo"
-                    ><h1 class="logo">TubeMate<span>X</span></h1></a
-                >
-                <p class="subtitle">Configurações da Conta</p>
-            </header>
-
-            <main class="settings-main">
-                <!-- User Profile Section -->
-                <section class="settings-card user-profile-card">
-                    <img
-                        src="https://via.placeholder.com/100"
-                        alt="User Avatar"
-                        id="userAvatar"
-                        class="user-avatar-large"
-                    />
-                    <div class="user-details">
-                        <h2 id="userName">Carregando...</h2>
-                        <p id="userEmail">Carregando...</p>
-                    </div>
-                    <button id="logoutBtn" class="logout-btn-main">
-                        <i class="fas fa-sign-out-alt"></i> Sair
-                    </button>
-                </section>
-
-                <!-- Preferences Section -->
-                <section class="settings-card">
-                    <h3><i class="fas fa-sliders-h"></i> Preferências</h3>
-                    <div class="settings-item">
-                        <span>Modo Escuro</span>
-                        <div class="theme-switcher">
-                            <input
-                                type="checkbox"
-                                id="settingsThemeToggle"
-                                class="settings-toggle"
-                            />
-                            <label for="settingsThemeToggle"></label>
-                        </div>
-                    </div>
-                    <div class="settings-item">
-                        <span>Idioma</span>
-                        <select id="languageSelector" class="settings-select">
-                            <option value="pt-br">Português (Brasil)</option>
-                            <option value="en">English</option>
-                        </select>
-                    </div>
-                </section>
-
-                <!-- Downloads History Section -->
-                <section class="settings-card">
-                    <h3>
-                        <i class="fas fa-history"></i> Histórico de Downloads
-                    </h3>
-                    <div id="downloadedVideos">
-                        <p>Nenhum vídeo baixado recentemente.</p>
-                    </div>
-                    <button id="clearHistoryBtn" class="btn-secondary">
-                        Limpar Histórico
-                    </button>
-                </section>
-            </main>
-
-            <!-- Footer Section -->
-            <footer class="footer">
-                <div class="footer-links">
-                    <a href="/policy">Política de Privacidade</a>
-                    <span>&bull;</span>
-                    <a href="/terms">Termos de Uso</a>
-                    <a href="/legacy">Aviso Legal</a>
-                </div>
-                <div class="footer-social">
-                    <a
-                        href="https://github.com/borgelevisberg17"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="GitHub Profile"
-                    >
-                        <i class="fab fa-github"></i>
-                    </a>
-                </div>
-                <p class="footer-copyright">
-                    &copy; 2025 TubeMateX. Todos os direitos reservados.
-                </p>
-            </footer>
-        </div>
-
-        <script src="/js/settings.js"></script>
-    </body>
-</html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#78e7d0" /><link rel="manifest" href="/manifest.webmanifest" /><title>Definições — TubeMateX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/index.css" /><link rel="stylesheet" href="/css/user.css" />
+</head>
+<body class="user-page"><div class="user-shell"><header class="user-topbar"><a class="brand" href="/"><span class="brand-mark"><span></span><span></span><span></span></span><span>TubeMate<span class="brand-accent">X</span></span></a><a class="back-link" href="/profile">← Perfil</a></header>
+<main class="user-main"><div class="user-intro"><span class="section-kicker">CONTROLO DA EXPERIÊNCIA</span><h1>Definições.</h1><p>Personaliza a interface e gere os teus dados locais de forma simples.</p></div>
+<div class="settings-stack"><section class="user-card"><div class="user-card-heading"><div><span class="section-kicker">PREFERÊNCIAS</span><h2>Como queres usar o TubeMateX?</h2></div></div><div class="settings-row"><div><h3>Tema da interface</h3><p>Alterna entre o tema claro e escuro.</p></div><label class="switch"><input type="checkbox" id="settingsThemeToggle" /><span class="switch-track"></span></label></div><div class="settings-row"><div><h3>Idioma</h3><p>Escolhe o idioma dos textos da aplicação.</p></div><select id="languageSelector" class="select-control" aria-label="Idioma"><option value="pt-pt">Português (Portugal)</option><option value="pt-br">Português (Brasil)</option><option value="en">English</option></select></div></section>
+<section class="user-card"><div class="user-card-heading"><div><span class="section-kicker">CONTA</span><h2 id="settingsUserName">Visitante</h2><p id="settingsUserEmail">Sem sessão iniciada</p></div><div id="settingsAvatar" class="identity-avatar" style="width:52px;height:52px;margin:0;border-radius:16px;font-size:1.2rem">U</div></div><div class="settings-row"><div><h3>Sessão Google</h3><p id="sessionDescription">Liga a conta para sincronizar a tua identidade.</p></div><a class="ghost-button" id="loginOrLogout" href="/auth/google">Entrar</a></div></section>
+<section class="user-card"><div class="user-card-heading"><div><span class="section-kicker">DADOS</span><h2>Histórico de downloads</h2><p>Os ficheiros são temporários; o histórico pode ser eliminado a qualquer momento.</p></div></div><div class="settings-row"><div><h3>Eliminar histórico local</h3><p>Remove a lista de downloads associados a este navegador.</p></div><button class="danger-button" id="clearHistoryBtn" type="button">Eliminar histórico</button></div></section></div></main></div><div class="notification" id="notification"></div><script src="/js/settings.js"></script></body></html>

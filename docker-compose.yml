@@ -1,0 +1,138 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tubematex:latest
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./backend/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BULLMQ_ROLE: api
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}
+      DATA_DIR: /var/lib/tubematex
+      DOWNLOAD_DIR: /var/lib/tubematex/downloads
+      HISTORY_DIR: /var/lib/tubematex/history
+      SESSION_DB_DIR: /var/lib/tubematex
+      DATABASE_PATH: /var/lib/tubematex/tubematex.sqlite
+    expose:
+      - "3000"
+    volumes:
+      - tubematex_data:/var/lib/tubematex
+    networks:
+      - tubematex_internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 25s
+      retries: 4
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    image: tubematex:latest
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./backend/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BULLMQ_ROLE: worker
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}
+      DATA_DIR: /var/lib/tubematex
+      DOWNLOAD_DIR: /var/lib/tubematex/downloads
+      HISTORY_DIR: /var/lib/tubematex/history
+      SESSION_DB_DIR: /var/lib/tubematex
+      DATABASE_PATH: /var/lib/tubematex/tubematex.sqlite
+    volumes:
+      - tubematex_data:/var/lib/tubematex
+    networks:
+      - tubematex_internal
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}", "--maxmemory-policy", "noeviction", "--save", "60", "1000"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tubematex_internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    init: true
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-example.com}
+    entrypoint: ["/bin/sh", "/opt/tubematex/nginx-entrypoint.sh"]
+    volumes:
+      - ./deploy/nginx/entrypoint.sh:/opt/tubematex/nginx-entrypoint.sh:ro
+      - ./deploy/nginx/nginx-http.conf:/opt/tubematex/nginx-http.conf:ro
+      - ./deploy/nginx/nginx-https.conf:/opt/tubematex/nginx-https.conf:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+      - ./deploy/certbot/conf:/etc/letsencrypt:ro
+    networks:
+      - tubematex_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 4
+    security_opt:
+      - no-new-privileges:true
+
+  certbot:
+    image: certbot/certbot:latest
+    profiles:
+      - tls
+    volumes:
+      - ./deploy/certbot/www:/var/www/certbot
+      - ./deploy/certbot/conf:/etc/letsencrypt
+    entrypoint: ["certbot"]
+    command: ["certonly", "--webroot", "-w", "/var/www/certbot", "-d", "${DOMAIN:-example.com}", "--email", "${CERTBOT_EMAIL:-admin@example.com}", "--agree-tos", "--no-eff-email", "--non-interactive"]
+
+volumes:
+  tubematex_data:
+    name: tubematex_data
+  redis_data:
+    name: tubematex_redis_data
+
+networks:
+  tubematex_internal:
+    name: tubematex_internal
+    driver: bridge

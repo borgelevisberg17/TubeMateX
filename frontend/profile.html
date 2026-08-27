@@ -1,42 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="pt-PT">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Perfil do Usuário - TubeMateX</title>
-    <link rel="stylesheet" href="/css/profile.css">
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#78e7d0" /><link rel="manifest" href="/manifest.webmanifest" /><title>Biblioteca — TubeMateX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/index.css" /><link rel="stylesheet" href="/css/user.css" />
 </head>
-<body>
-    <div class="container">
-        <div class="profile-header">
-            <img id="user-avatar" src="https://via.placeholder.com/150" alt="Avatar do Usuário" class="avatar">
-            <h1 id="user-display-name">Nome do Usuário</h1>
-            <p id="user-email">email@example.com</p>
-        </div>
-
-        <div class="profile-content">
-            <h2>Estatísticas de Download</h2>
-            <div class="stats">
-                <div class="stat-item">
-                    <h3>Total de Downloads</h3>
-                    <p id="total-downloads">0</p>
-                </div>
-                <div class="stat-item">
-                    <h3>Downloads de MP4</h3>
-                    <p id="mp4-downloads">0</p>
-                </div>
-                <div class="stat-item">
-                    <h3>Downloads de MP3</h3>
-                    <p id="mp3-downloads">0</p>
-                </div>
-            </div>
-
-            <h2>Histórico de Downloads Recentes</h2>
-            <div id="download-history">
-                <!-- O histórico será preenchido pelo JavaScript -->
-            </div>
-        </div>
-    </div>
-    <script src="/js/profile.js"></script>
-</body>
-</html>
+<body class="user-page"><div class="user-shell"><header class="user-topbar"><a class="brand" href="/"><span class="brand-mark"><span></span><span></span><span></span></span><span>TubeMate<span class="brand-accent">X</span></span></a><nav class="user-nav"><a class="back-link active" href="/profile">Biblioteca</a><a class="back-link" href="/settings">Definições</a><a class="back-link" href="/">← Início</a></nav></header>
+<main class="user-main"><div class="user-intro"><span class="section-kicker">BIBLIOTECA PESSOAL</span><h1>O teu espaço.</h1><p>Pesquisa, organiza e recupera os teus downloads favoritos num só lugar.</p></div>
+<div class="user-grid"><aside class="user-card identity-card"><div class="identity-avatar" id="userAvatar">U</div><h2 id="userName">Visitante</h2><p id="userEmail">Sem sessão iniciada</p><div class="identity-meta"><span>Estado <strong id="userState">Ativo</strong></span><span>Privacidade <strong>Local</strong></span></div></aside>
+<section><div class="stats-grid"><div class="stat-card"><strong id="totalDownloads">0</strong><span>Total de downloads</span></div><div class="stat-card"><strong id="videoDownloads">0</strong><span>Ficheiros de vídeo</span></div><div class="stat-card"><strong id="audioDownloads">0</strong><span>Ficheiros de áudio</span></div></div>
+<div class="user-card library-card"><div class="user-card-heading"><div><span class="section-kicker">ATIVIDADE</span><h2>Biblioteca de downloads</h2></div><span class="library-count" id="libraryCount">0 resultados</span></div>
+<div class="library-toolbar"><label class="library-search"><span aria-hidden="true">⌕</span><input id="librarySearch" type="search" placeholder="Pesquisar por título, plataforma ou formato…" autocomplete="off" /></label><select id="librarySort" class="select-control" aria-label="Ordenar biblioteca"><option value="recent">Mais recentes</option><option value="oldest">Mais antigos</option><option value="title">Título A–Z</option></select></div>
+<div class="library-filters" role="group" aria-label="Filtros da biblioteca"><button class="filter-chip active" data-filter-format="all" type="button">Tudo</button><button class="filter-chip" data-filter-format="video" type="button">Vídeo</button><button class="filter-chip" data-filter-format="audio" type="button">Áudio</button><select id="librarySite" class="select-control" aria-label="Filtrar por plataforma"><option value="all">Todas as plataformas</option></select><label class="favorite-toggle"><input id="favoritesOnly" type="checkbox" /><span>★ Só favoritos</span></label></div>
+<div class="user-history" id="downloadHistory"><div class="user-empty">A carregar biblioteca…</div></div><button class="load-more-button" id="loadMore" type="button" hidden>Carregar mais</button></div></section></div></main></div><div class="notification" id="notification"></div><script src="/js/profile.js"></script></body></html>

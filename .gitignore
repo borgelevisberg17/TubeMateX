@@ -32,3 +32,9 @@ Thumbs.db
 
 # Ignorar histórico de navegação local
 downloadHistory.json
+
+# Não versionar certificados ou desafios ACME reais
+deploy/certbot/conf/*
+!deploy/certbot/conf/.gitkeep
+deploy/certbot/www/*
+!deploy/certbot/www/.gitkeep

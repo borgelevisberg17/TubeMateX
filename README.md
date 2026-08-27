@@ -1,118 +1,79 @@
-# 🎥 TubeMateX - Downloader de Vídeos
+# TubeMateX
 
-O TubeMateX é uma aplicação full-stack que permite o download de vídeos e áudios de plataformas como o YouTube. Construído com Node.js no backend e HTML/CSS/JS no frontend, ele oferece uma interface moderna e funcionalidades robustas, incluindo autenticação para vídeos restritos.
+O **TubeMateX** é um downloader multi-site para conteúdos públicos e autorizados. A aplicação oferece uma interface de utilizador moderna, seleção de formatos de vídeo e áudio, pré-visualização de metadados, fila de downloads, progresso em tempo real via Server-Sent Events e histórico persistente por navegador ou sessão.
 
----
+> Usa o TubeMateX apenas para conteúdos que tens autorização para guardar. A aplicação não foi desenhada para contornar DRM, paywalls, autenticação de terceiros ou restrições de acesso.
 
-### ✨ Funcionalidades Principais
+## Arquitetura
 
-- **Download de Vídeo e Áudio**: Baixe vídeos em formato MP4 ou extraia o áudio em MP3.
-- **Login com Google**: Autentique-se com sua conta do Google para baixar vídeos privados ou com restrição de idade.
-- **Interface Moderna**: UI limpa e responsiva com tema claro e escuro.
-- **Histórico de Downloads**: Acompanhe os vídeos que você já baixou (funcionalidade em desenvolvimento).
-- **Fallback Inteligente**: Usa `play-dl` como motor principal e `yt-dlp` como fallback para máxima compatibilidade.
+O frontend é servido pelo Express e utiliza HTML, CSS e JavaScript vanilla, sem uma etapa de compilação obrigatória. O backend usa Node.js, Express, SQLite relacional, sessões SQLite e `@openanime/youtube-dl-exec`, que fornece o motor yt-dlp. O banco `tubematex.sqlite` contém as tabelas `users` e `downloads`, com índices por proprietário e favoritos. O ffmpeg é necessário no sistema para juntar vídeo e áudio e para converter formatos de áudio. A interface também pode ser instalada como PWA, com cache controlado da shell e sem colocar endpoints dinâmicos de download em cache.
 
----
+| Área | Implementação |
+| --- | --- |
+| Interface | HTML semântico, CSS responsivo, tema claro/escuro e JavaScript vanilla |
+| API | Express com `/api/media/info`, `/api/downloads`, `/api/history` e healthcheck |
+| Fila | Jobs em memória com limite de concorrência configurável |
+| Progresso | Server-Sent Events em `/api/downloads/:id/events` |
+| Metadados | yt-dlp com suporte aos extractors disponíveis na versão instalada |
+| Histórico | JSON por visitante/sessão, com retenção configurável |
+| Sessões | `express-session` com SQLiteStore; Google OAuth é opcional |
+| Segurança | Validação de URL, bloqueio de endereços privados, rate limiting, headers de proteção e limites de tamanho |
 
-### 🛠️ Tecnologias Utilizadas
+## Execução local
 
-- **Backend**: Node.js, Express.js
-- **Download**: `play-dl`, `yt-dlp-exec`
-- **Autenticação**: Passport.js (`passport-google-oauth20`)
-- **Frontend**: HTML5, CSS3, JavaScript (vanilla)
-
----
-
-### 🚀 Como Executar o Projeto
-
-#### Pré-requisitos
-
-- Node.js (versão 18 ou superior)
-- Conta do Google Cloud Platform para configurar o login
-
-#### 1. Clonar o Repositório
+Requer Node.js 18 ou superior e ffmpeg instalado. Depois de clonar o projeto, instala as dependências e arranca o servidor:
 
 ```bash
 git clone https://github.com/borgelevisberg17/TubeMateX.git
-cd TubeMateX
-```
-
-#### 2. Instalar as Dependências do Backend
-
-```bash
-cd backend
+cd TubeMateX/backend
 npm install
-```
-
-#### 3. Configurar as Variáveis de Ambiente
-
-Para que o login com Google funcione, você precisa configurar as credenciais da API do Google.
-
-1.  **Crie um arquivo `.env`** na pasta `backend`, copiando o exemplo:
-    ```bash
-    cp .env.example .env
-    ```
-2.  **Abra o arquivo `.env`** e preencha as seguintes variáveis:
-
-    - `SESSION_SECRET`: Uma string longa e aleatória para proteger as sessões dos usuários.
-    - `GOOGLE_CLIENT_ID`: O ID do cliente OAuth 2.0 do seu projeto no Google Cloud.
-    - `GOOGLE_CLIENT_SECRET`: A chave secreta do cliente OAuth 2.0.
-    - `BASE_URL`: A URL base da sua aplicação (para desenvolvimento, use `http://localhost:3000`).
-
-#### Como Obter as Credenciais do Google
-
-1.  Acesse o [Google Cloud Console](https://console.cloud.google.com/).
-2.  Crie um novo projeto.
-3.  No menu de navegação, vá para "APIs e Serviços" > "Credenciais".
-4.  Clique em "Criar Credenciais" > "ID do cliente OAuth".
-5.  Selecione "Aplicativo da Web" como o tipo de aplicativo.
-6.  Em "URIs de redirecionamento autorizados", adicione a URL: `${BASE_URL}/auth/google/callback`.
-    - Exemplo para desenvolvimento local: `http://localhost:3000/auth/google/callback`
-7.  Copie o "ID do cliente" e a "Chave secreta do cliente" para o seu arquivo `.env`.
-
-#### 4. Iniciar o Servidor
-
-Com as variáveis de ambiente configuradas, inicie o servidor a partir da pasta `backend`:
-
-```bash
+cp .env.example .env
 node server.js
 ```
 
-#### 5. Acessar no Navegador
+Abre `http://localhost:3000`. Para validar o serviço, consulta `http://localhost:3000/health`.
 
-Abra seu navegador e acesse `http://localhost:3000`.
+O login Google é opcional. Sem as variáveis `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`, o downloader continua funcional para visitantes. Quando o login é ativado, o callback OAuth deve ser `${BASE_URL}/auth/google/callback`.
 
----
+## Docker
 
-### 📁 Estrutura do Projeto
+A imagem inclui Node.js, ffmpeg e o yt-dlp fornecido pelo pacote do backend. O volume `/var/lib/tubematex` deve ser persistente para manter sessões, histórico e ficheiros temporários:
 
-```
-TubeMateX/
-├── backend/
-│   ├── node_modules/
-│   ├── .env.example      # Exemplo de variáveis de ambiente
-│   ├── server.js         # Servidor principal (Express)
-│   └── package.json      # Dependências do Node.js
-├── frontend/
-│   ├── css/
-│   │   └── index.css     # Estilos da aplicação
-│   ├── js/
-│   │   └── index.js      # Lógica do frontend
-│   └── index.html        # Estrutura da página
-└── README.md             # Documentação
+```bash
+docker build -t tubematex .
+docker run --name tubematex \
+  --env-file backend/.env \
+  -p 3000:3000 \
+  -v tubematex-data:/var/lib/tubematex \
+  tubematex
 ```
 
----
+Em produção, define um `SESSION_SECRET` longo e aleatório, limita `MAX_CONCURRENT_DOWNLOADS` conforme a memória disponível e coloca o serviço atrás de HTTPS. O exemplo completo de variáveis encontra-se em `backend/.env.example`.
 
-### ⚠️ Aviso Legal
+## API principal
 
-Este projeto foi desenvolvido para fins educacionais. O download de vídeos ou áudios de plataformas como o YouTube pode violar seus Termos de Serviço. Use este software com responsabilidade e respeite os direitos autorais.
+`GET /api/search?q=...&type=all|music|video|film&source=all|youtube|soundcloud|vimeo|twitch` pesquisa conteúdos públicos no browser e devolve resultados normalizados com título, thumbnail, duração, fonte e URL original. A Busca Global consulta as streams definidas em `SEARCH_PROVIDERS` — por omissão `ytsearch,scsearch,vimeo,twitch`. YouTube e SoundCloud funcionam sem tokens através do yt-dlp; Vimeo requer `VIMEO_ACCESS_TOKEN` e Twitch requer `TWITCH_CLIENT_ID` e `TWITCH_APP_ACCESS_TOKEN`. As fontes são consultadas em paralelo, os resultados são intercalados e URLs duplicados são removidos. Cada resultado pode ser encaminhado para o fluxo de download com MP3, MP4, WEBM ou OPUS. `GET /api/media/info?url=...` analisa o conteúdo e devolve título, thumbnail, duração, plataforma e autor. `POST /api/downloads` recebe `{ "url": "...", "format": "mp4" }` e devolve HTTP 202 com um job. Os formatos disponíveis são `mp4`, `webm`, `best`, `mp3` e `opus`. Para vídeo, o utilizador pode escolher qualidade automática ou um limite de 1080p, 720p ou 480p; o preset é validado no backend e aplicado ao seletor de formatos do yt-dlp. `GET /api/downloads/:id/events` transmite atualizações do job e `GET /api/downloads/:id/file` entrega o ficheiro concluído ao visitante que criou o pedido. `GET /api/history` e `DELETE /api/history` consultam e limpam o histórico do visitante. `GET /api/library` aceita `q`, `format`, `site`, `favorite`, `sort`, `limit` e `offset`, devolvendo resultados filtrados, facets e indicação de paginação. `PATCH /api/library/:id/favorite` cria ou remove um favorito persistente; `GET /api/favorites` devolve apenas os favoritos recentes.
 
----
+## Autenticação e histórico persistente
 
-### 📞 Contato
+O login Google é opcional e usa Passport OAuth 2.0. A sessão é armazenada em SQLite e o perfil persistido na tabela `users`; o identificador do provedor nunca é exposto como credencial de sessão completa. Para ativá-lo, cria uma credencial OAuth Web Application no Google Cloud Console, define `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e `BASE_URL`, e adiciona `${BASE_URL}/auth/google/callback` como Authorized redirect URI. O callback grava ou atualiza o utilizador na tabela `users`, serializa apenas o ID na sessão e associa os downloads ao proprietário autenticado.
 
-Se tiver dúvidas ou sugestões, sinta-se à vontade para entrar em contato:
+Visitantes continuam a poder descarregar sem conta. O histórico anónimo usa um cookie privado; depois do login, os registos desse visitante são migrados automaticamente para o proprietário `user-google-<id>`, preservando favoritos e ficheiros. O banco e `sessions.sqlite` devem ficar num volume persistente definido por `DATABASE_PATH` e `SESSION_DB_DIR`. O servidor cria o esquema automaticamente e importa uma vez os históricos JSON legados, renomeando-os para `.migrated` depois de concluído o processo.
 
-- **Autor**: Borge Levisberg
-- **E-mail**: borgelevisberg@gmail.com
+## Biblioteca e favoritos
+
+A pesquisa está disponível na página inicial, no painel “Pesquisa no browser”. O utilizador pode escolher Tudo, Música, Vídeos ou Filmes, selecionar Busca Global, YouTube, SoundCloud, Vimeo ou Twitch e usar “Usar link” para iniciar o fluxo de download com o formato pretendido. Quando uma fonte opcional não tem credenciais, o browser informa-a explicitamente em vez de falhar silenciosamente. A aplicação continua a aceitar URLs diretos de outras plataformas suportadas pelo yt-dlp.
+
+A página `/profile` funciona como biblioteca pessoal. A pesquisa procura título, plataforma, formato e qualidade; os filtros incluem vídeo, áudio, plataforma e apenas favoritos; a ordenação pode ser por mais recentes, mais antigos ou título. Os favoritos são guardados no histórico privado do visitante e permanecem disponíveis depois de reiniciar o servidor, desde que o volume de dados seja persistente.
+
+## PWA e experiência instalada
+
+O manifest encontra-se em `frontend/manifest.webmanifest`, o service worker em `frontend/sw.js` e o ícone vetorial em `frontend/assets/icon.svg`. A shell da aplicação pode ser consultada offline depois da primeira visita, enquanto API, autenticação e ficheiros continuam sempre dependentes da rede e não são guardados no cache.
+
+## Docker Compose e Nginx no VPS
+
+O deployment completo encontra-se em `docker-compose.yml` e `deploy/README.md`. Ele separa a API Node, os workers BullMQ, Redis e o Nginx, mantém a porta 3000 apenas na rede interna Docker, monta os volumes persistentes `tubematex_data` e `tubematex_redis_data`, publica 80/443 e usa Certbot para emitir e renovar TLS. O Redis disponibiliza sessões, fila, estados e eventos partilhados; podes escalar com `docker compose up -d --build --scale app=3 --scale worker=2`. Começa com `cp deploy/.env.example .env`, `cp backend/.env.example backend/.env` e executa `./deploy/bootstrap.sh`. O script constrói a imagem, arranca a aplicação, emite o certificado e reinicia o Nginx em HTTPS. A renovação pode ser executada com `./deploy/renew-cert.sh` através de cron.
+
+## Produção e manutenção
+
+Os jobs e os ficheiros temporários são intencionalmente retidos por um período limitado. O serviço deve usar armazenamento persistente para a pasta de dados e uma política de monitorização para acompanhar espaço em disco, memória, falhas do yt-dlp e limites das plataformas de origem. O motor só descarrega conteúdos públicos ou autorizados e está sujeito às políticas e Termos de Serviço de cada plataforma.

@@ -1,117 +1,145 @@
 <!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>TubeMateX - Video Downloader</title>
-        <link
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-            rel="stylesheet"
-        />
-        <link rel="stylesheet" href="/css/index.css" />
-    </head>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#78e7d0" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="description" content="TubeMateX — descarrega conteúdos públicos de plataformas suportadas num só lugar." />
+  <title>TubeMateX — Downloader multi-site</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/index.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" aria-label="Navegação principal">
+      <a class="brand" href="/" aria-label="TubeMateX início">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>TubeMate<span class="brand-accent">X</span></span>
+      </a>
+      <nav class="topbar-nav" aria-label="Links principais">
+        <a class="nav-link active" href="/">Início</a>
+        <a class="nav-link" href="#search">Pesquisar</a>
+        <a class="nav-link" href="#history">Histórico</a>
+        <a class="nav-link" href="/terms">Termos</a>
+      </nav>
+      <div class="topbar-actions">
+        <button class="icon-button" id="themeToggle" type="button" aria-label="Mudar tema" title="Mudar tema"><span id="themeIcon"></span></button>
+        <div id="userProfile" class="user-profile">
+          <a href="/auth/google" class="login-link"><span class="google-dot">G</span><span>Entrar</span></a>
+        </div>
+      </div>
+    </header>
 
-    <body>
-        <div class="container">
-            <!-- Header Section -->
-            <div class="header">
-                <h1 class="logo">TubeMate<span>X</span></h1>
-                <p class="subtitle">
-                    Baixe vídeos de diversas plataformas de forma rápida e
-                    fácil.
-                </p>
-                <!-- User Authentication Section -->
-                <div class="user-profile" id="userProfile">
-                    <!-- This will be populated by JavaScript -->
-                    <a href="/auth/google" class="login-btn">
-                        <i class="fab fa-google"></i> Login
-                    </a>
-                </div>
+    <main>
+      <section class="hero-section" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="eyebrow-dot"></span>Downloader multi-site</div>
+          <h1 id="hero-title">O teu conteúdo.<br /><span>Do teu jeito.</span></h1>
+          <p class="hero-subtitle">Guarda vídeos e áudio de plataformas suportadas com uma experiência simples, rápida e transparente.</p>
+          <div class="trust-row" aria-label="Características do serviço">
+            <span><span class="trust-icon">✓</span> Sem registo obrigatório</span>
+            <span><span class="trust-icon">✓</span> Ficheiros temporários</span>
+            <span><span class="trust-icon">✓</span> Conteúdo autorizado</span>
+          </div>
+        </div>
+        <div class="hero-orb" aria-hidden="true"><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div><div class="orb-core">↓</div></div>
+      </section>
+
+      <section class="search-section panel" id="search" aria-labelledby="search-title">
+        <div class="panel-heading compact"><div><span class="section-kicker">PESQUISA NO BROWSER</span><h2 id="search-title">Encontra música e vídeos.</h2></div><span class="secure-badge"><span>●</span> Multi-site</span></div>
+        <form class="browser-search-form" id="searchForm">
+          <label class="browser-search-input"><span aria-hidden="true">⌕</span><input id="searchQuery" type="search" placeholder="Pesquisa por artista, música, canal ou vídeo…" minlength="2" autocomplete="off" required /></label>
+          <select id="searchType" aria-label="Tipo de conteúdo"><option value="all">Tudo</option><option value="music">Música</option><option value="video">Vídeos</option><option value="film">Filmes</option></select>
+          <select id="searchSource" aria-label="Fonte de pesquisa"><option value="all">Busca Global · todas as streams</option><option value="youtube">YouTube</option><option value="soundcloud">SoundCloud</option><option value="vimeo">Vimeo</option><option value="twitch">Twitch</option></select>
+          <button class="secondary-button" type="submit"><span>Pesquisar</span><span>↗</span></button>
+        </form>
+        <p class="search-help" id="searchStatus">A Busca Global consulta todas as streams configuradas e combina música, vídeos e filmes sem duplicados.</p>
+        <div class="search-results" id="searchResults" aria-live="polite"></div>
+      </section>
+
+      <section class="workspace-grid" aria-label="Área de download">
+        <div class="download-card panel">
+          <div class="panel-heading">
+            <div>
+              <span class="section-kicker">01 / COLOCAR LINK</span>
+              <h2>Começa por aqui</h2>
+            </div>
+            <span class="secure-badge"><span>●</span> Seguro</span>
+          </div>
+
+          <form id="downloadForm" novalidate>
+            <label class="input-label" for="videoUrl">URL do conteúdo</label>
+            <div class="url-input-wrap" id="urlInputWrap">
+              <span class="input-leading" aria-hidden="true">↗</span>
+              <input type="url" id="videoUrl" autocomplete="url" placeholder="Cola aqui o link de qualquer plataforma suportada…" required />
+              <button class="clear-input" id="clearUrl" type="button" aria-label="Limpar URL" hidden>×</button>
+            </div>
+            <p class="field-help" id="urlHelp">Aceitamos links públicos de vídeo e áudio. Não suportamos DRM, paywalls ou conteúdos privados.</p>
+
+            <div class="supported-sites" aria-label="Plataformas suportadas">
+              <span class="site-label">PLATAFORMAS</span>
+              <span class="site-pill"><span class="site-logo youtube">▶</span>YouTube</span>
+              <span class="site-pill"><span class="site-logo vimeo">V</span>Vimeo</span>
+              <span class="site-pill"><span class="site-logo soundcloud">⌁</span>SoundCloud</span>
+              <span class="site-pill muted-pill">+ muitas mais</span>
             </div>
 
-            <!-- Download Section -->
-            <div class="download-card">
-                <div class="input-group">
-                    <input
-                        type="url"
-                        id="videoUrl"
-                        placeholder="Cole o link do vídeo aqui..."
-                        required
-                    />
-                    <button>Download</button>
-                </div>
+            <div class="media-preview" id="videoInfo" aria-live="polite" hidden></div>
 
-                <!-- Video Info Section -->
-                <div class="video-info" id="videoInfo"></div>
-
-                <!-- Format Selection -->
-                <div class="format-selector">
-                    <div class="format-option active" data-format="mp4">
-                        MP4
-                    </div>
-                    <div class="format-option" data-format="mp3">MP3</div>
-                    <div class="format-option" data-format="webm">WEBM</div>
-                    <div class="format-option" data-format="opus">OPUS</div>
-                    <div class="format-option" data-format="best">HD</div>
-                </div>
-
-                <!-- Progress Section -->
-                <div class="progress-container" id="progressContainer">
-                    <div class="progress-bar">
-                        <div class="progress" id="progress"></div>
-                    </div>
-                    <p class="status" id="status">Preparando download...</p>
-                </div>
+            <div class="download-options">
+              <div class="option-heading"><div><span class="section-kicker">02 / FORMATO</span><h3>Escolhe o formato</h3></div><span id="selectedFormatLabel">MP4 · Vídeo</span></div>
+              <div class="format-grid" role="radiogroup" aria-label="Formato de saída">
+                <button class="format-option active" data-format="mp4" type="button" role="radio" aria-checked="true"><span class="format-icon">▣</span><span><strong>MP4</strong><small>Vídeo · Alta compatibilidade</small></span><span class="radio-dot"></span></button>
+                <button class="format-option" data-format="mp3" type="button" role="radio" aria-checked="false"><span class="format-icon">♫</span><span><strong>MP3</strong><small>Áudio · Qualidade máxima</small></span><span class="radio-dot"></span></button>
+                <button class="format-option" data-format="webm" type="button" role="radio" aria-checked="false"><span class="format-icon">◇</span><span><strong>WEBM</strong><small>Vídeo · Leve e aberto</small></span><span class="radio-dot"></span></button>
+                <button class="format-option" data-format="opus" type="button" role="radio" aria-checked="false"><span class="format-icon">◌</span><span><strong>OPUS</strong><small>Áudio · Eficiente</small></span><span class="radio-dot"></span></button>
+              </div>
+              <div class="quality-control" id="qualityControl">
+                <label for="qualitySelector"><span>Qualidade de vídeo</span><small>Mais qualidade pode significar um ficheiro maior.</small></label>
+                <select id="qualitySelector" aria-label="Qualidade de vídeo">
+                  <option value="auto">Automática · melhor disponível</option>
+                  <option value="1080">Até 1080p · alta qualidade</option>
+                  <option value="720">Até 720p · equilibrada</option>
+                  <option value="480">Até 480p · mais rápida</option>
+                </select>
+              </div>
             </div>
 
-            <!-- Download History -->
-            <div class="history">
-                <div class="history-header">
-                    <h2>Downloads Recentes</h2>
-                    <button id="clearHistory">Limpar Histórico</button>
-                </div>
-                <div id="historyContainer">
-                    <!-- Histórico de downloads será carregado dinamicamente :⁠-⁠)-->
-                </div>
-            </div>
+            <button class="primary-button" id="downloadButton" type="submit"><span id="downloadButtonIcon">↓</span><span id="downloadButtonText">Descarregar conteúdo</span><span class="button-arrow">↗</span></button>
+          </form>
 
-            <!-- Footer Section -->
-            <footer class="footer">
-                <div class="footer-links">
-                    <a href="/policy">Política de Privacidade</a>
-                    <span>&bull;</span>
-                    <a href="/terms">Termos de Uso</a>
-                    <a href="/legacy">Aviso Legal</a>
-                </div>
-                <div class="footer-social">
-                    <a
-                        href="https://github.com/borgelevisberg17"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="GitHub Profile"
-                    >
-                        <i class="fab fa-github"></i>
-                    </a>
-                </div>
-                <p class="footer-copyright">
-                    &copy; 2025 TubeMateX. Todos os direitos reservados. Feito com ❤️ por @borge.levisberg
-                </p>
-            </footer>
+          <div class="job-status" id="jobStatus" aria-live="polite" hidden>
+            <div class="status-topline"><span id="statusLabel">A preparar…</span><span id="statusPercent">0%</span></div>
+            <div class="progress-track"><div class="progress-value" id="progressValue"></div></div>
+            <div class="status-bottomline"><span id="statusDetail">O pedido foi adicionado à fila.</span><button type="button" class="cancel-job" id="cancelJob" hidden>Parar</button></div>
+          </div>
         </div>
 
-        <!-- Notification -->
-        <div class="notification" id="notification"></div>
+        <aside class="quick-panel panel">
+          <div class="panel-heading compact"><div><span class="section-kicker">GUIA RÁPIDO</span><h2>Como funciona</h2></div><span class="sparkle">✦</span></div>
+          <ol class="steps-list">
+            <li><span class="step-number">01</span><div><strong>Cola o link</strong><p>Usa o URL público do conteúdo que queres guardar.</p></div></li>
+            <li><span class="step-number">02</span><div><strong>Escolhe o formato</strong><p>Vídeo ou áudio, com opções para cada utilização.</p></div></li>
+            <li><span class="step-number">03</span><div><strong>Descarrega</strong><p>Acompanha o progresso e recebe o teu ficheiro.</p></div></li>
+          </ol>
+          <div class="tip-card"><span class="tip-icon">i</span><p><strong>Uma nota importante</strong><br />Usa o TubeMateX apenas com conteúdos que tens autorização para descarregar.</p></div>
+        </aside>
+      </section>
 
-        <!-- Google AdSense Placeholder -->
-        <!--
-    Para adicionar anúncios do Google AdSense, você precisa de uma conta aprovada.
-    Depois de aprovado, o Google fornecerá um snippet de código para colar aqui.
-    Exemplo:
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
-     crossorigin="anonymous"></script>
-  -->
+      <section class="history-section" id="history" aria-labelledby="historyTitle">
+        <div class="section-heading"><div><span class="section-kicker">03 / A TUA ATIVIDADE</span><h2 id="historyTitle">Downloads recentes</h2></div><button class="ghost-button" id="clearHistory" type="button" hidden>Limpar histórico</button></div>
+        <div class="history-container" id="historyContainer"><div class="empty-state"><div class="empty-icon">◴</div><h3>Ainda não há downloads</h3><p>Os teus ficheiros recentes aparecem aqui para acesso rápido.</p></div></div>
+      </section>
+    </main>
 
-        <!-- JavaScript como todas as funções :⁠-⁠)-->
-        <script src="/js/index.js"></script>
-    </body>
+    <footer class="footer"><div class="footer-brand"><span class="brand-mark small"><span></span><span></span><span></span></span><strong>TubeMateX</strong></div><p>Descarrega apenas conteúdos públicos e autorizados.</p><div class="footer-links"><a href="/policy">Privacidade</a><a href="/terms">Termos</a><a href="/legacy">Aviso legal</a><a href="https://github.com/borgelevisberg17/TubeMateX" target="_blank" rel="noopener">GitHub ↗</a></div><small>© 2026 TubeMateX</small></footer>
+  </div>
+  <div class="notification" id="notification" role="status" aria-live="polite"></div>
+  <script src="/js/index.js"></script>
+  <script src="/js/search.js"></script>
+  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));</script>
+</body>
 </html>

@@ -1,7 +1,7 @@
 {
   "name": "youtube-downloader-backend",
   "version": "1.0.0",
-  "description": "Backend para download de vídeos do YouTube usando Express, play-dl e youtube-dl-exec",
+  "description": "Backend multi-plataforma do TubeMateX com yt-dlp, SQLite relacional, autenticação Google e histórico persistente",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,25 +11,25 @@
   "keywords": [
     "youtube",
     "downloader",
+    "multi-site",
     "express",
-    "play-dl",
-    "youtube-dl-exec"
+    "yt-dlp"
   ],
   "author": "Borge",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.12.2",
+    "@openanime/youtube-dl-exec": "^3.0.10",
+    "bullmq": "^5.81.3",
+    "connect-redis": "^9.0.0",
     "connect-sqlite3": "^0.9.16",
-    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "play-dl": "^1.9.7",
-    "sqlite3": "^5.1.7",
-    "@openanime/youtube-dl-exec": "^3.0.10"
+    "redis": "^5.12.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/express-session": "^1.18.2",
