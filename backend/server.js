@@ -117,6 +117,13 @@ let allDownloadsPaused = false;
 const INFO_CACHE_MS = 5 * 60 * 1000;
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
+const IPTV_PLAYLIST_SOURCES = [
+    { id: 'iptv-org-general', label: 'IPTV público mundial', url: 'https://iptv-org.github.io/iptv/index.m3u', safety: 'filtered', note: 'Fonte geral; o backend cruza blocklist DMCA/NSFW e metadata do catálogo.' },
+    { id: 'iptv-org-spanish', label: 'Canais em espanhol', url: 'https://iptv-org.github.io/iptv/languages/spa.m3u', safety: 'filtered', note: 'Subset da lista geral por idioma; inclui canais geograficamente limitados.' },
+    { id: 'iptv-org-spain', label: 'Canais de Espanha', url: 'https://iptv-org.github.io/iptv/countries/es.m3u', safety: 'filtered', note: 'Subset da lista geral por país; inclui labels como Geo-blocked e Not 24/7.' },
+    { id: 'm3u-cl-total', label: 'M3U.cl total', url: 'https://www.m3u.cl/lista/total.m3u', safety: 'unverified', note: 'Fonte externa; não entra no catálogo automático sem validação individual.' },
+    { id: 'iptv-org-nsfw', label: 'IPTV público NSFW', url: 'https://iptv-org.github.io/iptv/index.nsfw.m3u', safety: 'blocked', note: 'Não é carregada pelo produto; endpoint devolveu 404 na auditoria.' }
+];
 const SUPPORTED_PLATFORMS = [
     { id: 'youtube', label: 'YouTube', mode: 'download' }, { id: 'youtube-music', label: 'YouTube Music', mode: 'download' },
     { id: 'soundcloud', label: 'SoundCloud', mode: 'download' }, { id: 'vimeo', label: 'Vimeo', mode: 'download' },
@@ -880,6 +887,7 @@ app.get('/api/capabilities', (req, res) => res.json({
     platforms: SUPPORTED_PLATFORMS
 }));
 
+app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
 app.get('/api/discover', apiLimiter, async (req, res) => {
     const area = ['home', 'music', 'social', 'entertainment'].includes(String(req.query.area || '').toLowerCase()) ? String(req.query.area).toLowerCase() : 'home';
     const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 12);

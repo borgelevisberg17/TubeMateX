@@ -67,3 +67,15 @@ A API pública do iptv-org expõe `channels.json`, `streams.json`, `feeds.json`,
 ## Referências
 
 [9]: https://github.com/iptv-org/api#readme — iptv-org API, campos de Channels, Streams, Languages, Countries e Blocklist.
+
+## Playlists fornecidas pelo utilizador
+
+A documentação oficial do iptv-org confirma que a playlist principal atualmente publicada é `https://iptv-org.github.io/iptv/index.m3u`; as outras playlists são listadas em `PLAYLISTS.md`. O projeto declara que apenas mantém links submetidos publicamente, não hospeda ficheiros e não controla o destino dos links; também prevê remoção quando um titular de direitos apresenta uma reclamação. Portanto, a playlist geral não deve ser chamada de “garantia legal” ou “segura” no sentido absoluto: o TubeMateX deve aplicar a sua própria exclusão de NSFW/DMCA, manter o link da fonte e testar a disponibilidade no momento da reprodução.[10]
+
+A URL `https://iptv-org.github.io/iptv/index.nsfw.m3u` devolveu HTTP 404 durante a auditoria de 27/08/2026. Não deve ser adicionada como fonte funcional até existir no README/PLAYLISTS ou responder com M3U válido. A lista geral baixada tinha 12.857 entradas, 27 candidatos por nome a conteúdo adulto e deve ser filtrada no backend; a lista em espanhol tinha 2.259 entradas, três candidatos adultos; a lista de Espanha tinha 336 entradas, sem candidatos adultos pelo filtro nominal. Estas listas são variantes da mesma base: todos os itens de espanhol/Espanha estavam presentes na lista geral no momento da auditoria.[10]
+
+O artigo da Oficina da Net recomenda fontes oficiais como EBC/TV Brasil, TV Cultura, TV Câmara, TV Senado, TV Justiça, TV Escola, SescTV, Rede Minas, Canal Futura, TVs universitárias e NASA TV, e alerta que ofertas gratuitas de canais pagos como Globo, Telecine, ESPN, HBO e Premiere são pirataria. O domínio `jethrojeff.com` não é uma playlist IPTV: é um site editorial de desenvolvimento pessoal, saúde, lifestyle e comida, sem M3U/streams identificados. O endpoint `https://www.m3u.cl/lista/total.m3u` respondeu com 1.076 entradas e sete URLs duplicadas, mas não fornece a mesma taxonomia/origem do iptv-org; será tratado como fonte externa não aprovada até validação individual dos links.[11] [12]
+
+[10]: https://github.com/iptv-org/iptv#readme — README oficial do iptv-org/iptv.
+[11]: https://www.oficinadanet.com.br/iptv/62987-listas-iptv-gratis-2025 — artigo consultado em 27/08/2026.
+[12]: https://jethrojeff.com/ — página consultada em 27/08/2026; não é uma playlist IPTV.
