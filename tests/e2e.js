@@ -27,7 +27,7 @@ const { chromium } = require('playwright');
   await page.locator('#videoUrl').fill('https://example.com/video');
   await page.locator('#downloadButton').click();
   await page.locator('[data-live-job="e2e-job"]').waitFor();
-  await page.locator('#closeStage').click();
+  await page.locator('#closeStage').scrollIntoViewIfNeeded(); await page.locator('#closeStage').click({ force: true });
   assert.equal(await page.locator('#mediaStage').isVisible(), false);
   assert.equal(await page.locator('#miniAudio').getAttribute('src'), null);
   await page.unroute('**/api/search?**');

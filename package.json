@@ -8,6 +8,7 @@
     "dev": "nodemon backend/server.js",
     "test:e2e": "node tests/e2e.js && node tests/profile-e2e.js && node tests/settings-e2e.js",
     "test:catalog": "node tests/catalog-metadata.js",
+    "test:platforms": "node tests/platform-download-smoke.js",
     "vercel-build": "apt-get update && apt-get install -y python3-pip && pip3 install --upgrade yt-dlp"
   },
   "dependencies": {
