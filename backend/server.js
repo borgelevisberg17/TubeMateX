@@ -102,6 +102,15 @@ let allDownloadsPaused = false;
 const INFO_CACHE_MS = 5 * 60 * 1000;
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
+const SUPPORTED_PLATFORMS = [
+    { id: 'youtube', label: 'YouTube', mode: 'download' }, { id: 'youtube-music', label: 'YouTube Music', mode: 'download' },
+    { id: 'soundcloud', label: 'SoundCloud', mode: 'download' }, { id: 'vimeo', label: 'Vimeo', mode: 'download' },
+    { id: 'twitch', label: 'Twitch', mode: 'download' }, { id: 'dailymotion', label: 'Dailymotion', mode: 'download' },
+    { id: 'bandcamp', label: 'Bandcamp', mode: 'download' }, { id: 'audiomack', label: 'Audiomack', mode: 'download' },
+    { id: 'mixcloud', label: 'Mixcloud', mode: 'download' }, { id: 'apple-podcasts', label: 'Apple Podcasts', mode: 'download' },
+    { id: 'spotify', label: 'Spotify', mode: 'metadata-only', note: 'O catálogo usa áudio protegido; pesquisa numa fonte autorizada é necessária.' },
+    { id: 'apple-music', label: 'Apple Music', mode: 'metadata-only', note: 'As faixas do catálogo usam proteção; Apple Music Connect pode ser compatível.' }
+];
 const SEARCH_PROVIDERS = [...new Set(String(process.env.SEARCH_PROVIDERS || 'ytsearch,scsearch,vimeo,twitch').split(',').map(value => value.trim().toLowerCase()).filter(value => SEARCH_PROVIDER_LABELS[value]))];
 
 const videoQualities = {
@@ -753,11 +762,14 @@ app.get('/health', async (req, res) => {
     res.json({ status: 'ok', service: 'TubeMateX', role: BULLMQ_ROLE, queue: queue.length, active: activeJobs, distributed });
 });
 
+app.get('/api/platforms', (req, res) => res.json({ platforms: SUPPORTED_PLATFORMS }));
+
 app.get('/api/capabilities', (req, res) => res.json({
     formats: Object.entries(allowedFormats).map(([id, item]) => ({ id, label: item.label, type: item.type })),
     qualities: Object.entries(videoQualities).map(([id, label]) => ({ id, label })),
     maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS,
-    maxDownloadSize: MAX_DOWNLOAD_SIZE
+    maxDownloadSize: MAX_DOWNLOAD_SIZE,
+    platforms: SUPPORTED_PLATFORMS
 }));
 
 app.get('/api/search', apiLimiter, async (req, res) => {

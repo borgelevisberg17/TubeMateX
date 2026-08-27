@@ -13,6 +13,10 @@
     return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
   }
 
+  function detectPlatform(value = '') {
+    try { const host = new URL(value).hostname.replace(/^www\./, '').toLowerCase(); if (host.includes('spotify.com')) return 'Spotify'; if (host.includes('music.apple.com')) return 'Apple Music'; if (host.includes('podcasts.apple.com')) return 'Apple Podcasts'; } catch {} return '';
+  }
+
   function formatDate(value) {
     if (!value) return 'Agora';
     return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
@@ -30,6 +34,11 @@
     let amount = bytes; let index = 0;
     while (amount >= 1024 && index < units.length - 1) { amount /= 1024; index += 1; }
     return `${amount.toFixed(amount >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+  }
+
+  function friendlyResponseError(response, fallback) {
+    if (response.status === 429) { const retry = response.headers.get('Retry-After'); return `O serviço atingiu o limite de pedidos. Aguarda ${retry ? `${retry} segundos` : 'alguns segundos'} e tenta novamente.`; }
+    return fallback;
   }
 
   function showNotification(message, type = 'success') {
@@ -79,7 +88,7 @@
   function renderInfo(info) {
     const container = $('#videoInfo');
     if (!info) { container.hidden = true; container.innerHTML = ''; return; }
-    container.innerHTML = `${info.thumbnail ? `<img src="${escapeHtml(info.thumbnail)}" alt="" loading="lazy" />` : '<div class="history-thumb history-placeholder">◉</div>'}<div class="media-preview-copy"><strong title="${escapeHtml(info.title)}">${escapeHtml(info.title)}</strong><span>${escapeHtml(info.site || 'Plataforma suportada')}${info.uploader ? ` · ${escapeHtml(info.uploader)}` : ''}</span></div>`;
+    container.innerHTML = `${info.thumbnail ? `<img src="${escapeHtml(info.thumbnail)}" alt="" loading="lazy" />` : '<div class="history-thumb history-placeholder"><svg class="icon"><use href="#i-file"></use></svg></div>'}<div class="media-preview-copy"><strong title="${escapeHtml(info.title)}">${escapeHtml(info.title)}</strong><span>${escapeHtml(info.site || 'Plataforma suportada')}${info.uploader ? ` · ${escapeHtml(info.uploader)}` : ''}</span>${info.note ? `<small>${escapeHtml(info.note)}</small>` : ''}</div>`;
     container.hidden = false;
   }
 
@@ -89,9 +98,9 @@
     if (!url) { renderInfo(null); return; }
     $('#urlInputWrap').classList.remove('invalid');
     $('#videoUrl').setAttribute('aria-invalid', 'false');
-    try {
-      new URL(url);
-    } catch { return; }
+    try { new URL(url); } catch { return; }
+    const platform = detectPlatform(url);
+    if (platform === 'Spotify' || platform === 'Apple Music') { renderInfo({ title: platform, site: platform, uploader: 'Catálogo protegido', note: 'Use a pesquisa do TubeMateX para encontrar uma fonte autorizada.' }); return; }
     if (state.infoRequest) state.infoRequest.abort();
     state.infoRequest = new AbortController();
     try {
@@ -172,12 +181,14 @@
       const parsed = new URL(url);
       if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
     } catch { showNotification('Indica um URL público válido.', 'error'); $('#urlInputWrap').classList.add('invalid'); $('#videoUrl').setAttribute('aria-invalid', 'true'); return; }
+    const platform = detectPlatform(url);
+    if (platform === 'Spotify' || platform === 'Apple Music') { showNotification(`${platform} usa áudio protegido. O TubeMateX não descarrega faixas do catálogo diretamente.`, 'error'); return; }
     setLoading(true);
     $('#urlInputWrap').classList.remove('invalid');
     try {
       const response = await fetch('/api/downloads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, format: state.format, quality: state.quality }) });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Não foi possível adicionar o download.');
+      if (!response.ok) throw new Error(friendlyResponseError(response, result.error || 'Não foi possível adicionar o download.'));
       setLoading(false);
       showNotification('Download adicionado à fila.', 'success');
       watchJob(result.job);
@@ -191,14 +202,18 @@
   window.TubeMateX.preview = async (url, title = 'Pré-visualização', type = 'audio') => {
     if (!url) { showNotification('Este resultado ainda não tem uma URL de stream disponível.', 'error'); return; }
     const audio = $('#miniAudio');
-    if (!audio) return;
+    const video = $('#miniVideo');
+    if (!audio || !video) return;
     showNotification('A preparar a pré-visualização…', 'success');
     try {
       const response = await fetch(`/api/media/stream?url=${encodeURIComponent(url)}&type=${encodeURIComponent(type)}`);
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.url) throw new Error(result.error || 'Não foi possível iniciar a pré-visualização.');
-      audio.src = result.url;
-      audio.dataset.sourceUrl = url;
+      if (!response.ok || !result.url) throw new Error(friendlyResponseError(response, result.error || 'Não foi possível iniciar a pré-visualização.'));
+      const isVideo = type === 'video' || result.type === 'video';
+      audio.pause(); video.pause();
+      if (isVideo) { video.src = result.url; video.hidden = false; audio.removeAttribute('src'); $('#mediaVideo').src = result.url; $('#stageTitle').textContent = result.title || title; $('#mediaStage').hidden = false; }
+      else { audio.src = result.url; video.removeAttribute('src'); video.hidden = true; }
+      audio.dataset.sourceUrl = url; video.dataset.sourceUrl = url;
       audio.dataset.title = result.title || title;
       $('#playerEmpty').hidden = true;
       $('#playerContent').hidden = false;
@@ -208,9 +223,10 @@
       if (playerArtist) playerArtist.textContent = 'Pré-visualização · '+(result.type === 'video' ? 'vídeo' : 'áudio');
       const playerCover = $('#playerCover');
       if (playerCover) playerCover.style.backgroundImage = result.thumbnail ? `url("${escapeHtml(result.thumbnail)}")` : 'linear-gradient(135deg,#162b40,#263649)';
-      audio.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(audio.duration); };
-      audio.ontimeupdate = () => { if (audio.duration) { $('#playerCurrent').textContent = formatTime(audio.currentTime); $('#playerSeek').value = String((audio.currentTime / audio.duration) * 100); } };
-      await audio.play();
+      const media = isVideo ? video : audio;
+      media.onloadedmetadata = () => { $('#playerDuration').textContent = formatTime(media.duration); };
+      media.ontimeupdate = () => { if (media.duration) { $('#playerCurrent').textContent = formatTime(media.currentTime); $('#playerSeek').value = String((media.currentTime / media.duration) * 100); } };
+      await media.play();
       const playButton = $('#playButton');
       if (playButton) { playButton.dataset.playing = 'true'; playButton.classList.add('is-playing'); }
       showNotification('Pré-visualização iniciada no mini player.', 'success');
@@ -302,12 +318,13 @@
       else showNotification(`Pré-visualização de “${title}” selecionada.`, 'success');
       document.querySelector('.mini-player')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }));
-    $('#playerSeek')?.addEventListener('input', event => { const audio = $('#miniAudio'); if (audio?.duration) audio.currentTime = (Number(event.target.value) / 100) * audio.duration; });
+    $('#playerSeek')?.addEventListener('input', event => { const media = $('#miniVideo').hidden ? $('#miniAudio') : $('#miniVideo'); if (media?.duration) media.currentTime = (Number(event.target.value) / 100) * media.duration; });
+    $('#closeStage')?.addEventListener('click', () => { $('#mediaStage').hidden = true; $('#mediaVideo').pause(); });
     document.querySelector('.play-button')?.addEventListener('click', event => {
-      const audio = $('#miniAudio');
+      const media = $('#miniVideo').hidden ? $('#miniAudio') : $('#miniVideo');
       const playing = event.currentTarget.dataset.playing === 'true';
-      if (!audio?.src) { showNotification('Escolhe um resultado para iniciar a pré-visualização.', 'error'); return; }
-      if (playing) audio.pause(); else audio.play().catch(() => {});
+      if (!media?.src) { showNotification('Escolhe um resultado para iniciar a pré-visualização.', 'error'); return; }
+      if (playing) media.pause(); else media.play().catch(() => {});
       event.currentTarget.dataset.playing = String(!playing);
       event.currentTarget.classList.toggle('is-playing', !playing);
     });
