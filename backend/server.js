@@ -20,6 +20,9 @@ const sqlite3 = require('sqlite3').verbose();
 // Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
 // previamente revisado que contém o namespace yt_dlp_plugins.
 const YT_DLP_PLUGIN_DIR = process.env.YT_DLP_PLUGIN_DIR ? path.resolve(process.env.YT_DLP_PLUGIN_DIR) : null;
+const YT_DLP_COMMON_OPTIONS = {};
+if (process.env.YTDLP_COOKIES_FILE) YT_DLP_COMMON_OPTIONS.cookies = path.resolve(process.env.YTDLP_COOKIES_FILE);
+if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
 function listYtDlpPlugins() {
     if (!YT_DLP_PLUGIN_DIR) return [];
@@ -521,6 +524,7 @@ function optionsFor(job) {
     const format = allowedFormats[job.format] || allowedFormats.mp4;
     const cap = format.type === 'video' && job.quality && job.quality !== 'auto' && videoQualities[job.quality] ? `[height<=${job.quality}]` : '';
     const options = {
+        ...YT_DLP_COMMON_OPTIONS,
         noWarnings: true,
         noColor: true,
         newline: true,
@@ -535,10 +539,10 @@ function optionsFor(job) {
     return {
         ...options,
         format: job.format === 'webm'
-            ? `bv*${cap}[ext=webm]+ba[ext=webm]/bv*${cap}[ext=webm]/bv*${cap}`
+            ? `bv*${cap}[ext=webm]+ba/bv*${cap}[ext=webm]/bv*${cap}+ba/bv*${cap}`
             : job.format === 'best'
                 ? `bv*${cap}+ba/bv*${cap}`
-                : `bv*${cap}[ext=mp4]+ba[ext=m4a]/bv*${cap}[ext=mp4]/bv*${cap}`,
+                : `bv*${cap}[ext=mp4]+ba/bv*${cap}[ext=mp4]/bv*${cap}+ba/bv*${cap}`,
         mergeOutputFormat: job.format === 'webm' ? 'webm' : 'mp4'
     };
 }
@@ -564,7 +568,7 @@ async function searchTwitch(query, limit) {
 }
 
 async function searchYtdlpProvider(provider, query, limit, type) {
-    const result = await ytdlp(`${provider}${limit}:${query}`, { flatPlaylist: true, dumpSingleJson: true, skipDownload: true, noWarnings: true, socketTimeout: 15 });
+    const result = await ytdlp(`${provider}${limit}:${query}`, { ...YT_DLP_COMMON_OPTIONS, flatPlaylist: true, dumpSingleJson: true, skipDownload: true, noWarnings: true, socketTimeout: 15 });
     const entries = Array.isArray(result?.entries) ? result.entries : [];
     return entries.filter(entry => entry && (entry.id || entry.url)).map(entry => ({
         id: `${provider}-${entry.id || crypto.createHash('sha1').update(String(entry.url)).digest('hex').slice(0, 12)}`,
@@ -611,6 +615,7 @@ async function fetchInfo(url) {
     const cached = infoCache.get(url);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     const result = await ytdlp(url, {
+        ...YT_DLP_COMMON_OPTIONS,
         dumpSingleJson: true,
         skipDownload: true,
         noWarnings: true,
@@ -629,13 +634,79 @@ async function fetchInfo(url) {
     return value;
 }
 
+const DISCOVERY_TERMS = {
+    music: ['lofi music', 'live acoustic session', 'indie music', 'jazz session', 'podcast'],
+    social: ['creative short video', 'street food', 'dance performance', 'travel vlog'],
+    entertainment: ['classic film', 'short film', 'anime opening', 'dorama trailer'],
+    home: ['music live session', 'creative video', 'short documentary', 'film trailer']
+};
+const discoverCache = new Map();
+let publicIptvCache = { expiresAt: 0, items: [] };
+function shuffled(items) { return [...items].sort(() => Math.random() - 0.5); }
+async function fetchSpotifyDiscovery(term, limit) {
+    if (!process.env.SPOTIFY_ACCESS_TOKEN) return [];
+    const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(term)}&type=track&limit=${Math.min(limit, 10)}&market=${encodeURIComponent(process.env.SPOTIFY_MARKET || 'US')}`, { headers: { Authorization: `Bearer ${process.env.SPOTIFY_ACCESS_TOKEN}` } });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.tracks?.items || []).map(item => ({ id: `spotify-${item.id}`, title: item.name || 'Faixa Spotify', url: item.external_urls?.spotify, externalUrl: item.external_urls?.spotify, thumbnail: item.album?.images?.[0]?.url || null, duration: Math.round(Number(item.duration_ms || 0) / 1000), site: 'Spotify', uploader: item.artists?.map(artist => artist.name).join(', ') || null, kind: 'music', metadataOnly: true })).filter(item => item.url);
+}
+async function fetchAppleMusicDiscovery(term, limit) {
+    if (!process.env.APPLE_MUSIC_DEVELOPER_TOKEN) return [];
+    const storefront = process.env.APPLE_MUSIC_STOREFRONT || 'us';
+    const response = await fetch(`https://api.music.apple.com/v1/catalog/${storefront}/search?term=${encodeURIComponent(term)}&types=songs&limit=${Math.min(limit, 10)}`, { headers: { Authorization: `Bearer ${process.env.APPLE_MUSIC_DEVELOPER_TOKEN}` } });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.results?.songs?.data || []).map(item => ({ id: `apple-music-${item.id}`, title: item.attributes?.name || 'Faixa Apple Music', url: item.attributes?.url, externalUrl: item.attributes?.url, thumbnail: item.attributes?.artwork?.url?.replace('{w}', '640').replace('{h}', '640') || null, duration: Math.round(Number(item.attributes?.durationInMillis || 0) / 1000), site: 'Apple Music', uploader: item.attributes?.artistName || null, kind: 'music', metadataOnly: true })).filter(item => item.url);
+}
+async function fetchPublicIptvDiscovery(limit, filters = {}) {
+    const cacheKey = `${limit}:${filters.country || ''}:${filters.language || ''}:${filters.category || ''}:${filters.query || ''}`;
+    if (publicIptvCache.expiresAt > Date.now() && publicIptvCache.key === cacheKey) return publicIptvCache.items.slice(0, limit);
+    const [channelsResponse, streamsResponse, feedsResponse, blocklistResponse] = await Promise.all([fetch('https://iptv-org.github.io/api/channels.json'), fetch('https://iptv-org.github.io/api/streams.json'), fetch('https://iptv-org.github.io/api/feeds.json'), fetch('https://iptv-org.github.io/api/blocklist.json')]);
+    if (!channelsResponse.ok || !streamsResponse.ok || !feedsResponse.ok || !blocklistResponse.ok) return [];
+    const channels = await channelsResponse.json(); const streams = await streamsResponse.json(); const feeds = await feedsResponse.json(); const blocklist = await blocklistResponse.json(); const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel)); const byId = new Map(channels.map(channel => [channel.id, channel])); const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed]));
+    const categories = new Set(['entertainment', 'movies', 'series', 'kids', 'news', 'documentary', 'music', 'religious', 'cooking', 'animation', 'classic', 'family', 'education']);
+    const items = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && byId.has(stream.channel) && !blocked.has(stream.channel)).map(stream => { const channel = byId.get(stream.channel); const feed = feedById.get(`${channel.id}::${stream.feed}`) || feeds.find(item => item.channel === channel.id && item.is_main) || null; const languages = feed?.languages || []; return { id: `iptv-${channel.id}-${Buffer.from(stream.url).toString('base64url').slice(0, 10)}`, channelId: channel.id, channelName: channel.name || channel.id, title: stream.title || `${channel.name || channel.id} · Direto`, url: stream.url, externalUrl: channel.website || `https://iptv-org.github.io/`, thumbnail: channel.logo || null, duration: 0, site: 'IPTV público · iptv-org', uploader: channel.country || null, country: channel.country || null, language: languages[0] || null, languages, categories: channel.categories || [], quality: stream.quality || null, availabilityLabel: stream.label || null, kind: 'live', live: true, directStream: true }; }).filter(item => item.categories.some(category => categories.has(category))).filter(item => !filters.country || item.country === filters.country).filter(item => !filters.language || item.languages.includes(filters.language)).filter(item => !filters.category || item.categories.includes(filters.category)).filter(item => !filters.query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(String(filters.query).toLowerCase()));
+    publicIptvCache = { key: cacheKey, expiresAt: Date.now() + 10 * 60 * 1000, items: shuffled(items) }; return publicIptvCache.items.slice(0, limit);
+}
+async function fetchArchiveDiscovery(term, limit) {
+    const query = encodeURIComponent(`mediatype:movies AND title:(${term})`);
+    const response = await fetch(`https://archive.org/advancedsearch.php?q=${query}&fl[]=identifier&fl[]=title&rows=${Math.min(limit, 8)}&output=json`);
+    if (!response.ok) return [];
+    const docs = (await response.json()).response?.docs || [];
+    const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', kind: 'film' }; } catch { return null; } }));
+    return items.filter(Boolean);
+}
+const searchDiscovery = (...args) => searchMedia(...args).then(payload => payload.results || []).catch(() => []);
+async function discoverMedia(area, limit) {
+    const cacheKey = `${area}:${limit}`; const cached = discoverCache.get(cacheKey); if (cached && cached.expiresAt > Date.now()) return cached.value;
+    const term = shuffled(DISCOVERY_TERMS[area] || DISCOVERY_TERMS.home)[0]; let results = [];
+    if (area === 'music') { const groups = await Promise.all([searchDiscovery(term, 'music', limit, 'soundcloud'), searchDiscovery(term, 'music', limit, 'youtube'), fetchSpotifyDiscovery(term, limit).catch(() => []), fetchAppleMusicDiscovery(term, limit).catch(() => [])]); results = shuffled(groups.flat()).slice(0, limit); }
+    else if (area === 'social') { const youtube = await searchDiscovery(term, 'video', limit, 'youtube'); const tiktokUrls = String(process.env.TIKTOK_DISCOVERY_URLS || '').split(',').map(value => value.trim()).filter(value => /^https?:\/\//i.test(value)).slice(0, limit); const tiktok = await Promise.all(tiktokUrls.map(async url => { try { const item = await fetchInfo(url); return { ...item, url, externalUrl: url, kind: 'video', site: 'TikTok' }; } catch { return null; } })); results = shuffled([...youtube, ...tiktok.filter(Boolean)]).slice(0, limit); }
+    else if (area === 'entertainment') { const [youtube, archive, iptv] = await Promise.all([searchDiscovery(term, 'film', limit, 'youtube'), fetchArchiveDiscovery(term, Math.ceil(limit / 2)).catch(() => []), fetchPublicIptvDiscovery(Math.ceil(limit / 2)).catch(() => [])]); results = shuffled([...youtube, ...archive, ...iptv]).slice(0, limit); }
+    else { const [video, music, archive] = await Promise.all([searchDiscovery(term, 'video', Math.ceil(limit / 3), 'youtube'), searchDiscovery(term, 'music', Math.ceil(limit / 3), 'soundcloud'), fetchArchiveDiscovery('short documentary', Math.ceil(limit / 3)).catch(() => [])]); results = shuffled([...video, ...music, ...archive]).slice(0, limit); }
+    const value = { term, results }; discoverCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value }); return value;
+}
+
+function errorCode(error) {
+    const raw = String(error?.stderr || error?.message || error || '');
+    if (/Sign in|not a bot|age-restricted|login required|members-only/i.test(raw)) return 'authentication-required';
+    if (/Requested format is not available|format.*not available/i.test(raw)) return 'format-unavailable';
+    if (/DRM|protected content/i.test(raw)) return 'drm-protected';
+    if (/copyright|blocked in your country|not available in your country/i.test(raw)) return 'region-blocked';
+    if (/Unsupported URL|no suitable extractor/i.test(raw)) return 'unsupported-url';
+    if (/Video unavailable|removed|private video/i.test(raw)) return 'content-unavailable';
+    if (/File is larger than/i.test(raw)) return 'file-too-large';
+    return 'processing-error';
+}
 function translateError(error) {
-    const raw = String(error?.stderr || error?.message || error || 'Erro desconhecido');
-    if (/Unsupported URL|no suitable extractor/i.test(raw)) return 'Este site ou URL não é suportado pelo motor de download.';
-    if (/Video unavailable|not available|removed|private video/i.test(raw)) return 'O conteúdo não está disponível, foi removido ou é privado.';
-    if (/Sign in|age-restricted|login required|members-only/i.test(raw)) return 'Este conteúdo exige autenticação na plataforma de origem.';
-    if (/copyright|blocked in your country|not available in your country/i.test(raw)) return 'O conteúdo está bloqueado por direitos ou região.';
-    if (/File is larger than/i.test(raw)) return 'O ficheiro excede o limite de tamanho permitido.';
+    const code = errorCode(error);
+    if (code === 'unsupported-url') return 'Este site ou URL não é suportado pelo motor de download.';
+    if (code === 'content-unavailable') return 'O conteúdo não está disponível, foi removido ou é privado.';
+    if (code === 'authentication-required') return 'Este conteúdo exige autenticação na plataforma de origem. Configura YTDLP_COOKIES_FILE ou YTDLP_COOKIES_FROM_BROWSER no servidor local.';
+    if (code === 'format-unavailable') return 'A qualidade pedida não existe neste conteúdo. Escolhe Automática ou tenta outra qualidade.';
+    if (code === 'drm-protected') return 'Este catálogo usa DRM e não pode ser descarregado pelo TubeMateX.';
+    if (code === 'region-blocked') return 'O conteúdo está bloqueado por direitos ou região.';
+    if (code === 'file-too-large') return 'O ficheiro excede o limite de tamanho permitido.';
     return 'Não foi possível processar este download. Confirma o link e tenta novamente.';
 }
 
@@ -692,7 +763,7 @@ async function runJob(job) {
         if (job.cancelled) {
             emit(job, { status: 'cancelled', error: 'Download cancelado.', progress: { percent: 0, label: 'Download cancelado' } });
         } else {
-            emit(job, { status: 'failed', error: translateError(error), progress: { percent: 0, label: 'O download falhou' } });
+            emit(job, { status: 'failed', error: translateError(error), errorCode: errorCode(error), progress: { percent: 0, label: 'O download falhou' } });
         }
         if (job.filePath && fs.existsSync(job.filePath)) fs.rmSync(job.filePath, { force: true });
     } finally {
@@ -804,9 +875,23 @@ app.get('/api/capabilities', (req, res) => res.json({
     qualities: Object.entries(videoQualities).map(([id, label]) => ({ id, label })),
     maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS,
     maxDownloadSize: MAX_DOWNLOAD_SIZE,
+    searchProviders: SEARCH_PROVIDERS.map(provider => SEARCH_PROVIDER_LABELS[provider] || provider),
+    youtubeAuthConfigured: Boolean(YT_DLP_COMMON_OPTIONS.cookies || YT_DLP_COMMON_OPTIONS.cookiesFromBrowser),
     platforms: SUPPORTED_PLATFORMS
 }));
 
+app.get('/api/discover', apiLimiter, async (req, res) => {
+    const area = ['home', 'music', 'social', 'entertainment'].includes(String(req.query.area || '').toLowerCase()) ? String(req.query.area).toLowerCase() : 'home';
+    const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 12);
+    const sourceStatus = { youtube: { mode: 'search', configured: SEARCH_PROVIDERS.includes('ytsearch'), note: 'Pesquisa pública via provider configurado.' }, soundcloud: { mode: 'search', configured: SEARCH_PROVIDERS.includes('scsearch'), note: 'Pesquisa pública via provider configurado.' }, tiktok: { mode: 'direct-link', configured: Boolean(process.env.TIKTOK_DISCOVERY_URLS), note: 'URL público direto ou URLs editoriais configurados.' }, instagram: { mode: 'direct-link', configured: true, note: 'URL público direto; a API oficial exige conta profissional/autorização.' }, facebook: { mode: 'direct-link', configured: true, note: 'URL público direto; pode exigir autenticação.' }, spotify: { mode: 'metadata-only', configured: Boolean(process.env.SPOTIFY_ACCESS_TOKEN), note: 'Catálogo e links oficiais; conteúdo não descarregável.' }, 'apple-music': { mode: 'metadata-only', configured: Boolean(process.env.APPLE_MUSIC_DEVELOPER_TOKEN), note: 'Catálogo e links oficiais; playback depende de autorização.' }, 'internet-archive': { mode: 'public-video', configured: true, note: 'Itens de vídeo públicos com metadata e media disponíveis.' }, 'iptv-org': { mode: 'public-live', configured: area === 'entertainment', note: 'Canais submetidos publicamente; disponibilidade deve ser verificada.' } };
+    try { const discovery = await discoverMedia(area, limit); res.json({ area, term: discovery.term, results: discovery.results, sources: sourceStatus, note: 'Resultados obtidos de fontes públicas e configurações disponíveis; cada item mantém a sua origem.' }); }
+    catch (error) { console.error('[discover]', error.message); res.status(502).json({ error: 'Não foi possível carregar a descoberta agora.', errorCode: errorCode(error), sources: sourceStatus }); }
+});
+app.get('/api/iptv/channels', apiLimiter, async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 60); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null };
+    try { const results = await fetchPublicIptvDiscovery(limit, filters); res.json({ results, filters, source: 'iptv-org', note: 'Canais submetidos publicamente; a disponibilidade e os direitos devem ser verificados no momento da reprodução.' }); }
+    catch (error) { console.error('[iptv]', error.message); res.status(502).json({ error: 'Não foi possível consultar os canais IPTV públicos agora.', errorCode: errorCode(error) }); }
+});
 app.get('/api/search', apiLimiter, async (req, res) => {
     const query = String(req.query.q || '').trim();
     const type = ['all', 'music', 'video', 'film'].includes(String(req.query.type || 'all').toLowerCase()) ? String(req.query.type || 'all').toLowerCase() : 'all';
@@ -839,13 +924,14 @@ app.get('/api/media/stream', apiLimiter, async (req, res) => {
     if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
     try {
         const result = await ytdlp(url, {
+            ...YT_DLP_COMMON_OPTIONS,
             dumpSingleJson: true,
             skipDownload: true,
             noWarnings: true,
             noPlaylist: true,
             noCheckCertificates: true,
             socketTimeout: 15,
-            format: type === 'video' ? 'best[ext=mp4]/best' : 'bestaudio/best'
+            format: type === 'video' ? 'bv*+ba/bv*' : 'bestaudio/best'
         });
         const requestedFormats = Array.isArray(result.requested_formats) ? result.requested_formats : [];
         const combined = result.url && result.vcodec !== 'none' && result.acodec !== 'none' ? result : null;
@@ -864,10 +950,9 @@ app.get('/api/media/stream', apiLimiter, async (req, res) => {
         });
     } catch (error) {
         console.error('[stream]', error?.stderr || error?.message || error);
-        res.status(422).json({ error: translateError(error) });
+        res.status(422).json({ error: translateError(error), errorCode: errorCode(error) });
     }
 });
-
 app.post('/api/downloads', downloadLimiter, async (req, res) => {
     const url = await validateUrl(req.body?.url);
     const format = String(req.body?.format || 'mp4').toLowerCase();

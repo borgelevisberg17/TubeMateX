@@ -1,0 +1,2 @@
+const ytdlp = require('@openanime/youtube-dl-exec');
+(async()=>{try{const result=await ytdlp('tiktok:search5:anime', {dumpSingleJson:true,flatPlaylist:true,noWarnings:true,socketTimeout:20});console.log(JSON.stringify({supported:true,entries:(result.entries||[]).length},null,2));}catch(error){console.log(JSON.stringify({supported:false,error:String(error.stderr||error.message||error).split('\n').find(Boolean)},null,2));}})();

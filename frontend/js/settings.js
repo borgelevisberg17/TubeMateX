@@ -31,7 +31,7 @@
     } catch (error) { console.warn('Sessão indisponível', error); }
   }
   async function loadCapabilities() {
-    try { const response = await fetch('/api/capabilities'); if (!response.ok) throw new Error(); const data = await response.json(); $('#backendStatus').textContent = 'Online'; $('#backendStatus').classList.add('is-online'); $('#capabilityFormats').textContent = data.formats?.length || 0; $('#capabilityPlatforms').textContent = data.platforms?.length || 0; $('#capabilityConcurrency').textContent = data.maxConcurrentDownloads || 1; $('#capabilityNote').textContent = 'Capacidades carregadas do backend atual.'; }
+    try { const response = await fetch('/api/capabilities'); if (!response.ok) throw new Error(); const data = await response.json(); $('#backendStatus').textContent = 'Online'; $('#backendStatus').classList.add('is-online'); $('#capabilityFormats').textContent = data.formats?.length || 0; $('#capabilityPlatforms').textContent = data.platforms?.length || 0; $('#capabilityConcurrency').textContent = data.maxConcurrentDownloads || 1; const providers = (data.searchProviders || []).join(', ') || 'nenhum'; $('#capabilityNote').textContent = `Providers de pesquisa: ${providers}. YouTube ${data.youtubeAuthConfigured ? 'com autenticação configurada.' : 'sem cookies configurados; alguns conteúdos podem pedir autenticação.'}`; }
     catch { $('#backendStatus').textContent = 'Indisponível'; $('#backendStatus').classList.add('is-error'); $('#capabilityNote').textContent = 'Não foi possível consultar o backend agora.'; }
   }
   function loadPreferences() { $('#defaultFormat').value = localStorage.getItem('tubematex-default-format') || 'mp4'; $('#autoplayToggle').checked = localStorage.getItem('tubematex-autoplay') !== 'false'; }
