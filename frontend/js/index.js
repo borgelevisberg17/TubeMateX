@@ -1,5 +1,5 @@
 (() => {
-  const state = { format: 'mp4', quality: 'auto', job: null, eventSource: null, infoTimer: null, infoRequest: null };
+  const state = { format: 'mp4', quality: 'auto', job: null, jobs: new Map(), eventSources: new Map(), infoTimer: null, infoRequest: null, pausedAll: false };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -64,7 +64,7 @@
       option.setAttribute('aria-checked', String(active));
     });
     const quickFormat = $('#quickFormat');
-    if (quickFormat) quickFormat.value = format.toUpperCase();
+    if (quickFormat) quickFormat.value = format.toLowerCase();
     $('#selectedFormatLabel').textContent = formatLabels[format] || format.toUpperCase();
     $('#qualityControl').hidden = !videoFormats.has(format);
   }
@@ -103,21 +103,26 @@
     }
   }
 
-  function renderLiveQueue(job) {
+  function renderLiveQueue() {
     const container = $('#liveQueue');
-    if (!container || !job) return;
-    const progress = Math.max(0, Math.min(100, Number(job.progress?.percent || 0)));
-    const statusLabel = job.progress?.label || job.status || 'Na fila…';
-    const safeTitle = escapeHtml(job.title || 'Download em preparação');
-    const statusDetail = job.error || (job.status === 'completed' ? 'Concluído' : statusLabel);
-    container.innerHTML = `<div class="queue-live-item ${escapeHtml(job.status || '')}"><div class="live-item-top"><strong>${safeTitle}</strong><b>${Math.round(progress)}%</b></div><div class="live-item-meta"><span>${escapeHtml(job.formatLabel || job.format || 'Ficheiro')}</span><span>${escapeHtml(statusDetail)}</span>${job.progress?.speed ? `<span>${escapeHtml(job.progress.speed)}</span>` : ''}</div><div class="queue-progress"><i style="width:${progress}%"></i></div><div class="live-item-actions">${job.status === 'completed' && job.downloadUrl ? `<a href="${escapeHtml(job.downloadUrl)}">Guardar ficheiro ↗</a>` : ''}${['queued','fetching','downloading'].includes(job.status) ? '<button type="button" data-cancel-live-job="'+escapeHtml(job.id)+'">Parar</button>' : ''}</div></div>`;
-    const count = $('#queueCount');
-    if (count) count.textContent = job.status === 'completed' ? '4' : '3';
+    if (!container) return;
+    const jobs = [...state.jobs.values()].filter(job => !['completed','failed','cancelled'].includes(job.status));
+    if (!jobs.length) { container.innerHTML = '<div class="queue-empty">Nenhum download em andamento.</div>'; }
+    else container.innerHTML = jobs.map(job => {
+      const progress = Math.max(0, Math.min(100, Number(job.progress?.percent || 0)));
+      const statusLabel = job.progress?.label || job.status || 'Na fila…';
+      const safeTitle = escapeHtml(job.title || 'Download em preparação');
+      const paused = job.status === 'paused';
+      return `<div class="queue-live-item ${escapeHtml(job.status || '')}" data-live-job="${escapeHtml(job.id)}"><div class="live-item-top"><strong>${safeTitle}</strong><b>${Math.round(progress)}%</b></div><div class="live-item-meta"><span>${escapeHtml(job.formatLabel || job.format || 'Ficheiro')}</span><span>${escapeHtml(job.error || statusLabel)}</span>${job.progress?.speed ? `<span>${escapeHtml(job.progress.speed)}</span>` : ''}</div><div class="queue-progress"><i style="width:${progress}%"></i></div><div class="live-item-actions"><button type="button" data-job-action="${escapeHtml(job.id)}">${paused ? 'Retomar' : 'Pausar'}</button><button type="button" data-cancel-live-job="${escapeHtml(job.id)}">Cancelar</button></div></div>`;
+    }).join('');
+    const count = $('#queueCount'); if (count) count.textContent = String(jobs.length);
+    const pauseAll = $('#pauseAllButton'); if (pauseAll) pauseAll.textContent = state.pausedAll ? 'Retomar tudo' : 'Pausar tudo';
   }
 
   function updateJob(job) {
     state.job = job;
-    renderLiveQueue(job);
+    state.jobs.set(job.id, job);
+    renderLiveQueue();
     const status = $('#jobStatus');
     const progress = Math.max(0, Math.min(100, Number(job.progress?.percent || 0)));
     status.hidden = false;
@@ -137,25 +142,25 @@
       setLoading(false);
       if (job.status === 'failed') showNotification(job.error || 'O download falhou.', 'error');
     }
-    if (['completed', 'failed', 'cancelled'].includes(job.status) && state.eventSource) {
-      state.eventSource.close();
-      state.eventSource = null;
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+      const source = state.eventSources.get(job.id);
+      source?.close(); state.eventSources.delete(job.id); renderLiveQueue();
     }
   }
 
   function watchJob(job) {
-    if (state.eventSource) state.eventSource.close();
+    state.jobs.set(job.id, job);
     updateJob(job);
-    state.eventSource = new EventSource(`/api/downloads/${encodeURIComponent(job.id)}/events`);
-    state.eventSource.addEventListener('update', event => {
+    const source = new EventSource(`/api/downloads/${encodeURIComponent(job.id)}/events`);
+    state.eventSources.set(job.id, source);
+    source.addEventListener('update', event => {
       try { updateJob(JSON.parse(event.data)); } catch (error) { console.warn('Atualização inválida', error); }
     });
-    state.eventSource.onerror = () => {
-      if (state.job && !['completed', 'failed'].includes(state.job.status)) {
-        setTimeout(async () => {
-          try { const response = await fetch(`/api/downloads/${encodeURIComponent(job.id)}`); if (response.ok) updateJob(await response.json()); } catch {}
-        }, 1800);
-      } else state.eventSource.close();
+    source.onerror = () => {
+      const current = state.jobs.get(job.id);
+      if (current && !['completed', 'failed', 'cancelled'].includes(current.status)) {
+        setTimeout(async () => { try { const response = await fetch(`/api/downloads/${encodeURIComponent(job.id)}`); if (response.ok) updateJob(await response.json()); } catch {} }, 1800);
+      } else { source.close(); state.eventSources.delete(job.id); }
     };
   }
 
@@ -173,6 +178,7 @@
       const response = await fetch('/api/downloads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, format: state.format, quality: state.quality }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Não foi possível adicionar o download.');
+      setLoading(false);
       showNotification('Download adicionado à fila.', 'success');
       watchJob(result.job);
     } catch (error) {
@@ -218,21 +224,31 @@
     startDownload({ preventDefault() {} });
   };
 
+  function saveLocalHistory(items) {
+    try { localStorage.setItem('tubematex-history', JSON.stringify(items.slice(0, 50))); } catch {}
+  }
+
+  function readLocalHistory() {
+    try { const items = JSON.parse(localStorage.getItem('tubematex-history') || '[]'); return Array.isArray(items) ? items : []; } catch { return []; }
+  }
+
   function renderHistory(items) {
+    saveLocalHistory(items);
     const container = $('#historyContainer');
     $('#clearHistory').hidden = !items.length;
     if (!items.length) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-icon">◴</div><h3>Ainda não há downloads</h3><p>Os teus ficheiros recentes aparecem aqui para acesso rápido.</p></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon"><svg class="icon"><use href="#i-clock"></use></svg></div><h3>Ainda não há downloads</h3><p>Os teus ficheiros recentes aparecem aqui para acesso rápido.</p></div>';
       return;
     }
-    container.innerHTML = items.slice(0, 12).map(item => `<article class="history-item"><div class="history-thumb ${item.thumbnail ? '' : 'history-placeholder'}">${item.thumbnail ? `<img class="history-image" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy" />` : '◉'}</div><div class="history-info"><div class="history-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title || 'Download')}</div><div class="history-meta"><span>${escapeHtml(item.formatLabel || item.format || 'Ficheiro')}${item.qualityLabel ? ` · ${escapeHtml(item.qualityLabel)}` : ''}</span><span>${escapeHtml(item.site || 'Plataforma')}</span><span>${formatDate(item.completedAt || item.createdAt)}${item.size ? ` · ${formatBytes(item.size)}` : ''}</span></div></div><button class="favorite-button ${item.favorite ? 'active' : ''}" data-favorite-id="${escapeHtml(item.id)}" type="button" aria-label="${item.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" aria-pressed="${Boolean(item.favorite)}">★</button>${item.downloadUrl ? `<a class="history-action" href="${escapeHtml(item.downloadUrl)}">Guardar ↗</a>` : ''}</article>`).join('');
+    container.innerHTML = items.slice(0, 12).map(item => `<article class="history-item"><div class="history-thumb ${item.thumbnail ? '' : 'history-placeholder'}">${item.thumbnail ? `<img class="history-image" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy" />` : '<svg class="icon"><use href="#i-file"></use></svg>'}</div><div class="history-info"><div class="history-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title || 'Download')}</div><div class="history-meta"><span>${escapeHtml(item.formatLabel || item.format || 'Ficheiro')}${item.qualityLabel ? ` · ${escapeHtml(item.qualityLabel)}` : ''}</span><span>${escapeHtml(item.site || 'Plataforma')}</span><span>${formatDate(item.completedAt || item.createdAt)}${item.size ? ` · ${formatBytes(item.size)}` : ''}</span></div></div><button class="favorite-button ${item.favorite ? 'active' : ''}" data-favorite-id="${escapeHtml(item.id)}" type="button" aria-label="${item.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" aria-pressed="${Boolean(item.favorite)}">★</button>${item.downloadUrl ? `<a class="history-action" href="${escapeHtml(item.downloadUrl)}">Guardar ↗</a>` : ''}</article>`).join('');
   }
 
   async function loadHistory() {
     try {
       const response = await fetch('/api/history');
-      if (response.ok) renderHistory(await response.json());
-    } catch { showNotification('O histórico está temporariamente indisponível.', 'error'); }
+      if (response.ok) { renderHistory(await response.json()); return; }
+      throw new Error('Histórico indisponível');
+    } catch { const localItems = readLocalHistory(); renderHistory(localItems); if (localItems.length) showNotification('A mostrar o histórico guardado neste navegador.', 'success'); }
   }
 
   async function toggleFavorite(id, button) {
@@ -253,6 +269,7 @@
       const response = await fetch('/api/history', { method: 'DELETE' });
       if (!response.ok) throw new Error();
       renderHistory([]);
+      localStorage.removeItem('tubematex-history');
       showNotification('Histórico eliminado.', 'success');
     } catch { showNotification('Não foi possível eliminar o histórico.', 'error'); }
   }
@@ -271,7 +288,10 @@
     $$('.format-option').forEach(option => option.addEventListener('click', () => setSelectedFormat(option.dataset.format)));
     state.quality = localStorage.getItem('tubematex-quality') || 'auto';
     $('#qualitySelector').value = state.quality;
-    $('#qualitySelector').addEventListener('change', event => { state.quality = event.target.value; localStorage.setItem('tubematex-quality', state.quality); });
+    $('#quickQuality').value = state.quality;
+    const onQualityChange = event => { state.quality = event.target.value; $('#qualitySelector').value = state.quality; localStorage.setItem('tubematex-quality', state.quality); };
+    $('#qualitySelector').addEventListener('change', onQualityChange);
+    $('#quickQuality').addEventListener('change', onQualityChange);
     setSelectedFormat(state.format);
     $('#quickFormat')?.addEventListener('change', event => setSelectedFormat(event.target.value.toLowerCase()));
     $('#downloadForm').addEventListener('submit', startDownload);
@@ -311,10 +331,29 @@
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') $('#downloadForm').requestSubmit();
       if (event.key === 'Escape' && document.activeElement === $('#videoUrl')) $('#clearUrl').click();
     });
-    $('#liveQueue')?.addEventListener('click', event => {
+    $('#liveQueue')?.addEventListener('click', async event => {
       const cancelButton = event.target.closest('[data-cancel-live-job]');
-      if (!cancelButton) return;
-      $('#cancelJob').click();
+      const actionButton = event.target.closest('[data-job-action]');
+      const id = cancelButton?.dataset.cancelLiveJob || actionButton?.dataset.jobAction;
+      if (!id) return;
+      const job = state.jobs.get(id); if (job) state.job = job;
+      try {
+        const endpoint = cancelButton ? `/api/downloads/${encodeURIComponent(id)}` : `/api/downloads/${encodeURIComponent(id)}/${job?.status === 'paused' ? 'resume' : 'pause'}`;
+        const response = await fetch(endpoint, { method: cancelButton ? 'DELETE' : 'POST' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Não foi possível atualizar o download.');
+        updateJob(result); showNotification(cancelButton ? 'Download cancelado.' : (result.status === 'paused' ? 'Download pausado.' : 'Download retomado.'), cancelButton ? 'error' : 'success');
+      } catch (error) { showNotification(error.message, 'error'); }
+    });
+    $('#pauseAllButton')?.addEventListener('click', async () => {
+      try {
+        const action = state.pausedAll ? 'resume-all' : 'pause-all';
+        const response = await fetch(`/api/downloads/${action}`, { method: 'POST' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Não foi possível atualizar a fila.');
+        state.pausedAll = !state.pausedAll; (result.jobs || []).forEach(updateJob); renderLiveQueue();
+        showNotification(state.pausedAll ? 'Todos os downloads foram pausados.' : 'Todos os downloads foram retomados.', 'success');
+      } catch (error) { showNotification(error.message, 'error'); }
     });
     $('#cancelJob').addEventListener('click', async () => {
       if (!state.job?.id) return;
@@ -322,7 +361,7 @@
         const response = await fetch(`/api/downloads/${encodeURIComponent(state.job.id)}`, { method: 'DELETE' });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Não foi possível parar o download.');
-        if (state.eventSource) state.eventSource.close();
+        const source = state.eventSources.get(state.job.id); source?.close(); state.eventSources.delete(state.job.id);
         updateJob(result);
         setLoading(false);
         showNotification('Download cancelado.', 'error');

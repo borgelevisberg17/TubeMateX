@@ -98,6 +98,7 @@ const jobEventClients = new Map();
 const infoCache = new Map();
 const queue = [];
 let activeJobs = 0;
+let allDownloadsPaused = false;
 const INFO_CACHE_MS = 5 * 60 * 1000;
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
@@ -705,6 +706,7 @@ async function startDistributedWorker() {
 }
 
 function processQueue() {
+    if (allDownloadsPaused) return;
     while (activeJobs < MAX_CONCURRENT_DOWNLOADS && queue.length) {
         const job = queue.shift();
         if (!job || job.status !== 'queued') continue;
@@ -860,6 +862,65 @@ app.delete('/api/downloads/:id', async (req, res) => {
     }
     if (redisClient?.isReady) await redisClient.publish(jobCancelChannel(req.params.id), 'cancel');
     res.json(jobs.has(req.params.id) ? publicJob(jobs.get(req.params.id)) : { ...job, ...patch });
+});
+
+async function setJobPaused(job, paused) {
+    if (!job || ['completed', 'failed', 'cancelled'].includes(job.status)) return job;
+    if (paused) {
+        if (job.status === 'queued') {
+            const index = queue.indexOf(job);
+            if (index >= 0) queue.splice(index, 1);
+        }
+        if (job.process?.kill && ['fetching', 'downloading'].includes(job.status)) job.process.kill('SIGSTOP');
+        emit(job, { status: 'paused', paused: true, progress: job.progress || { percent: 0, label: 'Pausado' } });
+        return job;
+    }
+    if (job.status !== 'paused') return job;
+    if (job.process?.kill) {
+        job.process.kill('SIGCONT');
+        emit(job, { status: 'downloading', paused: false, progress: { ...(job.progress || {}), label: 'A retomar…' } });
+    } else {
+        job.status = 'queued';
+        job.paused = false;
+        queue.push(job);
+        emit(job, { status: 'queued', progress: { ...(job.progress || {}), label: 'Na fila…' } });
+        processQueue();
+    }
+    return job;
+}
+
+async function setAllDownloadsPaused(ownerId, paused) {
+    allDownloadsPaused = paused;
+    const owned = [...jobs.values()].filter(job => job.ownerId === ownerId);
+    await Promise.all(owned.map(job => setJobPaused(job, paused)));
+    if (!paused) processQueue();
+    return owned.map(publicJob);
+}
+
+app.post('/api/downloads/pause-all', async (req, res) => {
+    const ownerId = getVisitorId(req, res);
+    res.json({ paused: true, jobs: await setAllDownloadsPaused(ownerId, true) });
+});
+
+app.post('/api/downloads/resume-all', async (req, res) => {
+    const ownerId = getVisitorId(req, res);
+    res.json({ paused: false, jobs: await setAllDownloadsPaused(ownerId, false) });
+});
+
+app.post('/api/downloads/:id/pause', async (req, res) => {
+    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Download não encontrado.' });
+    const ownerId = getVisitorId(req, res);
+    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
+    res.json(publicJob(await setJobPaused(job, true)));
+});
+
+app.post('/api/downloads/:id/resume', async (req, res) => {
+    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Download não encontrado.' });
+    const ownerId = getVisitorId(req, res);
+    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
+    res.json(publicJob(await setJobPaused(job, false)));
 });
 
 app.get('/api/downloads/:id/events', async (req, res) => {
