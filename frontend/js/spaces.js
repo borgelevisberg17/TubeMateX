@@ -22,6 +22,17 @@
     const status = $('#spaceStatus');
     const videoDrawer = $('#videoDrawer');
     const video = $('#spaceVideo');
+    const videoLoading = $('#videoLoading');
+    const videoError = $('#videoError');
+    const videoPlayToggle = $('#videoPlayToggle');
+    const videoCurrentTime = $('#videoCurrentTime');
+    const videoDuration = $('#videoDuration');
+    const videoSeek = $('#videoSeek');
+    const videoMute = $('#videoMute');
+    const videoVolume = $('#videoVolume');
+    const videoFullscreen = $('#videoFullscreen');
+    const videoPlayerNote = $('#videoPlayerNote');
+    const videoOpenSource = $('#videoOpenSource');
     const detailDrawer = $('#entDetailDrawer');
     const detailArt = $('#detailArt');
     const detailTitle = $('#detailTitle');
@@ -133,26 +144,26 @@
       if (seconds > 5 && (!video.duration || seconds < video.duration - 3)) current.unshift({ ...safeItem(currentItem), progressSeconds: Math.floor(seconds), durationSeconds: Number(video.duration || currentItem.duration || 0), updatedAt: Date.now() });
       saveJson(PROGRESS_KEY, current.slice(0, 30)); renderPersonal();
     }
+    function showPlayerError(message) { if (videoLoading) videoLoading.hidden = true; if (videoError) { videoError.textContent = message; videoError.hidden = false; } if (videoPlayToggle) videoPlayToggle.textContent = '▶'; notify(message, 'error'); }
     async function playItem(item) {
       const value = register(item); if (!value) return;
       if (value.metadataOnly) { window.open(value.externalUrl || value.url, '_blank', 'noopener'); return; }
       if (!video) return;
       try {
-        video.pause(); if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); currentItem = value; notify('A preparar reprodução…');
+        video.pause(); if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); currentItem = value; currentStreamUrl = ''; if (videoError) videoError.hidden = true; if (videoLoading) videoLoading.hidden = false; videoDrawer.hidden = false; $('#videoTitle').textContent = value.title; $('#videoMeta').textContent = `${value.site}${value.live ? ' · Ao vivo' : ''}${value.availabilityLabel ? ` · ${value.availabilityLabel}` : ''}`; if (videoPlayerNote) videoPlayerNote.textContent = value.live ? 'Player interno · canal live HLS quando disponível' : 'Player interno · stream VOD fornecida pela fonte'; notify('A preparar reprodução…');
         let payload = value.directStream || value.live ? { url: value.url, mimeType: value.mimeType || 'application/vnd.apple.mpegurl' } : null;
         if (!payload) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(value.url)}&type=video`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); }
         if (!payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.');
         currentStreamUrl = payload.url;
         const isHls = /\.m3u8(?:$|\?)/i.test(payload.url);
-        if (isHls && window.Hls?.isSupported()) { hls = new window.Hls({ enableWorker: true, lowLatencyMode: true }); hls.loadSource(payload.url); hls.attachMedia(video); hls.on(window.Hls.Events.ERROR, (_event, data) => { if (data?.fatal) notify('O canal live não pôde ser descodificado neste momento.', 'error'); }); } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
+        if (isHls && window.Hls?.isSupported()) { hls = new window.Hls({ enableWorker: true, lowLatencyMode: true }); hls.loadSource(payload.url); hls.attachMedia(video); hls.on(window.Hls.Events.MANIFEST_PARSED, () => { if (videoLoading) videoLoading.hidden = true; }); hls.on(window.Hls.Events.ERROR, (_event, data) => { if (data?.fatal) showPlayerError('O canal live não pôde ser descodificado neste momento. Tenta a fonte externa.'); }); } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
         else if (!isHls) video.src = payload.url;
         else throw new Error('Este browser não suporta a reprodução HLS deste canal.');
-        if (!hls) video.load(); $('#videoTitle').textContent = value.title; $('#videoMeta').textContent = `${value.site}${value.live ? ' · Ao vivo' : ''}${value.availabilityLabel ? ` · ${value.availabilityLabel}` : ''}`; videoDrawer.hidden = false; notify('Reprodução pronta.', 'success');
-        const saved = progressItems().find(entry => keyOf(entry) === keyOf(value)); if (saved?.progressSeconds) video.addEventListener('loadedmetadata', () => { try { video.currentTime = Math.min(saved.progressSeconds, Math.max(0, video.duration - 3)); } catch {} }, { once: true });
+        if (!hls) video.load(); video.addEventListener('loadedmetadata', () => { if (videoLoading) videoLoading.hidden = true; const saved = progressItems().find(entry => keyOf(entry) === keyOf(value)); if (saved?.progressSeconds && Number.isFinite(video.duration)) { try { video.currentTime = Math.min(saved.progressSeconds, Math.max(0, video.duration - 3)); } catch {} } }, { once: true }); notify('Reprodução pronta.', 'success');
         if (root.dataset.autoplay === 'true') await video.play().catch(() => {});
-      } catch (error) { if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); notify(error.message || 'Não foi possível reproduzir este item.', 'error'); }
+      } catch (error) { if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); showPlayerError(error.message || 'Não foi possível reproduzir este item.'); }
     }
-    function closeVideo() { if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); } currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
+    function closeVideo() { if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
     function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
     function activateView(view) { activeView = view; document.querySelectorAll('.ent-nav-link').forEach(button => button.classList.toggle('active', button.dataset.view === view)); if (view === 'live') { $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }
     async function loadHome() {
@@ -186,7 +197,19 @@
     async function openExternalPlayer(protocol) { if (!detailItem) return; try { let url = detailItem.url; if (!detailItem.directStream && !detailItem.live) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(detailItem.url)}&type=video`); const payload = await response.json().catch(() => ({})); if (!response.ok || !payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream externa.'); url = payload.url; } notify(`A abrir no ${protocol.toUpperCase()}…`, 'success'); window.location.assign(`${protocol}://${url}`); } catch (error) { notify(`${protocol.toUpperCase()} indisponível: ${error.message || 'abre a fonte oficial.'}`, 'error'); } }
     detailDownload?.addEventListener('click', () => detailItem && downloadItem(detailItem));
     $('#detailInternal')?.addEventListener('click', () => { document.querySelectorAll('.ent-player-option').forEach(button => button.classList.toggle('active', button.id === 'detailInternal')); if (detailItem) { detailDrawer.hidden = true; playItem(detailItem); } }); $('#detailVlc')?.addEventListener('click', () => openExternalPlayer('vlc')); $('#detailMpv')?.addEventListener('click', () => openExternalPlayer('mpv'));
-    $('#closeVideo')?.addEventListener('click', closeVideo); video?.addEventListener('timeupdate', () => { if (video.currentTime > 5 && Math.floor(video.currentTime) % 5 === 0) rememberProgress(video.currentTime); }); video?.addEventListener('pause', () => rememberProgress(video.currentTime || 0)); video?.addEventListener('ended', () => { const current = progressItems().filter(item => keyOf(item) !== keyOf(currentItem)); saveJson(PROGRESS_KEY, current); renderPersonal(); });
+    const playerTime = seconds => { const value = Math.max(0, Math.floor(Number(seconds) || 0)); return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`; };
+    videoPlayToggle?.addEventListener('click', () => { if (!video) return; if (video.paused) video.play().catch(() => showPlayerError('A fonte não iniciou a reprodução. Usa a fonte original ou um player externo.')); else video.pause(); });
+    video?.addEventListener('play', () => { if (videoPlayToggle) { videoPlayToggle.textContent = 'Ⅱ'; videoPlayToggle.setAttribute('aria-label', 'Pausar'); } });
+    video?.addEventListener('pause', () => { if (videoPlayToggle) { videoPlayToggle.textContent = '▶'; videoPlayToggle.setAttribute('aria-label', 'Reproduzir'); } rememberProgress(video.currentTime || 0); });
+    video?.addEventListener('timeupdate', () => { if (videoCurrentTime) videoCurrentTime.textContent = playerTime(video.currentTime); if (videoSeek && Number.isFinite(video.duration) && video.duration > 0) videoSeek.value = String((video.currentTime / video.duration) * 100); if (video.currentTime > 5 && Math.floor(video.currentTime) % 5 === 0) rememberProgress(video.currentTime); });
+    video?.addEventListener('loadedmetadata', () => { if (videoDuration) videoDuration.textContent = playerTime(video.duration); if (videoLoading) videoLoading.hidden = true; });
+    video?.addEventListener('error', () => showPlayerError('A fonte não pôde ser reproduzida neste browser. Tenta VLC, mpv ou a fonte original.'));
+    videoSeek?.addEventListener('input', () => { if (video && Number.isFinite(video.duration)) video.currentTime = (Number(videoSeek.value) / 100) * video.duration; });
+    videoVolume?.addEventListener('input', () => { if (video) { video.volume = Number(videoVolume.value); video.muted = video.volume === 0; if (videoMute) videoMute.textContent = video.muted ? '🔇' : '🔊'; } });
+    videoMute?.addEventListener('click', () => { if (!video) return; video.muted = !video.muted; videoMute.textContent = video.muted ? '🔇' : '🔊'; });
+    videoFullscreen?.addEventListener('click', () => { const stage = $('.ent-player-stage'); if (stage?.requestFullscreen) stage.requestFullscreen().catch(() => {}); });
+    videoOpenSource?.addEventListener('click', () => currentItem && window.open(currentItem.externalUrl || currentItem.url, '_blank', 'noopener'));
+    $('#closeVideo')?.addEventListener('click', closeVideo); video?.addEventListener('ended', () => { const current = progressItems().filter(item => keyOf(item) !== keyOf(currentItem)); saveJson(PROGRESS_KEY, current); renderPersonal(); });
     loadSources(); loadHome();
   }
 

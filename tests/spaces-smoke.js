@@ -7,9 +7,9 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
   const contexts = [];
   const pages = [];
   const routes = [
-    { path:'/music.html', body:'music', required:['#spaceAudio','#spacePlayerBody','.track-list','.tmx-space-footer'] },
-    { path:'/social.html', body:'social', required:['#videoDrawer','.social-grid','#spaceVideo','.tmx-space-footer'] },
-    { path:'/entertainment.html', body:'entertainment', required:['.entertainment-topbar','#entHero','#entertainmentRows','#iptvSection','#videoDrawer','.tmx-space-footer'] }
+    { path:'/music.html', body:'music', required:['#spaceAudio','#spacePlayerBody','.track-list','.tmx-space-footer','.tmx-download-launch'] },
+    { path:'/social.html', body:'social', required:['#videoDrawer','.social-grid','#spaceVideo','.tmx-space-footer','.tmx-download-launch'] },
+    { path:'/entertainment.html', body:'entertainment', required:['.entertainment-topbar','#entHero','#entertainmentRows','#iptvSection','#videoDrawer','.tmx-space-footer','.tmx-download-launch'] }
   ];
   try {
     for (const width of [1440, 768, 390]) {

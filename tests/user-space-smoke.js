@@ -16,7 +16,7 @@ const path = require('path');
         const response = await page.goto(`${base}${routePath}`, {waitUntil:'networkidle'});
         if (!response || !response.ok()) throw new Error(`${routePath} falhou em ${width}px`);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-        if (overflow) throw new Error(`${routePath} tem overflow em ${width}px`); if (await page.locator('.tmx-space-footer').count() !== 1) throw new Error(`${routePath} sem footer global`);
+        if (overflow) throw new Error(`${routePath} tem overflow em ${width}px`); if (await page.locator('.tmx-space-footer').count() !== 1) throw new Error(`${routePath} sem footer global`); if (await page.locator('.tmx-download-launch').count() !== 1) throw new Error(`${routePath} sem ícone de Downloads`);
         if (routePath === '/profile') { if (await page.locator('.export-button').count() !== 2) throw new Error('Biblioteca sem exportações'); if (await page.locator('#downloadHistory [data-convert-format]').count() !== 1) throw new Error('Biblioteca sem conversão'); }
         if (routePath === '/settings') { for (const selector of ['#defaultFormat','#autoplayToggle','#backendStatus','#capabilityPlatforms']) if (await page.locator(selector).count() !== 1) throw new Error(`Definições sem ${selector}`); }
         if (errors.length) throw new Error(`${routePath} JS: ${errors.join('; ')}`);

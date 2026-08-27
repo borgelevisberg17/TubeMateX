@@ -113,7 +113,7 @@ const jobEventClients = new Map();
 const infoCache = new Map();
 const queue = [];
 let activeJobs = 0;
-let allDownloadsPaused = false;
+const pausedOwners = new Set();
 const INFO_CACHE_MS = 5 * 60 * 1000;
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
@@ -859,10 +859,11 @@ async function startDistributedWorker() {
 }
 
 function processQueue() {
-    if (allDownloadsPaused) return;
-    while (activeJobs < MAX_CONCURRENT_DOWNLOADS && queue.length) {
-        const job = queue.shift();
+    let attempts = queue.length;
+    while (activeJobs < MAX_CONCURRENT_DOWNLOADS && queue.length && attempts > 0) {
+        const job = queue.shift(); attempts -= 1;
         if (!job || job.status !== 'queued') continue;
+        if (pausedOwners.has(job.ownerId)) { queue.push(job); continue; }
         runJob(job).catch(error => console.error('[queue]', error));
     }
 }
@@ -1039,6 +1040,14 @@ app.post('/api/downloads', downloadLimiter, async (req, res) => {
     res.status(202).json({ job: publicJob(job), message: 'Download adicionado à fila.' });
 });
 
+app.get('/api/downloads', async (req, res) => {
+    const ownerId = getVisitorId(req, res);
+    const activeStatuses = new Set(['queued', 'fetching', 'downloading', 'paused']);
+    const owned = [...jobs.values()].filter(job => job.ownerId === ownerId);
+    const active = owned.filter(job => activeStatuses.has(job.status)).map(publicJob);
+    const counts = owned.reduce((acc, job) => { const status = job.status || 'unknown'; acc[status] = (acc[status] || 0) + 1; return acc; }, { queued: 0, fetching: 0, downloading: 0, paused: 0, completed: 0, failed: 0, cancelled: 0 });
+    res.json({ jobs: active, counts, activeCount: active.length, paused: pausedOwners.has(ownerId) });
+});
 app.get('/api/downloads/:id', async (req, res) => {
     const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
     if (!job) return res.status(404).json({ error: 'Download não encontrado ou já expirou.' });
@@ -1055,6 +1064,7 @@ app.delete('/api/downloads/:id', async (req, res) => {
     if (['completed', 'failed', 'cancelled'].includes(job.status)) return res.json(jobs.has(req.params.id) ? publicJob(job) : job);
     const patch = { status: 'cancelled', error: 'Download cancelado.', progress: { percent: 0, label: 'Download cancelado' } };
     cancelledJobIds.add(req.params.id);
+    job.cancelled = true;
     if (job.process?.kill) job.process.kill('SIGTERM');
     if (job.status === 'queued') {
         const index = queue.indexOf(job);
@@ -1100,7 +1110,7 @@ async function setJobPaused(job, paused) {
 }
 
 async function setAllDownloadsPaused(ownerId, paused) {
-    allDownloadsPaused = paused;
+    if (paused) pausedOwners.add(ownerId); else pausedOwners.delete(ownerId);
     const owned = [...jobs.values()].filter(job => job.ownerId === ownerId);
     await Promise.all(owned.map(job => setJobPaused(job, paused)));
     if (!paused) processQueue();
