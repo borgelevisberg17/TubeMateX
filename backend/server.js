@@ -17,6 +17,17 @@ const rateLimit = require('express-rate-limit');
 const ytdlp = require('@openanime/youtube-dl-exec');
 const sqlite3 = require('sqlite3').verbose();
 
+// Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
+// previamente revisado que contém o namespace yt_dlp_plugins.
+const YT_DLP_PLUGIN_DIR = process.env.YT_DLP_PLUGIN_DIR ? path.resolve(process.env.YT_DLP_PLUGIN_DIR) : null;
+if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+function listYtDlpPlugins() {
+    if (!YT_DLP_PLUGIN_DIR) return [];
+    const extractorDir = path.join(YT_DLP_PLUGIN_DIR, 'yt_dlp_plugins', 'extractor');
+    if (!fs.existsSync(extractorDir)) return [];
+    return fs.readdirSync(extractorDir, { withFileTypes: true }).filter(entry => entry.isFile() && entry.name.endsWith('.py') && entry.name !== '__init__.py').map(entry => ({ name: entry.name.replace(/\.py$/, ''), type: 'extractor', source: 'configured-directory' }));
+}
+
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -783,7 +794,8 @@ app.get('/health', async (req, res) => {
     res.json({ status: 'ok', service: 'TubeMateX', role: BULLMQ_ROLE, queue: queue.length, active: activeJobs, distributed });
 });
 
-app.get('/api/platforms', (req, res) => res.json({ platforms: SUPPORTED_PLATFORMS }));
+app.get('/api/platforms', (req, res) => res.json({ platforms: SUPPORTED_PLATFORMS, plugins: listYtDlpPlugins() }));
+app.get('/api/plugins', (req, res) => res.json({ enabled: Boolean(YT_DLP_PLUGIN_DIR), directoryConfigured: Boolean(YT_DLP_PLUGIN_DIR), plugins: listYtDlpPlugins(), policy: 'Plugins devem ser instalados e revisados pelo administrador; não são baixados pela UI.' }));
 
 app.get('/api/capabilities', (req, res) => res.json({
     formats: Object.entries(allowedFormats).map(([id, item]) => ({ id, label: item.label, type: item.type })),
