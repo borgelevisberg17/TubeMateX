@@ -21,6 +21,8 @@ const sqlite3 = require('sqlite3').verbose();
 // previamente revisado que contém o namespace yt_dlp_plugins.
 const YT_DLP_PLUGIN_DIR = process.env.YT_DLP_PLUGIN_DIR ? path.resolve(process.env.YT_DLP_PLUGIN_DIR) : null;
 const YT_DLP_COMMON_OPTIONS = {};
+const FFMPEG_LOCATION = process.env.FFMPEG_PATH ? path.resolve(process.env.FFMPEG_PATH) : null;
+if (FFMPEG_LOCATION) YT_DLP_COMMON_OPTIONS.ffmpegLocation = FFMPEG_LOCATION;
 if (process.env.YTDLP_COOKIES_FILE) YT_DLP_COMMON_OPTIONS.cookies = path.resolve(process.env.YTDLP_COOKIES_FILE);
 if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
@@ -36,9 +38,10 @@ const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const FRONTEND_DIR = path.join(__dirname, '../frontend');
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-const DOWNLOAD_DIR = process.env.DOWNLOAD_DIR || path.join(DATA_DIR, 'downloads');
-const HISTORY_DIR = process.env.HISTORY_DIR || path.join(DATA_DIR, 'history');
+const resolveConfiguredPath = (value, fallback) => value ? (path.isAbsolute(value) ? value : path.resolve(__dirname, value)) : fallback;
+const DATA_DIR = resolveConfiguredPath(process.env.DATA_DIR, path.join(__dirname, 'data'));
+const DOWNLOAD_DIR = resolveConfiguredPath(process.env.DOWNLOAD_DIR, path.join(DATA_DIR, 'downloads'));
+const HISTORY_DIR = resolveConfiguredPath(process.env.HISTORY_DIR, path.join(DATA_DIR, 'history'));
 const MAX_HISTORY = Number(process.env.MAX_HISTORY || 50);
 const MAX_CONCURRENT_DOWNLOADS = Number(process.env.MAX_CONCURRENT_DOWNLOADS || 2);
 const MAX_DOWNLOAD_SIZE = Number(process.env.MAX_DOWNLOAD_SIZE || 2 * 1024 * 1024 * 1024);
@@ -48,7 +51,7 @@ for (const directory of [DATA_DIR, DOWNLOAD_DIR, HISTORY_DIR]) {
     fs.mkdirSync(directory, { recursive: true });
 }
 
-const DATABASE_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'tubematex.sqlite');
+const DATABASE_PATH = resolveConfiguredPath(process.env.DATABASE_PATH, path.join(DATA_DIR, 'tubematex.sqlite'));
 const database = new sqlite3.Database(DATABASE_PATH);
 const redisConfigured = Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
 const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'tubematex-downloads';
@@ -66,7 +69,7 @@ const redisReady = redisClient ? redisClient.connect() : Promise.resolve();
 const eventSubscriber = redisClient && ['api', 'both'].includes(BULLMQ_ROLE) ? redisClient.duplicate() : null;
 const cancelSubscriber = redisClient && ['worker', 'both'].includes(BULLMQ_ROLE) ? redisClient.duplicate() : null;
 const redisChannelsReady = Promise.all([eventSubscriber?.connect(), cancelSubscriber?.connect()].filter(Boolean));
-const sessionStore = redisClient ? new RedisStore({ client: redisClient, prefix: 'tubematex:sess:' }) : new SQLiteStore({ db: 'sessions.sqlite', dir: process.env.SESSION_DB_DIR || DATA_DIR });
+const sessionStore = redisClient ? new RedisStore({ client: redisClient, prefix: 'tubematex:sess:' }) : new SQLiteStore({ db: 'sessions.sqlite', dir: resolveConfiguredPath(process.env.SESSION_DB_DIR, DATA_DIR) });
 const databaseReady = new Promise((resolve, reject) => database.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -177,7 +180,11 @@ async function adminValidateUrl(url, domains, label) { const safe = await valida
 async function validateAdminMedia({ mediaUrl, streamType, allowedDomains }) {
     if (!mediaUrl) return { status: 'not-configured', code: null, label: 'Sem media configurada' };
     const safe = await adminValidateUrl(mediaUrl, allowedDomains, 'URL de media');
-    const response = await fetch(safe, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(10000) });
+    let response = await fetch(safe, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(10000) });
+    if (response.status === 405) {
+        response = await fetch(safe, { method: 'GET', headers: { Range: 'bytes=0-0' }, redirect: 'manual', signal: AbortSignal.timeout(10000) });
+        response.body?.cancel().catch(() => {});
+    }
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
     const type = String(streamType || 'auto').toLowerCase();
     const expected = type === 'hls' || /mpegurl|\.m3u8/i.test(safe) ? 'hls' : type === 'dash' || /dash|\.mpd/i.test(safe) ? 'dash' : type;
@@ -448,7 +455,7 @@ const conversionFormats = {
 
 function convertMedia(inputPath, outputPath, preset) {
     return new Promise((resolve, reject) => {
-        const process = spawn('ffmpeg', ['-y', '-i', inputPath, ...preset.args, outputPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+        const process = spawn(FFMPEG_LOCATION ? path.join(FFMPEG_LOCATION, 'ffmpeg.exe') : 'ffmpeg', ['-y', '-i', inputPath, ...preset.args, outputPath], { stdio: ['ignore', 'ignore', 'pipe'] });
         let stderr = ''; process.stderr.on('data', chunk => { stderr += chunk.toString(); });
         process.on('error', reject); process.on('close', code => code === 0 ? resolve() : reject(new Error(stderr.slice(-500) || 'A conversão falhou.')));
     });
@@ -1139,29 +1146,46 @@ app.post('/api/admin/catalog/:id/validate', requireAdmin, requireAdminCsrf, asyn
 app.post('/api/admin/catalog/:id/approve', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); if (row.media_url && row.health_status === 'offline') return res.status(409).json({ error: 'Valida a media antes de aprovar um item offline.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='approved',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
 app.post('/api/admin/catalog/:id/reject', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='rejected',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
 app.delete('/api/admin/catalog/:id', requireAdmin, requireAdminCsrf, async (req, res) => { const result = await dbRun('DELETE FROM admin_catalog_items WHERE id=?', [req.params.id]); clearAdminCatalogCache(); res.json({ deleted: Boolean(result.changes) }); });
+function parsePlaylistAttributes(value) {
+    const attributes = {};
+    const pattern = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+))/g;
+    for (const match of value.matchAll(pattern)) attributes[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4] ?? '';
+    return attributes;
+}
+function parseM3uPlaylist(content) {
+    const rows = []; let meta = {};
+    for (const rawLine of String(content || '').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+        const value = rawLine.trim(); if (!value) continue;
+        if (/^#EXTINF\s*:/i.test(value)) {
+            const comma = value.indexOf(','); const attributes = parsePlaylistAttributes(value.slice(8, comma >= 0 ? comma : undefined));
+            meta = { title: comma >= 0 ? value.slice(comma + 1).trim() : '', country: attributes['tvg-country'] || '', language: attributes['tvg-language'] || '', group: attributes['group-title'] || '', logo: attributes['tvg-logo'] || '' };
+            continue;
+        }
+        if (/^#EXTGRP:/i.test(value)) { meta.group = value.slice(value.indexOf(':') + 1).trim(); continue; }
+        if (value.startsWith('#')) continue;
+        const url = value.replace(/[),;]}>'"]+$/, ''); let parsed;
+        try { parsed = new URL(url); } catch { meta = {}; continue; }
+        if (!['http:', 'https:'].includes(parsed.protocol)) { meta = {}; continue; }
+        rows.push({ url, title: meta.title || parsed.hostname, country: meta.country, language: meta.language, group: meta.group, logo: meta.logo }); meta = {};
+        if (rows.length >= 1000) break;
+    }
+    return rows;
+}
 app.post('/api/admin/import-playlist', requireAdmin, requireAdminCsrf, async (req, res) => {
     try {
         const source = await getAdminSource(req.body?.sourceId); if (!source) return res.status(400).json({ error: 'Seleciona uma fonte autorizada antes de importar.' });
         const content = cleanText(req.body?.content, 1900000); if (!content) return res.status(400).json({ error: 'O arquivo está vazio.' });
-        const rows = []; let meta = {};
-        for (const line of content.split(/\r?\n/)) {
-            const value = line.trim(); if (!value) continue;
-            if (value.startsWith('#EXTINF')) { const comma = value.indexOf(','); const attrs = Object.fromEntries([...value.matchAll(/([\w-]+)="([^"]*)"/g)].map(match => [match[1].toLowerCase(), match[2]])); meta = { title: comma >= 0 ? value.slice(comma + 1).trim() : '', country: attrs['tvg-country'] || '', language: attrs['tvg-language'] || '', group: attrs['group-title'] || '' }; continue; }
-            if (!/^https?:\/\//i.test(value)) continue;
-            const url = value.replace(/[),;]}>'\"]+$/, ''); let parsed; try { parsed = new URL(url); } catch { meta = {}; continue; }
-            if (!['http:', 'https:'].includes(parsed.protocol)) { meta = {}; continue; }
-            rows.push({ url, title: meta.title || parsed.hostname, country: meta.country, language: meta.language, group: meta.group }); meta = {};
-            if (rows.length >= 1000) break;
-        }
+        const rows = parseM3uPlaylist(content);
         if (!rows.length) return res.status(400).json({ error: 'Nenhuma URL HTTP/HTTPS foi encontrada.' });
-        const now = new Date().toISOString(); let imported = 0; let skipped = 0;
+        const now = new Date().toISOString(); let imported = 0; let skipped = 0; const skippedReasons = {};
         for (const row of rows) {
             try {
                 const mediaUrl = await adminValidateUrl(row.url, source.allowedDomains, 'URL importada'); const id = `admin-${crypto.createHash('sha256').update(`${source.id}:${mediaUrl}`).digest('hex').slice(0, 20)}`; const title = cleanText(row.title, 240) || 'Canal importado'; const streamType = /\.m3u8(?:$|\?)/i.test(mediaUrl) ? 'hls' : /\.mpd(?:$|\?)/i.test(mediaUrl) ? 'dash' : 'auto';
-                await dbRun(`INSERT INTO admin_catalog_items (id,source_id,content_type,title,description,thumbnail_url,external_url,media_url,stream_type,country,language,categories_json,feed_name,is_live,is_featured,approval_status,health_status,health_code,health_label,health_checked_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,media_url=excluded.media_url,updated_at=excluded.updated_at`, [id, source.id, 'channel', title, 'Importado de playlist; requer revisão e validação.', null, source.baseUrl, mediaUrl, streamType, cleanText(row.country, 8).toUpperCase(), cleanText(row.language, 16).toLowerCase(), JSON.stringify(row.group ? [row.group.toLowerCase()] : ['general']), row.group, 1, 0, 'needs-review', 'pending', null, 'A aguardar validação', now, now, now]); imported++;
-            } catch { skipped++; }
+                const thumbnailUrl = row.logo ? await adminValidateUrl(row.logo, source.allowedDomains, 'URL de imagem').catch(() => null) : null;
+                await dbRun(`INSERT INTO admin_catalog_items (id,source_id,content_type,title,description,thumbnail_url,external_url,media_url,stream_type,country,language,categories_json,feed_name,is_live,is_featured,approval_status,health_status,health_code,health_label,health_checked_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,thumbnail_url=excluded.thumbnail_url,external_url=excluded.external_url,media_url=excluded.media_url,stream_type=excluded.stream_type,country=excluded.country,language=excluded.language,categories_json=excluded.categories_json,feed_name=excluded.feed_name,updated_at=excluded.updated_at`, [id, source.id, 'channel', title, 'Importado de playlist; requer revisão e validação.', thumbnailUrl, mediaUrl, mediaUrl, streamType, cleanText(row.country, 8).toUpperCase(), cleanText(row.language, 16).toLowerCase(), JSON.stringify(row.group ? [row.group.toLowerCase()] : ['general']), row.group, 1, 0, 'needs-review', 'pending', null, 'A aguardar validação', now, now, now]); imported++;
+            } catch (error) { skipped++; const reason = error.message.includes('allowlist') ? 'domínio fora da allowlist' : error.message.includes('DNS') || error.message.includes('bloqueada') ? 'URL bloqueada ou DNS inválido' : 'URL inválida'; skippedReasons[reason] = (skippedReasons[reason] || 0) + 1; }
         }
-        clearAdminCatalogCache(); res.status(201).json({ imported, skipped, found: rows.length, truncated: content.split(/\r?\n/).filter(line => /^https?:\/\//i.test(line.trim())).length > rows.length });
+        clearAdminCatalogCache(); res.status(201).json({ imported, skipped, skippedReasons, found: rows.length, truncated: content.split(/\r?\n/).filter(line => /^https?:\/\//i.test(line.trim())).length > rows.length });
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
 app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));

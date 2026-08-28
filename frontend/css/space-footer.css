@@ -2,3 +2,23 @@
 
 .tmx-download-launch{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #ffffff16;border-radius:6px;color:#bbaeb4;text-decoration:none}.tmx-download-launch:hover,.tmx-download-launch.active{border-color:#e50914;background:#e5091412;color:#fff}.tmx-download-symbol{font-size:17px;line-height:1}.tmx-download-label{font-size:10px;font-weight:700}.tmx-download-launch b{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;color:#fff;background:#e50914;font:700 10px "Space Grotesk",sans-serif}.tmx-download-launch b[data-download-count="0"]{color:#95858b;background:#ffffff14}.tmx-download-launch.active b[data-download-count="0"]{color:#fff;background:#e50914}
 @media(max-width:560px){.tmx-download-label{display:none}.tmx-download-launch{padding:6px 7px}}
+
+/* Institutional footer layout */
+.tmx-space-footer{margin-top:88px;border-top:3px solid #e50914;background:#101114;color:#c2c4c8}
+.tmx-footer-inner{grid-template-columns:minmax(220px,1fr) minmax(420px,2fr) minmax(180px,.7fr);align-items:start;gap:48px;padding-top:42px;padding-bottom:22px}
+.tmx-footer-brand{gap:12px;padding-top:4px}
+.tmx-footer-kicker{font-size:20px;letter-spacing:0;color:#fff}
+.tmx-footer-brand span:last-child{max-width:190px;font-size:11px;line-height:1.6;color:#92959d}
+.tmx-footer-nav{grid-template-columns:repeat(3,minmax(110px,1fr));gap:28px 16px}
+.tmx-footer-nav a{gap:6px;padding:0 0 4px;border:0;border-bottom:1px solid transparent;border-radius:0}
+.tmx-footer-nav a:hover,.tmx-footer-nav a[aria-current="page"]{border-color:#e50914;background:transparent;color:#fff}
+.tmx-footer-nav a[aria-current="page"]{box-shadow:none}
+.tmx-footer-icon{width:auto;height:auto;place-items:start;border:0;border-radius:0;color:#e50914;font-size:18px}
+.tmx-footer-nav strong{font-size:12px;color:#e8e9eb}
+.tmx-footer-nav small{font-size:10px;color:#858991}
+.tmx-footer-meta{align-items:flex-start;gap:10px;padding-left:24px;border-left:1px solid #ffffff1c;color:#92959d;font-size:10px;text-align:left}
+.tmx-footer-meta span{color:#e8e9eb;font-size:11px;font-weight:600}
+.tmx-footer-meta a{color:#92959d}
+.tmx-footer-meta:after{content:"© 2026 TubeMateX. Todos os direitos reservados.";display:block;margin-top:16px;padding-top:16px;border-top:1px solid #ffffff12;color:#70747d;font-size:9px;line-height:1.5}
+@media(max-width:900px){.tmx-footer-inner{grid-template-columns:1fr;gap:30px}.tmx-footer-nav{grid-template-columns:repeat(3,minmax(100px,1fr))}.tmx-footer-meta{padding:18px 0 0;border-top:1px solid #ffffff1c;border-left:0}}
+@media(max-width:560px){.tmx-space-footer{margin-top:56px}.tmx-footer-inner{gap:26px;padding-top:30px;padding-bottom:18px}.tmx-footer-nav{grid-template-columns:repeat(2,minmax(110px,1fr));gap:24px 14px}.tmx-footer-meta{padding-top:16px}}
