@@ -24,6 +24,11 @@ Assets/
 .DS_Store
 Thumbs.db
 
+# Não versionar locks/WAL temporários do SQLite
+backend/data/*.sqlite-shm
+backend/data/*.sqlite-wal
+backend/data/*.sqlite-journal
+
 # Ignorar arquivos gerados pelo sistema operacional ou IDEs
 .vscode/
 .idea/
