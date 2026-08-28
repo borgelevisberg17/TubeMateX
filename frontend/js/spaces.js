@@ -33,6 +33,14 @@
     const videoFullscreen = $('#videoFullscreen');
     const videoPlayerNote = $('#videoPlayerNote');
     const videoOpenSource = $('#videoOpenSource');
+    const ytPlayerStage = $('#ytPlayerStage');
+    const ytCenterPlay = $('#ytCenterPlay');
+    const videoRewind10 = $('#videoRewind10');
+    const videoForward10 = $('#videoForward10');
+    const ytSeekProgress = $('#ytSeekProgress');
+    const ytLiveBadge = $('#ytLiveBadge');
+    const ytTimeSep = $('#ytTimeSep');
+    let userInactiveTimer = null;
     const detailDrawer = $('#entDetailDrawer');
     const detailArt = $('#detailArt');
     const detailTitle = $('#detailTitle');
@@ -148,12 +156,31 @@
     }
     function showPlayerError(message) { if (videoLoading) videoLoading.hidden = true; if (videoError) { videoError.innerHTML = `<span>${esc(message)}</span><button type="button" data-player-retry>Tentar novamente</button>`; videoError.hidden = false; videoError.querySelector('[data-player-retry]')?.addEventListener('click', () => currentItem && playItem(currentItem), { once: true }); } if (videoPlayToggle) videoPlayToggle.textContent = '▶'; notify(message, 'error'); }
     function hlsFailureMessage(data, item) { const statusCode = Number(data?.response?.code || data?.networkDetails?.status || 0); if (/geo-blocked/i.test(item?.availabilityLabel || '') || statusCode === 401 || statusCode === 403) return 'Este canal está bloqueado para esta região ou exige headers da fonte. Usa VLC, mpv ou abre a fonte original.'; if (statusCode === 404 || statusCode === 410) return 'O manifesto ou os segmentos deste canal já não estão disponíveis. Escolhe outro canal.'; if (data?.type === 'mediaError') return 'O codec deste canal não é compatível com o browser. Tenta VLC ou mpv.'; return 'A stream live está indisponível ou não pôde ser descodificada. Tenta a fonte externa.'; }
+    function resetUserActivity() {
+      if (!ytPlayerStage) return;
+      ytPlayerStage.classList.add('user-active');
+      ytPlayerStage.classList.remove('user-inactive');
+      if (userInactiveTimer) clearTimeout(userInactiveTimer);
+      if (video && !video.paused) {
+        userInactiveTimer = setTimeout(() => {
+          ytPlayerStage.classList.add('user-inactive');
+          ytPlayerStage.classList.remove('user-active');
+        }, 3000);
+      }
+    }
+
     async function playItem(item) {
       const value = register(item); if (!value) return;
       if (value.metadataOnly) { window.open(value.externalUrl || value.url, '_blank', 'noopener'); return; }
       if (!video) return;
       try {
         video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); currentItem = value; currentStreamUrl = ''; if (videoError) videoError.hidden = true; if (videoLoading) videoLoading.hidden = false; videoDrawer.hidden = false; $('#videoTitle').textContent = value.title; $('#videoMeta').textContent = `${value.site}${value.live ? ' · Ao vivo' : ''}${value.availabilityLabel ? ` · ${value.availabilityLabel}` : ''}`; if (videoPlayerNote) videoPlayerNote.textContent = value.live ? 'Player interno · canal live HLS quando disponível' : 'Player interno · stream VOD fornecida pela fonte'; notify('A preparar reprodução…');
+        if (ytLiveBadge) ytLiveBadge.hidden = !value.live;
+        if (videoDuration) videoDuration.hidden = Boolean(value.live);
+        if (ytTimeSep) ytTimeSep.hidden = Boolean(value.live);
+        if (videoRewind10) videoRewind10.hidden = Boolean(value.live);
+        if (videoForward10) videoForward10.hidden = Boolean(value.live);
+        if (videoSeek) videoSeek.disabled = Boolean(value.live);
         if (value.live && (value.requiresExternalPlayer || /geo-blocked/i.test(value.availabilityLabel || ''))) { showPlayerError(/geo-blocked/i.test(value.availabilityLabel || '') ? 'Este canal está marcado como bloqueado para esta região. Usa VLC, mpv ou a fonte original.' : 'Este canal exige headers da fonte que o browser não pode enviar. Usa VLC, mpv ou a fonte original.'); return; }
         let payload = value.directStream || value.live ? { url: value.url, mimeType: value.mimeType || 'application/vnd.apple.mpegurl' } : null;
         if (!payload) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(value.url)}&type=video`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); }
@@ -172,8 +199,8 @@
       } catch (error) { if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); showPlayerError(error.message || 'Não foi possível reproduzir este item.'); }
     }
     function closeVideo() { if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
-    function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), sports: homePayload.rows.filter(row => row.id === 'sports'), portugal: homePayload.rows.filter(row => row.id === 'portugal'), brands: homePayload.rows.filter(row => row.id === 'brands'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
-    function activateView(view) { activeView = view; document.querySelectorAll('.ent-nav-link').forEach(button => button.classList.toggle('active', button.dataset.view === view)); if (view === 'live') { $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }
+    function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured' || row.id === 'documentary'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), sports: homePayload.rows.filter(row => row.id === 'sports'), portugal: homePayload.rows.filter(row => row.id === 'portugal'), brands: homePayload.rows.filter(row => row.id === 'brands'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
+    function activateView(view) { activeView = view; document.querySelectorAll('.ent-nav-link').forEach(button => button.classList.toggle('active', button.dataset.view === view)); if (view === 'live') { renderRows(rowForView(view)); renderPersonal(); $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); if (view === 'my-list' && !listItems().length) { if (rows) rows.innerHTML = empty('A tua lista está vazia. Explora o catálogo e clica em ＋ para guardar filmes, séries e canais.'); } window.scrollTo({ top: 0, behavior: 'smooth' }); } }
     async function loadHome() {
       try { const response = await fetch('/api/entertainment/home'); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o catálogo.'); homePayload = payload; setHero(payload.hero); renderRows(payload.rows || []); renderPersonal(); notify(`${payload.rows?.length || 0} coleções reais carregadas.`, 'success'); }
       catch (error) { homePayload = { rows: [] }; setHero(null); renderRows([]); renderPersonal(); notify(error.message || 'Catálogo indisponível.', 'error'); }
@@ -207,10 +234,30 @@
     detailDownload?.addEventListener('click', () => detailItem && downloadItem(detailItem));
     $('#detailInternal')?.addEventListener('click', () => { document.querySelectorAll('.ent-player-option').forEach(button => button.classList.toggle('active', button.id === 'detailInternal')); if (detailItem) { detailDrawer.hidden = true; playItem(detailItem); } }); $('#detailVlc')?.addEventListener('click', () => openExternalPlayer('vlc')); $('#detailMpv')?.addEventListener('click', () => openExternalPlayer('mpv'));
     const playerTime = seconds => { const value = Math.max(0, Math.floor(Number(seconds) || 0)); return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`; };
-    videoPlayToggle?.addEventListener('click', () => { if (!video) return; if (video.paused) video.play().catch(() => showPlayerError('A fonte não iniciou a reprodução. Usa a fonte original ou um player externo.')); else video.pause(); });
-    video?.addEventListener('play', () => { if (videoPlayToggle) { videoPlayToggle.textContent = 'Ⅱ'; videoPlayToggle.setAttribute('aria-label', 'Pausar'); } });
-    video?.addEventListener('pause', () => { if (videoPlayToggle) { videoPlayToggle.textContent = '▶'; videoPlayToggle.setAttribute('aria-label', 'Reproduzir'); } rememberProgress(video.currentTime || 0); });
-    video?.addEventListener('timeupdate', () => { if (videoCurrentTime) videoCurrentTime.textContent = playerTime(video.currentTime); if (videoSeek && Number.isFinite(video.duration) && video.duration > 0) videoSeek.value = String((video.currentTime / video.duration) * 100); if (video.currentTime > 5 && Math.floor(video.currentTime) % 5 === 0) rememberProgress(video.currentTime); });
+    const togglePlay = () => { if (!video) return; if (video.paused) video.play().catch(() => showPlayerError('A fonte não iniciou a reprodução. Usa a fonte original ou um player externo.')); else video.pause(); };
+    videoPlayToggle?.addEventListener('click', togglePlay);
+    ytCenterPlay?.addEventListener('click', togglePlay);
+    videoRewind10?.addEventListener('click', () => { if (video) video.currentTime = Math.max(0, video.currentTime - 10); });
+    videoForward10?.addEventListener('click', () => { if (video && Number.isFinite(video.duration)) video.currentTime = Math.min(video.duration, video.currentTime + 10); });
+    ytPlayerStage?.addEventListener('mousemove', resetUserActivity);
+    ytPlayerStage?.addEventListener('touchstart', resetUserActivity);
+    video?.addEventListener('play', () => {
+      if (ytPlayerStage) ytPlayerStage.classList.add('playing');
+      if (videoPlayToggle) { videoPlayToggle.textContent = 'Ⅱ'; videoPlayToggle.setAttribute('aria-label', 'Pausar'); }
+      resetUserActivity();
+    });
+    video?.addEventListener('pause', () => {
+      if (ytPlayerStage) { ytPlayerStage.classList.remove('playing'); ytPlayerStage.classList.add('user-active'); ytPlayerStage.classList.remove('user-inactive'); }
+      if (videoPlayToggle) { videoPlayToggle.textContent = '▶'; videoPlayToggle.setAttribute('aria-label', 'Reproduzir'); }
+      rememberProgress(video.currentTime || 0);
+    });
+    video?.addEventListener('timeupdate', () => {
+      if (videoCurrentTime) videoCurrentTime.textContent = playerTime(video.currentTime);
+      const pct = (Number.isFinite(video.duration) && video.duration > 0) ? (video.currentTime / video.duration) * 100 : 0;
+      if (videoSeek) videoSeek.value = String(pct);
+      if (ytSeekProgress) ytSeekProgress.style.width = `${pct}%`;
+      if (video.currentTime > 5 && Math.floor(video.currentTime) % 5 === 0) rememberProgress(video.currentTime);
+    });
     video?.addEventListener('loadedmetadata', () => { if (videoDuration) videoDuration.textContent = playerTime(video.duration); if (videoLoading) videoLoading.hidden = true; });
     video?.addEventListener('error', () => showPlayerError('A fonte não pôde ser reproduzida neste browser. Tenta VLC, mpv ou a fonte original.'));
     videoSeek?.addEventListener('input', () => { if (video && Number.isFinite(video.duration)) video.currentTime = (Number(videoSeek.value) / 100) * video.duration; });
