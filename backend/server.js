@@ -23,7 +23,7 @@ const YT_DLP_PLUGIN_DIR = process.env.YT_DLP_PLUGIN_DIR ? path.resolve(process.e
 const YT_DLP_COMMON_OPTIONS = {};
 const FFMPEG_LOCATION = process.env.FFMPEG_PATH ? path.resolve(process.env.FFMPEG_PATH) : null;
 if (FFMPEG_LOCATION) YT_DLP_COMMON_OPTIONS.ffmpegLocation = FFMPEG_LOCATION;
-if (process.env.YTDLP_COOKIES_FILE) YT_DLP_COMMON_OPTIONS.cookies = path.resolve(process.env.YTDLP_COOKIES_FILE);
+if (process.env.YTDLP_COOKIES_FILE) { const cookiesFile = path.resolve(process.env.YTDLP_COOKIES_FILE); if (fs.existsSync(cookiesFile)) YT_DLP_COMMON_OPTIONS.cookies = cookiesFile; else console.warn(`[yt-dlp] YTDLP_COOKIES_FILE não encontrado: ${cookiesFile}`); }
 if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
 function listYtDlpPlugins() {
@@ -661,7 +661,11 @@ function optionsFor(job) {
         noPlaylist: true,
         restrictFilenames: true,
         maxFilesize: MAX_DOWNLOAD_SIZE,
-        output: path.join(DOWNLOAD_DIR, `${job.id}.%(ext)s`)
+        output: path.join(DOWNLOAD_DIR, `${job.id}.%(ext)s`),
+        retries: 3,
+        fragmentRetries: 3,
+        extractorRetries: 2,
+        socketTimeout: 20
     };
     if (format.type === 'audio') {
         return { ...options, format: 'ba/b', extractAudio: true, audioFormat: job.format, audioQuality: '0' };
@@ -945,7 +949,7 @@ function translateError(error) {
     const code = errorCode(error);
     if (code === 'unsupported-url') return 'Este site ou URL não é suportado pelo motor de download.';
     if (code === 'content-unavailable') return 'O conteúdo não está disponível, foi removido ou é privado.';
-    if (code === 'authentication-required') return 'Este conteúdo exige autenticação na plataforma de origem. Configura YTDLP_COOKIES_FILE ou YTDLP_COOKIES_FROM_BROWSER no servidor local.';
+    if (code === 'authentication-required') return 'O YouTube bloqueou esta sessão por verificação anti-bot. O TubeMateX não pode contornar esse bloqueio automaticamente: configura um cookies.txt local em YTDLP_COOKIES_FILE ou YTDLP_COOKIES_FROM_BROWSER no servidor, sem o comitar, e tenta novamente.';
     if (code === 'format-unavailable') return 'A qualidade pedida não existe neste conteúdo. Escolhe Automática ou tenta outra qualidade.';
     if (code === 'drm-protected') return 'Este catálogo usa DRM e não pode ser descarregado pelo TubeMateX.';
     if (code === 'region-blocked') return 'O conteúdo está bloqueado por direitos ou região.';
