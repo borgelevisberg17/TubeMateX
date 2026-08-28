@@ -72,6 +72,7 @@
     let iptvTotal = 0;
     let currentItem = null;
     let currentStreamUrl = '';
+    let failedStreamUrls = new Set();
     let hls = null;
     let dash = null;
     const PROGRESS_KEY = 'tubematex-entertainment-progress';
@@ -188,19 +189,22 @@
         if (videoRewind10) videoRewind10.hidden = Boolean(value.live);
         if (videoForward10) videoForward10.hidden = Boolean(value.live);
         if (videoSeek) videoSeek.disabled = Boolean(value.live);
-        if (value.live && (value.requiresExternalPlayer || /geo-blocked/i.test(value.availabilityLabel || ''))) { showPlayerError(/geo-blocked/i.test(value.availabilityLabel || '') ? 'Este canal está marcado como bloqueado para esta região. Usa VLC, mpv ou a fonte original.' : 'Este canal exige headers da fonte que o browser não pode enviar. Usa VLC, mpv ou a fonte original.'); return; }
+        const streamCandidates = [{ ...value, url: value.url }, ...(Array.isArray(value.streams) ? value.streams.map(stream => ({ ...value, ...stream })) : [])].filter(stream => stream.url && !stream.requiresExternalPlayer && !failedStreamUrls.has(stream.url));
+        if (value.live && (!streamCandidates.length || /geo-blocked/i.test(value.availabilityLabel || ''))) { showPlayerError(/geo-blocked/i.test(value.availabilityLabel || '') ? 'Este canal está marcado como bloqueado para esta região. Usa VLC, mpv ou a fonte original.' : 'As fontes deste canal exigem headers que o browser não pode enviar. Usa VLC, mpv ou a fonte original.'); return; }
+        const selected = streamCandidates[0] || value;
         if (videoQuality) { videoQuality.innerHTML = '<option value="-1">Auto</option>'; videoQuality.hidden = true; }
         if (videoPlaybackRate) videoPlaybackRate.value = '1';
         if (videoPip) videoPip.hidden = !document.pictureInPictureEnabled;
-        let payload = value.directStream || value.live ? { url: value.url, mimeType: value.mimeType || 'application/vnd.apple.mpegurl' } : null;
+        let payload = value.directStream || value.live ? { url: selected.url, mimeType: selected.mimeType || value.mimeType || 'application/vnd.apple.mpegurl' } : null;
         if (!payload) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(value.url)}&type=video`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); }
         if (!payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.');
         currentStreamUrl = payload.url;
+        if (value.live && currentStreamUrl !== value.url && videoPlayerNote) videoPlayerNote.textContent = `Player interno · fonte alternativa${selected.label ? ` · ${selected.label}` : ''}`;
         const isHls = /\.m3u8(?:$|\?)/i.test(payload.url);
         const isDash = /\.mpd(?:$|\?)/i.test(payload.url);
         if (isDash && videoPlayerNote) videoPlayerNote.textContent = 'Player interno · MPEG-DASH';
         if (isDash && window.dashjs?.MediaPlayer) { dash = window.dashjs.MediaPlayer().create(); dash.initialize(video, payload.url, false); dash.on(window.dashjs.MediaPlayer.events.ERROR, data => { if (data?.error) showPlayerError('Este stream MPEG-DASH não pôde ser reproduzido. Tenta VLC, mpv ou a fonte original.'); }); }
-        else if (isHls && window.Hls?.isSupported()) { hls = new window.Hls({ enableWorker: true, lowLatencyMode: true }); hls.loadSource(payload.url); hls.attachMedia(video); hls.on(window.Hls.Events.MANIFEST_PARSED, (_event, data) => { if (videoLoading) videoLoading.hidden = true; if (videoQuality && Array.isArray(data?.levels) && data.levels.length > 1) { videoQuality.innerHTML = '<option value="-1">Auto</option>' + data.levels.map((level, index) => `<option value="${index}">${level.height ? `${level.height}p` : `${Math.round(Number(level.bitrate || 0) / 1000)} kbps`}</option>`).join(''); videoQuality.hidden = false; } }); hls.on(window.Hls.Events.ERROR, (_event, data) => { if (data?.fatal) showPlayerError(hlsFailureMessage(data, value)); }); } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
+        else if (isHls && window.Hls?.isSupported()) { hls = new window.Hls({ enableWorker: true, lowLatencyMode: true }); hls.loadSource(payload.url); hls.attachMedia(video); hls.on(window.Hls.Events.MANIFEST_PARSED, (_event, data) => { if (videoLoading) videoLoading.hidden = true; if (videoQuality && Array.isArray(data?.levels) && data.levels.length > 1) { videoQuality.innerHTML = '<option value="-1">Auto</option>' + data.levels.map((level, index) => `<option value="${index}">${level.height ? `${level.height}p` : `${Math.round(Number(level.bitrate || 0) / 1000)} kbps`}</option>`).join(''); videoQuality.hidden = false; } }); hls.on(window.Hls.Events.ERROR, (_event, data) => { if (data?.fatal) { failedStreamUrls.add(currentStreamUrl); hls.destroy(); hls = null; if ((value.streams || []).some(stream => stream.url && !failedStreamUrls.has(stream.url) && !stream.requiresExternalPlayer)) { notify('A fonte falhou; a tentar uma alternativa…', ''); playItem(value); } else showPlayerError(hlsFailureMessage(data, value)); } }); } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
         else if (!isHls && !isDash) video.src = payload.url;
         else if (isDash) throw new Error('Este browser não conseguiu carregar o player MPEG-DASH. Tenta VLC, mpv ou a fonte original.');
         else throw new Error('Este browser não suporta a reprodução HLS deste canal.');
@@ -208,7 +212,7 @@
         if (root.dataset.autoplay === 'true') await video.play().catch(() => {});
       } catch (error) { if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); showPlayerError(error.message || 'Não foi possível reproduzir este item.'); }
     }
-    function closeVideo() { if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
+    function closeVideo() { failedStreamUrls = new Set(); if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
     function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured' || row.id === 'documentary'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), sports: homePayload.rows.filter(row => row.id === 'sports'), portugal: homePayload.rows.filter(row => row.id === 'portugal'), brands: homePayload.rows.filter(row => row.id === 'brands'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
     function activateView(view) { activeView = view; document.querySelectorAll('.ent-nav-link').forEach(button => button.classList.toggle('active', button.dataset.view === view)); if (view === 'live') { renderRows(rowForView(view)); renderPersonal(); $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); if (view === 'my-list' && !listItems().length) { if (rows) rows.innerHTML = empty('A tua lista está vazia. Explora o catálogo e clica em ＋ para guardar filmes, séries e canais.'); } window.scrollTo({ top: 0, behavior: 'smooth' }); } }
     async function loadHome() {
