@@ -649,7 +649,7 @@ const DISCOVERY_TERMS = {
     home: ['music live session', 'creative video', 'short documentary', 'film trailer']
 };
 const discoverCache = new Map();
-let publicIptvCache = { expiresAt: 0, items: [] };
+let publicIptvCatalogCache = { expiresAt: 0, items: [] };
 function shuffled(items) { return [...items].sort(() => Math.random() - 0.5); }
 async function fetchSpotifyDiscovery(term, limit) {
     if (!process.env.SPOTIFY_ACCESS_TOKEN) return [];
@@ -666,21 +666,24 @@ async function fetchAppleMusicDiscovery(term, limit) {
     const payload = await response.json();
     return (payload.results?.songs?.data || []).map(item => ({ id: `apple-music-${item.id}`, title: item.attributes?.name || 'Faixa Apple Music', url: item.attributes?.url, externalUrl: item.attributes?.url, thumbnail: item.attributes?.artwork?.url?.replace('{w}', '640').replace('{h}', '640') || null, duration: Math.round(Number(item.attributes?.durationInMillis || 0) / 1000), site: 'Apple Music', uploader: item.attributes?.artistName || null, kind: 'music', metadataOnly: true })).filter(item => item.url);
 }
-async function fetchPublicIptvDiscovery(limit, filters = {}) {
-    const cacheKey = `${limit}:${filters.country || ''}:${filters.language || ''}:${filters.category || ''}:${filters.query || ''}`;
-    if (publicIptvCache.expiresAt > Date.now() && publicIptvCache.key === cacheKey) return publicIptvCache.items.slice(0, limit);
+async function loadPublicIptvCatalog() {
+    if (publicIptvCatalogCache.expiresAt > Date.now() && publicIptvCatalogCache.items.length) return publicIptvCatalogCache.items;
     const [channelsResponse, streamsResponse, feedsResponse, blocklistResponse] = await Promise.all([fetch('https://iptv-org.github.io/api/channels.json'), fetch('https://iptv-org.github.io/api/streams.json'), fetch('https://iptv-org.github.io/api/feeds.json'), fetch('https://iptv-org.github.io/api/blocklist.json')]);
     if (!channelsResponse.ok || !streamsResponse.ok || !feedsResponse.ok || !blocklistResponse.ok) return [];
     const channels = await channelsResponse.json(); const streams = await streamsResponse.json(); const feeds = await feedsResponse.json(); const blocklist = await blocklistResponse.json(); const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel)); const byId = new Map(channels.map(channel => [channel.id, channel])); const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed]));
-    const categories = new Set(['entertainment', 'movies', 'series', 'kids', 'news', 'documentary', 'music', 'religious', 'cooking', 'animation', 'classic', 'family', 'education']);
-    const items = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && byId.has(stream.channel) && !blocked.has(stream.channel)).map(stream => { const channel = byId.get(stream.channel); const feed = feedById.get(`${channel.id}::${stream.feed}`) || feeds.find(item => item.channel === channel.id && item.is_main) || null; const languages = feed?.languages || []; return { id: `iptv-${channel.id}-${Buffer.from(stream.url).toString('base64url').slice(0, 10)}`, channelId: channel.id, channelName: channel.name || channel.id, title: stream.title || `${channel.name || channel.id} · Direto`, url: stream.url, externalUrl: channel.website || `https://iptv-org.github.io/`, thumbnail: channel.logo || null, duration: 0, site: 'IPTV público · iptv-org', uploader: channel.country || null, country: channel.country || null, language: languages[0] || null, languages, categories: channel.categories || [], quality: stream.quality || null, availabilityLabel: stream.label || null, referrer: stream.referrer || stream.referrer_url || null, userAgent: stream.user_agent || stream.userAgent || null, requiresExternalPlayer: Boolean(stream.referrer || stream.referrer_url || stream.user_agent || stream.userAgent), kind: 'live', live: true, directStream: true }; }).filter(item => item.categories.some(category => categories.has(category))).filter(item => !filters.country || item.country === filters.country).filter(item => !filters.language || item.languages.includes(filters.language)).filter(item => !filters.category || item.categories.includes(filters.category)).filter(item => !filters.query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(String(filters.query).toLowerCase()));
-    publicIptvCache = { key: cacheKey, expiresAt: Date.now() + 10 * 60 * 1000, items: shuffled(items) }; return publicIptvCache.items.slice(0, limit);
+    const categories = new Set(['entertainment', 'movies', 'series', 'kids', 'news', 'documentary', 'music', 'religious', 'cooking', 'animation', 'classic', 'family', 'education', 'sports']);
+    const items = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && byId.has(stream.channel) && !blocked.has(stream.channel)).map(stream => { const channel = byId.get(stream.channel); const feed = feedById.get(`${channel.id}::${stream.feed}`) || feeds.find(item => item.channel === channel.id && item.is_main) || null; const languages = feed?.languages || []; return { id: `iptv-${channel.id}-${Buffer.from(stream.url).toString('base64url').slice(0, 10)}`, channelId: channel.id, channelName: channel.name || channel.id, title: stream.title || `${channel.name || channel.id} · Direto`, url: stream.url, externalUrl: channel.website || `https://iptv-org.github.io/`, thumbnail: channel.logo || null, duration: 0, site: 'IPTV público · iptv-org', uploader: channel.country || null, country: channel.country || null, language: languages[0] || null, languages, categories: channel.categories || [], quality: stream.quality || null, availabilityLabel: stream.label || null, referrer: stream.referrer || stream.referrer_url || null, userAgent: stream.user_agent || stream.userAgent || null, requiresExternalPlayer: Boolean(stream.referrer || stream.referrer_url || stream.userAgent || stream.user_agent), kind: 'live', live: true, directStream: true }; }).filter(item => item.categories.some(category => categories.has(category)));
+    publicIptvCatalogCache = { expiresAt: Date.now() + 10 * 60 * 1000, items }; return items;
+}
+async function fetchPublicIptvDiscovery(limit, filters = {}) {
+    const items = await loadPublicIptvCatalog(); const query = String(filters.query || '').toLowerCase();
+    return shuffled(items.filter(item => (!filters.country || item.country === filters.country) && (!filters.language || item.languages.includes(filters.language)) && (!filters.category || item.categories.includes(filters.category)) && (!query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).slice(0, Math.max(limit * 3, limit))).slice(0, limit);
 }
 async function fetchArchiveDiscovery(term, limit) {
     const query = encodeURIComponent(`mediatype:movies AND title:(${term})`);
     const response = await fetch(`https://archive.org/advancedsearch.php?q=${query}&fl[]=identifier&fl[]=title&rows=${Math.min(limit, 8)}&output=json`);
     if (!response.ok) return [];
-    const docs = (await response.json()).response?.docs || [];
+    const docs = ((await response.json()).response?.docs || []).filter(doc => !/you[-_ ]?tube|youtubedl/i.test(`${doc.identifier || ''} ${doc.title || ''}`));
     const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', kind: 'film' }; } catch { return null; } }));
     return items.filter(Boolean);
 }
@@ -689,6 +692,11 @@ const entertainmentHomeCache = { expiresAt: 0, value: null };
 function uniqueMedia(items, limit = 18) {
     const seen = new Set();
     return (items || []).filter(item => item?.url && !seen.has(item.url) && seen.add(item.url)).slice(0, limit);
+}
+function interleaveMedia(groups) {
+    const output = []; const max = Math.max(0, ...(groups || []).map(group => group.length));
+    for (let index = 0; index < max; index += 1) for (const group of groups || []) if (group[index]) output.push(group[index]);
+    return output;
 }
 async function buildEntertainmentHome() {
     if (entertainmentHomeCache.expiresAt > Date.now() && entertainmentHomeCache.value) return entertainmentHomeCache.value;
@@ -700,7 +708,10 @@ async function buildEntertainmentHome() {
         ['dorama', 'Dorama e drama asiático', fetchPublicIptvDiscovery(14, { query: 'drama' }).catch(() => [])],
         ['documentary', 'Documentários e factual', fetchArchiveDiscovery('documentary', 10).catch(() => [])],
         ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(14, { category: 'news' }).catch(() => [])],
-        ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(14, { category: 'entertainment' }).catch(() => [])]
+        ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(18, { category: 'entertainment' }).catch(() => [])],
+        ['sports', 'Desporto ao vivo', fetchPublicIptvDiscovery(18, { category: 'sports' }).catch(() => [])],
+        ['portugal', 'Portugal em direto', fetchPublicIptvDiscovery(18, { country: 'PT' }).catch(() => [])],
+        ['brands', 'Cinema, ação e infantil', Promise.all(['AXN', 'Sony', 'Universal', 'Cine', 'Disney', 'FOX', 'Cartoon Network'].map(query => fetchPublicIptvDiscovery(8, { query }).catch(() => []))).then(groups => interleaveMedia(groups))]
     ];
     const settled = await Promise.all(jobs.map(async ([id, title, promise]) => {
         try {
@@ -721,7 +732,7 @@ async function discoverMedia(area, limit) {
     const term = shuffled(DISCOVERY_TERMS[area] || DISCOVERY_TERMS.home)[0]; let results = [];
     if (area === 'music') { const groups = await Promise.all([searchDiscovery(term, 'music', limit, 'soundcloud'), searchDiscovery(term, 'music', limit, 'youtube'), fetchSpotifyDiscovery(term, limit).catch(() => []), fetchAppleMusicDiscovery(term, limit).catch(() => [])]); results = shuffled(groups.flat()).slice(0, limit); }
     else if (area === 'social') { const youtube = await searchDiscovery(term, 'video', limit, 'youtube'); const tiktokUrls = String(process.env.TIKTOK_DISCOVERY_URLS || '').split(',').map(value => value.trim()).filter(value => /^https?:\/\//i.test(value)).slice(0, limit); const tiktok = await Promise.all(tiktokUrls.map(async url => { try { const item = await fetchInfo(url); return { ...item, url, externalUrl: url, kind: 'video', site: 'TikTok' }; } catch { return null; } })); results = shuffled([...youtube, ...tiktok.filter(Boolean)]).slice(0, limit); }
-    else if (area === 'entertainment') { const [youtube, archive, iptv] = await Promise.all([searchDiscovery(term, 'film', limit, 'youtube'), fetchArchiveDiscovery(term, Math.ceil(limit / 2)).catch(() => []), fetchPublicIptvDiscovery(Math.ceil(limit / 2)).catch(() => [])]); results = shuffled([...youtube, ...archive, ...iptv]).slice(0, limit); }
+    else if (area === 'entertainment') { const [archive, iptv] = await Promise.all([fetchArchiveDiscovery(term, Math.ceil(limit / 2)).catch(() => []), fetchPublicIptvDiscovery(Math.ceil(limit / 2)).catch(() => [])]); results = shuffled([...archive, ...iptv]).slice(0, limit); }
     else { const [video, music, archive] = await Promise.all([searchDiscovery(term, 'video', Math.ceil(limit / 3), 'youtube'), searchDiscovery(term, 'music', Math.ceil(limit / 3), 'soundcloud'), fetchArchiveDiscovery('short documentary', Math.ceil(limit / 3)).catch(() => [])]); results = shuffled([...video, ...music, ...archive]).slice(0, limit); }
     const value = { term, results }; discoverCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value }); return value;
 }

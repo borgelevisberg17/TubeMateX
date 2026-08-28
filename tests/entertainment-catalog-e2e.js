@@ -21,13 +21,19 @@ const { chromium } = require('playwright');
         site: 'IPTV público · iptv-org', country: 'BR', language: 'por', languages: ['por'],
         categories: ['news'], quality: 'HD', availabilityLabel: 'Not 24/7', kind: 'live', live: true, directStream: true
       };
+      const sports = { ...live, id: 'iptv-sports-1', title: 'Arena Sport 1 · Direto', channelName: 'Arena Sport 1', categories: ['sports'] };
+      const portugal = { ...live, id: 'iptv-pt-1', title: 'SIC Notícias · Direto', channelName: 'SIC Notícias', country: 'PT', availabilityLabel: 'Geo-blocked' };
+      const brands = { ...live, id: 'iptv-brand-1', title: 'AXN · Direto', channelName: 'AXN', categories: ['entertainment'] };
       const home = {
         hero: film,
         rows: [
           { id: 'featured', title: 'Em destaque agora', items: [film] },
           { id: 'films', title: 'Filmes públicos e cinema', items: [film] },
           { id: 'series', title: 'Séries e episódios públicos', items: [series] },
-          { id: 'anime', title: 'Anime e animação', items: [{ ...film, id: 'anime-1', title: 'Anime official trailer' }] }
+          { id: 'anime', title: 'Anime e animação', items: [{ ...film, id: 'anime-1', title: 'Anime public animation' }] },
+          { id: 'sports', title: 'Desporto ao vivo', items: [sports] },
+          { id: 'portugal', title: 'Portugal em direto', items: [portugal] },
+          { id: 'brands', title: 'Cinema, ação e infantil', items: [brands] }
         ],
         generatedAt: new Date().toISOString()
       };
@@ -56,7 +62,11 @@ const { chromium } = require('playwright');
       if (!(await page.locator('#heroTitle').textContent()).includes('Entretenimento com origem')) throw new Error('hero institucional não foi renderizado');
       if ((await page.locator('.ent-card').count()) < 3) throw new Error('rails cinematográficos não foram renderizados');
       if ((await page.locator('.ent-card-badge').allTextContents()).some(text => /youtube/i.test(text))) throw new Error('YouTube apareceu nos rails principais do Cine');
+      for (const view of ['sports','portugal','brands']) if (await page.locator(`.ent-nav-link[data-view="${view}"]`).count() !== 1) throw new Error(`navegação sem ${view}`);
+      await page.locator('.ent-nav-link[data-view="sports"]').click();
+      if (!(await page.locator('.ent-rail-heading').allTextContents()).some(text => /Desporto ao vivo/i.test(text))) throw new Error('rail de desporto não abriu');
       if (!(await page.locator('#iptvSourceList').textContent()).includes('bloqueada')) throw new Error('estado da fonte bloqueada não foi exposto');
+      await page.locator('.ent-nav-link[data-view="home"]').click();
       await page.locator('.ent-card').first().locator('[data-action="details"]').click();
       if (await page.locator('#entDetailDrawer').getAttribute('hidden') !== null) throw new Error('drawer de detalhes não abriu');
       if (await page.locator('.ent-player-option').count() !== 3) throw new Error('opções de player incompletas');
@@ -67,6 +77,10 @@ const { chromium } = require('playwright');
       for (const selector of ['#videoPlayToggle','#videoSeek','#videoMute','#videoVolume','#videoFullscreen','#videoOpenSource']) if (await page.locator(selector).count() !== 1) throw new Error(`player sem ${selector}`);
       await page.locator('#spaceVideo').evaluate(video => video.dispatchEvent(new Event('error')));
       if (await page.locator('[data-player-retry]').count() !== 1) throw new Error('player sem retry no estado de erro');
+      await page.locator('#entDetailDrawer').evaluate(() => {});
+      await page.locator('#videoDrawer').evaluate(drawer => { drawer.requestFullscreen = () => { window.__fullscreenRequested = true; return Promise.resolve(); }; });
+      await page.locator('#videoFullscreen').click();
+      if (!(await page.evaluate(() => window.__fullscreenRequested))) throw new Error('fullscreen não foi solicitado ao drawer completo');
       await page.locator('#closeVideo').click();
       await page.locator('.ent-card[data-item-id="series-1"] [data-action="details"]').click();
       await page.locator('#detailSeries').waitFor({ state: 'visible' });
