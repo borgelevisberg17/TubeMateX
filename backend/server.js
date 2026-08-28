@@ -288,7 +288,7 @@ const downloadLimiter = rateLimit({
 });
 
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -793,10 +793,12 @@ async function loadPublicIptvCatalog() {
         const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed]));
         const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
         const validStreams = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && !blocked.has(stream.channel));
+        const streamsByChannel = new Map(); for (const stream of validStreams) { const list = streamsByChannel.get(stream.channel) || []; list.push(stream); streamsByChannel.set(stream.channel, list); }
+        const feedsByChannel = new Map(); for (const feed of feeds) { const list = feedsByChannel.get(feed.channel) || []; list.push(feed); feedsByChannel.set(feed.channel, list); }
         const items = channels.filter(channel => channel?.id && channel.country && !channel.is_nsfw && !blocked.has(channel.id)).map(channel => {
             const country = channel.country === 'UK' ? 'GB' : channel.country;
-            const channelFeeds = feeds.filter(feed => feed.channel === channel.id);
-            const channelStreams = validStreams.filter(stream => stream.channel === channel.id);
+            const channelFeeds = feedsByChannel.get(channel.id) || [];
+            const channelStreams = streamsByChannel.get(channel.id) || [];
             const mainFeed = channelFeeds.find(feed => feed.is_main) || channelFeeds[0] || null;
             const primaryStream = channelStreams.find(stream => stream.feed && mainFeed?.id === stream.feed) || channelStreams[0] || null;
             const primaryFeed = primaryStream ? (feedById.get(`${channel.id}::${primaryStream.feed}`) || mainFeed) : mainFeed;
@@ -1137,6 +1139,31 @@ app.post('/api/admin/catalog/:id/validate', requireAdmin, requireAdminCsrf, asyn
 app.post('/api/admin/catalog/:id/approve', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); if (row.media_url && row.health_status === 'offline') return res.status(409).json({ error: 'Valida a media antes de aprovar um item offline.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='approved',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
 app.post('/api/admin/catalog/:id/reject', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='rejected',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
 app.delete('/api/admin/catalog/:id', requireAdmin, requireAdminCsrf, async (req, res) => { const result = await dbRun('DELETE FROM admin_catalog_items WHERE id=?', [req.params.id]); clearAdminCatalogCache(); res.json({ deleted: Boolean(result.changes) }); });
+app.post('/api/admin/import-playlist', requireAdmin, requireAdminCsrf, async (req, res) => {
+    try {
+        const source = await getAdminSource(req.body?.sourceId); if (!source) return res.status(400).json({ error: 'Seleciona uma fonte autorizada antes de importar.' });
+        const content = cleanText(req.body?.content, 1900000); if (!content) return res.status(400).json({ error: 'O arquivo está vazio.' });
+        const rows = []; let meta = {};
+        for (const line of content.split(/\r?\n/)) {
+            const value = line.trim(); if (!value) continue;
+            if (value.startsWith('#EXTINF')) { const comma = value.indexOf(','); const attrs = Object.fromEntries([...value.matchAll(/([\w-]+)="([^"]*)"/g)].map(match => [match[1].toLowerCase(), match[2]])); meta = { title: comma >= 0 ? value.slice(comma + 1).trim() : '', country: attrs['tvg-country'] || '', language: attrs['tvg-language'] || '', group: attrs['group-title'] || '' }; continue; }
+            if (!/^https?:\/\//i.test(value)) continue;
+            const url = value.replace(/[),;]}>'\"]+$/, ''); let parsed; try { parsed = new URL(url); } catch { meta = {}; continue; }
+            if (!['http:', 'https:'].includes(parsed.protocol)) { meta = {}; continue; }
+            rows.push({ url, title: meta.title || parsed.hostname, country: meta.country, language: meta.language, group: meta.group }); meta = {};
+            if (rows.length >= 1000) break;
+        }
+        if (!rows.length) return res.status(400).json({ error: 'Nenhuma URL HTTP/HTTPS foi encontrada.' });
+        const now = new Date().toISOString(); let imported = 0; let skipped = 0;
+        for (const row of rows) {
+            try {
+                const mediaUrl = await adminValidateUrl(row.url, source.allowedDomains, 'URL importada'); const id = `admin-${crypto.createHash('sha256').update(`${source.id}:${mediaUrl}`).digest('hex').slice(0, 20)}`; const title = cleanText(row.title, 240) || 'Canal importado'; const streamType = /\.m3u8(?:$|\?)/i.test(mediaUrl) ? 'hls' : /\.mpd(?:$|\?)/i.test(mediaUrl) ? 'dash' : 'auto';
+                await dbRun(`INSERT INTO admin_catalog_items (id,source_id,content_type,title,description,thumbnail_url,external_url,media_url,stream_type,country,language,categories_json,feed_name,is_live,is_featured,approval_status,health_status,health_code,health_label,health_checked_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,media_url=excluded.media_url,updated_at=excluded.updated_at`, [id, source.id, 'channel', title, 'Importado de playlist; requer revisão e validação.', null, source.baseUrl, mediaUrl, streamType, cleanText(row.country, 8).toUpperCase(), cleanText(row.language, 16).toLowerCase(), JSON.stringify(row.group ? [row.group.toLowerCase()] : ['general']), row.group, 1, 0, 'needs-review', 'pending', null, 'A aguardar validação', now, now, now]); imported++;
+            } catch { skipped++; }
+        }
+        clearAdminCatalogCache(); res.status(201).json({ imported, skipped, found: rows.length, truncated: content.split(/\r?\n/).filter(line => /^https?:\/\//i.test(line.trim())).length > rows.length });
+    } catch (error) { res.status(400).json({ error: error.message }); }
+});
 app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
 app.get('/api/entertainment/sources', apiLimiter, async (req, res) => { try { const rows = await dbAll("SELECT id,name,base_url,kind FROM admin_sources WHERE enabled=1 ORDER BY name LIMIT 100"); const sources = [...ENTERTAINMENT_CATALOG_SOURCES, ...rows.map(row => ({ id: `admin-${row.id}`, label: row.name, mode: row.kind, configured: true, policy: 'Fonte administrada, aprovada e allowlisted pelo proprietário do TubeMateX.', url: row.base_url }))]; res.json({ sources, policy: 'Metadata não concede direitos de reprodução. O TubeMateX só reproduz ou descarrega media pública/autorizada fornecida pela origem.' }); } catch { res.json({ sources: ENTERTAINMENT_CATALOG_SOURCES, policy: 'Metadata não concede direitos de reprodução.' }); } });
 app.get('/api/entertainment/home', apiLimiter, async (req, res) => {

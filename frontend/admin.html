@@ -35,7 +35,7 @@
         <article><span>Aprovados</span><strong id="metricApproved">0</strong></article>
         <article><span>Offline/incompatíveis</span><strong id="metricOffline">0</strong></article>
       </section>
-      <nav class="admin-tabs" aria-label="Secções da consola"><button class="is-active" data-admin-tab="sources">Fontes</button><button data-admin-tab="catalog">Catálogo</button><button data-admin-tab="approval">Aprovação</button></nav>
+      <nav class="admin-tabs" aria-label="Secções da consola"><button class="is-active" data-admin-tab="sources">Fontes</button><button data-admin-tab="catalog">Catálogo</button><button data-admin-tab="public">Catálogo público</button><button data-admin-tab="import">Importar playlist</button><button data-admin-tab="approval">Aprovação</button></nav>
 
       <section data-admin-panel="sources" class="admin-panel-grid">
         <article class="admin-panel admin-form-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Allowlist + health</p><h2 id="sourceFormTitle">Nova fonte autorizada</h2></div><button id="sourceReset" class="admin-icon-button" type="button">Limpar</button></div>
@@ -75,6 +75,10 @@
         </article>
         <article class="admin-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Itens geridos</p><h2>Catálogo completo</h2></div><button id="refreshCatalog" class="admin-secondary" type="button">Atualizar</button></div><div class="admin-filters"><select id="catalogStatus"><option value="">Todos os estados</option><option value="pending">Pendentes</option><option value="needs-review">Revisão necessária</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></select><select id="catalogType"><option value="">Todos os tipos</option><option value="channel">Canais</option><option value="film">Filmes</option><option value="series">Séries</option><option value="anime">Anime</option><option value="dorama">Doramas</option><option value="documentary">Documentários</option><option value="vod">VOD</option></select></div><div id="catalogList" class="admin-list"></div></article>
       </section>
+
+      <section data-admin-panel="public" class="admin-panel" hidden><div class="admin-panel-heading"><div><p class="admin-eyebrow">IPTV-org · leitura</p><h2>Catálogo público disponível</h2></div><button id="refreshPublicCatalog" class="admin-secondary" type="button">Atualizar</button></div><p class="admin-muted">Este painel mostra canais públicos com stream publicada. Para gerir um item próprio, importe uma playlist ou cadastre-o no catálogo autorizado.</p><div id="publicCatalogList" class="admin-list"></div></section>
+
+      <section data-admin-panel="import" class="admin-panel" hidden><div class="admin-panel-heading"><div><p class="admin-eyebrow">M3U · M3U8 · TXT · JSON · CSV</p><h2>Importar playlist</h2></div></div><form id="playlistImportForm" class="admin-form"><label>Fonte autorizada<select id="playlistImportSource" required></select></label><label>Arquivo de playlist<input id="playlistImportFile" type="file" accept=".m3u,.m3u8,.txt,.json,.csv,.xml,.yaml,.yml" required></label><button class="admin-primary" type="submit">Importar e enviar para revisão</button><p id="playlistImportStatus" class="admin-status" role="status"></p></form></section>
 
       <section data-admin-panel="approval" class="admin-panel" hidden><div class="admin-panel-heading"><div><p class="admin-eyebrow">Gate editorial</p><h2>Fila de aprovação</h2></div><button id="refreshApproval" class="admin-secondary" type="button">Atualizar</button></div><div id="approvalList" class="admin-approval-list"></div></section>
     </section>
