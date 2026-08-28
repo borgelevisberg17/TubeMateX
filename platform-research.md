@@ -93,3 +93,9 @@ Para reprodução HLS em browsers Chromium, a referência técnica do [hls.js](h
 A experiência TubeMateX Cine foi reposicionada para não funcionar como uma lista de trailers do YouTube. O endpoint dedicado `/api/entertainment/home` agora usa Internet Archive para vídeo público e iptv-org filtrado para canais/feeds live. A pesquisa dedicada `/api/entertainment/search` também exclui YouTube e informa essa política no contrato. YouTube continua disponível nos fluxos de Social, onde vídeos curtos, criadores e URLs diretos são o contexto adequado.
 
 O hero do Cine é institucional: apresenta a proposta de descoberta de filmes, séries, anime, doramas, novelas, documentários e televisão pública, usando uma imagem real de catálogo apenas como ambientação visual. O título do hero não é um trailer aleatório nem uma promessa de catálogo proprietário.
+
+## Diagnóstico de reprodução HLS — agosto de 2026
+
+A falha genérica `O canal live não pôde ser descodificado neste momento` foi refinada no player do Cine. A auditoria de amostras reais encontrou manifestações HLS HTTP 200 com codecs AVC/AAC, mas também fontes que respondem HTTP 403 por geoblocking, fontes com headers/referrer exigidos e manifests ou segmentos que podem expirar. O browser não consegue adicionar arbitrariamente `Referer` ou `User-Agent` a cada pedido de segmento sem um proxy autorizado; por isso o catálogo agora preserva esses requisitos e encaminha esses casos para VLC, mpv ou para a fonte original.
+
+O HLS.js passou a classificar falhas fatais por HTTP 401/403 (região ou headers), 404/410 (manifesto/segmentos indisponíveis), `mediaError` (codec incompatível) e indisponibilidade genérica. O player evita tentar diretamente canais marcados `Geo-blocked` e oferece retry manual, sem loops automáticos.

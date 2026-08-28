@@ -65,6 +65,8 @@ const { chromium } = require('playwright');
       await page.locator('#detailInternal').click();
       await page.locator('#videoDrawer').waitFor({ state: 'visible' });
       for (const selector of ['#videoPlayToggle','#videoSeek','#videoMute','#videoVolume','#videoFullscreen','#videoOpenSource']) if (await page.locator(selector).count() !== 1) throw new Error(`player sem ${selector}`);
+      await page.locator('#spaceVideo').evaluate(video => video.dispatchEvent(new Event('error')));
+      if (await page.locator('[data-player-retry]').count() !== 1) throw new Error('player sem retry no estado de erro');
       await page.locator('#closeVideo').click();
       await page.locator('.ent-card[data-item-id="series-1"] [data-action="details"]').click();
       await page.locator('#detailSeries').waitFor({ state: 'visible' });
