@@ -41,6 +41,22 @@ Os repositórios abaixo foram clonados ou inspecionados de forma passiva. Foram 
 
 Os inventários externos incluem grande quantidade de duplicações, hosts dinâmicos, endereços IP, domínios sem relação clara com a emissora, URLs de serviços pagos e entradas que não demonstram autorização de redistribuição. Por esse motivo, eles foram usados para auditoria e comparação, mas não foram incorporados automaticamente ao catálogo público.
 
+## Inventário detalhado de streams para Angola (AO)
+
+Conforme solicitado para análise de autorização local (sendo Angola uma das origens mais difíceis de encontrar), foram extraídos todos os streams diretos identificados nos repositórios públicos auditados (`iptv-org/iptv`, `herme10/iptv-angola-global` e `adrielsoi909-ai/Iptv-Angola`). Placeholders de catálogo sem stream e entradas com URLs fictícias foram desconsiderados nesta listagem:
+
+| Canal | Categoria / Tipo | URL do Stream | Fonte | Estado HTTP |
+|---|---|---|---|---|
+| KK TV Angola | Religioso / HLS | `https://w1.manasat.com/ktv-angola/smil:ktv-angola.smil/playlist.m3u8` | [iptv-org/iptv](https://github.com/iptv-org/iptv) | Online (200) |
+| Muzangala TV | Música / HLS | `https://5cf4a2c2512a2.streamlock.net/tvmuzangala/tvmuzangala/playlist.m3u8` | [iptv-org/iptv](https://github.com/iptv-org/iptv) | Online (200) |
+| TV Zimbo | Geral / HLS | `https://sgn-cdn-video.vods2africa.com/Tv-Zimbo/index.fmp4.m3u8` | [iptv-org/iptv](https://github.com/iptv-org/iptv) | Online (200) |
+| TV Zimbo (YouTube Live) | Geral / Web Live | `https://www.youtube.com/@TVZimbo_Oficial/live` | [herme10/iptv-angola-global](https://github.com/herme10/iptv-angola-global) | Online (200) |
+| Palanca TV (YouTube Live) | Notícias / Web Live | `https://www.youtube.com/@palancatv2606/live` | [herme10/iptv-angola-global](https://github.com/herme10/iptv-angola-global) | Online (200) |
+| TV Girassol (Portal Web) | Geral / Web | `https://redegirassol.com/tv/` | [herme10/iptv-angola-global](https://github.com/herme10/iptv-angola-global) | Online (200) |
+| TPA1 (YouTube Live) | Geral / Web Live | `https://www.youtube.com/@tpaonline3152/live` | [herme10/iptv-angola-global](https://github.com/herme10/iptv-angola-global) | Indisponível (404) |
+
+*Nota:* O repositório `adrielsoi909-ai/Iptv-Angola` foi auditado, porém os seus ficheiros contêm apenas URLs de exemplo (`exemplo-link1.m3u8`, etc.) e não streams operacionais. Os streams listados acima estão disponíveis para verificação local de direitos e autorizações pelo administrador.
+
 ## Política aplicada no TubeMateX
 
 O endpoint público `/api/iptv/channels` agora remove qualquer canal que não possua pelo menos uma URL HTTP/HTTPS publicada em `streams.json`. A API não apresenta mais itens `CATÁLOGO` sem stream como se fossem canais ao vivo.
