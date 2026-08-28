@@ -683,14 +683,23 @@ async function loadPublicIptvCatalog() {
     publicIptvCatalogPromise = (async () => {
         const [channelsResponse, streamsResponse, feedsResponse, blocklistResponse, logosResponse] = await Promise.all([fetch('https://iptv-org.github.io/api/channels.json'), fetch('https://iptv-org.github.io/api/streams.json'), fetch('https://iptv-org.github.io/api/feeds.json'), fetch('https://iptv-org.github.io/api/blocklist.json'), fetch('https://iptv-org.github.io/api/logos.json')]);
         if (!channelsResponse.ok || !streamsResponse.ok || !feedsResponse.ok || !blocklistResponse.ok || !logosResponse.ok) return [];
-        const channels = await channelsResponse.json(); const streams = await streamsResponse.json(); const feeds = await feedsResponse.json(); const blocklist = await blocklistResponse.json(); const logos = await logosResponse.json(); const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel)); const byId = new Map(channels.map(channel => [channel.id, channel])); const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed])); const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
-        const items = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && byId.has(stream.channel) && !blocked.has(stream.channel)).map(stream => {
-            const channel = byId.get(stream.channel);
-            const feed = feedById.get(`${channel.id}::${stream.feed}`) || feeds.find(item => item.channel === channel.id && item.is_main) || null;
-            const languages = feed?.languages || [];
-            const country = channel.country === 'UK' ? 'GB' : (channel.country || null);
+        const channels = await channelsResponse.json(); const streams = await streamsResponse.json(); const feeds = await feedsResponse.json(); const blocklist = await blocklistResponse.json(); const logos = await logosResponse.json();
+        const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel));
+        const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed]));
+        const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
+        const validStreams = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && !blocked.has(stream.channel));
+        const items = channels.filter(channel => channel?.id && channel.country && !channel.is_nsfw && !blocked.has(channel.id)).map(channel => {
+            const country = channel.country === 'UK' ? 'GB' : channel.country;
+            const channelFeeds = feeds.filter(feed => feed.channel === channel.id);
+            const channelStreams = validStreams.filter(stream => stream.channel === channel.id);
+            const mainFeed = channelFeeds.find(feed => feed.is_main) || channelFeeds[0] || null;
+            const primaryStream = channelStreams.find(stream => stream.feed && mainFeed?.id === stream.feed) || channelStreams[0] || null;
+            const primaryFeed = primaryStream ? (feedById.get(`${channel.id}::${primaryStream.feed}`) || mainFeed) : mainFeed;
+            const languages = primaryFeed?.languages || [];
             const categories = Array.isArray(channel.categories) && channel.categories.length ? channel.categories : ['general'];
-            return { id: `iptv-${channel.id}-${Buffer.from(stream.url).toString('base64url').slice(0, 10)}`, channelId: channel.id, channelName: channel.name || channel.id, title: stream.title || `${channel.name || channel.id} · Direto`, url: stream.url, externalUrl: channel.website || `https://iptv-org.github.io/`, thumbnail: logoByKey.get(`${channel.id}::${stream.feed || ''}`) || logoByKey.get(`${channel.id}::`) || null, duration: 0, site: 'IPTV público · iptv-org', uploader: country, country, language: languages[0] || null, languages, categories, quality: stream.quality || null, availabilityLabel: stream.label || null, referrer: stream.referrer || stream.referrer_url || null, userAgent: stream.user_agent || stream.userAgent || null, requiresExternalPlayer: Boolean(stream.referrer || stream.referrer_url || stream.userAgent || stream.user_agent), kind: 'live', live: true, directStream: true };
+            const logo = logoByKey.get(`${channel.id}::${primaryStream?.feed || mainFeed?.id || ''}`) || logoByKey.get(`${channel.id}::`) || null;
+            const sourceLabel = primaryStream?.label || (channelStreams.length ? null : 'Sem stream verificada');
+            return { id: `iptv-${channel.id}`, channelId: channel.id, channelName: channel.name || channel.id, title: channel.name || channel.id, altNames: Array.isArray(channel.alt_names) ? channel.alt_names : [], url: primaryStream?.url || null, externalUrl: channel.website || 'https://iptv-org.github.io/', thumbnail: logo, duration: 0, site: 'IPTV público · iptv-org', uploader: country, country, language: languages[0] || null, languages, categories, quality: primaryStream?.quality || null, availabilityLabel: sourceLabel, feedCount: channelFeeds.length, streamCount: channelStreams.length, feeds: channelFeeds.map(feed => ({ id: feed.id, name: feed.name || null, languages: feed.languages || [], alt: feed.alt || null })), referrer: primaryStream?.referrer || primaryStream?.referrer_url || null, userAgent: primaryStream?.user_agent || primaryStream?.userAgent || null, requiresExternalPlayer: Boolean(primaryStream?.referrer || primaryStream?.referrer_url || primaryStream?.userAgent || primaryStream?.user_agent), streamAvailable: Boolean(primaryStream?.url), kind: 'live', live: true, directStream: Boolean(primaryStream?.url) };
         });
         publicIptvCatalogCache = { expiresAt: Date.now() + 10 * 60 * 1000, items }; return items;
     })();
@@ -698,7 +707,7 @@ async function loadPublicIptvCatalog() {
 }
 function filterPublicIptvCatalog(items, filters = {}) {
     const query = String(filters.query || '').trim().toLowerCase();
-    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!filters.language || item.languages.includes(String(filters.language).toLowerCase())) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
+    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!filters.language || item.languages.includes(String(filters.language).toLowerCase())) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.altNames || []).join(' ')} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => Number(b.streamAvailable) - Number(a.streamAvailable) || `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
 }
 async function fetchPublicIptvDiscovery(limit, filters = {}) {
     const items = filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters);
