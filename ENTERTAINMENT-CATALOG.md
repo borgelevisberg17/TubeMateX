@@ -251,7 +251,7 @@ Canais em português devem ser filtrados por país e pelo idioma declarado no fe
 
 A implementação atual parte de `channels.json`, não apenas de `streams.json`. Por isso, cada canal com país definido permanece no inventário quando não está marcado como NSFW ou bloqueado por DMCA/NSFW. Os feeds associados, os streams disponíveis e os logos são cruzados para enriquecer cada card.
 
-A aplicação distingue **canal catalogado**, **feed**, **stream publicada** e **stream reproduzível no browser**. Um canal sem stream atual permanece visível como `CATÁLOGO` e aponta para a sua origem; um canal com stream HTTP verificada aparece como `AO VIVO`. A presença no catálogo não garante licença global, permanência do URL, disponibilidade geográfica ou compatibilidade HLS/DASH.
+A aplicação distingue **canal catalogado**, **feed**, **stream publicada** e **stream reproduzível no browser**. O catálogo público de reprodução inclui apenas canais com pelo menos uma URL HTTP/HTTPS publicada na origem; canais sem stream ficam fora de `/api/iptv/channels` e permanecem apenas no inventário/auditoria. Mesmo uma URL publicada pode estar offline, geobloqueada, exigir headers especiais ou não ser compatível com o browser.
 
 Na validação runtime de 2026-08-28, a API devolveu estas contagens de canais catalogados após os filtros de segurança:
 
@@ -263,4 +263,4 @@ Na validação runtime de 2026-08-28, a API devolveu estas contagens de canais c
 | Estados Unidos | US | 14.172 |
 | Reino Unido | GB | 586 |
 
-As contagens são dinâmicas e devem ser consultadas em `/api/iptv/meta`. A rota `/api/iptv/channels` suporta `country`, `language`, `category`, `q`, `limit` e `offset`, devolvendo `total` e `hasMore`. Os campos `feedCount`, `streamCount`, `feeds`, `streamAvailable` e `availabilityLabel` tornam explícita a diferença entre inventário editorial e reprodução atual.
+As contagens públicas são dinâmicas e devem ser consultadas em `/api/iptv/meta`; agora contam apenas canais com stream publicada. A rota `/api/iptv/channels` suporta `country`, `language`, `category`, `q`, `limit` e `offset`, devolvendo `total` e `hasMore`. Os campos `feedCount`, `streamCount`, `feeds`, `streamAvailable` e `availabilityLabel` indicam a qualidade e o estado declarado pela origem.

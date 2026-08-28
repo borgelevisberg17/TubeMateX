@@ -804,7 +804,7 @@ async function loadPublicIptvCatalog() {
             const logo = logoByKey.get(`${channel.id}::${primaryStream?.feed || mainFeed?.id || ''}`) || logoByKey.get(`${channel.id}::`) || null;
             const sourceLabel = primaryStream?.label || (channelStreams.length ? null : 'Sem stream verificada');
             return { id: `iptv-${channel.id}`, channelId: channel.id, channelName: channel.name || channel.id, title: channel.name || channel.id, altNames: Array.isArray(channel.alt_names) ? channel.alt_names : [], url: primaryStream?.url || null, externalUrl: channel.website || 'https://iptv-org.github.io/', thumbnail: logo, duration: 0, site: 'IPTV público · iptv-org', uploader: country, country, language: languages[0] || null, languages, categories, quality: primaryStream?.quality || null, availabilityLabel: sourceLabel, feedCount: channelFeeds.length, streamCount: channelStreams.length, feeds: channelFeeds.map(feed => ({ id: feed.id, name: feed.name || null, languages: feed.languages || [], alt: feed.alt || null })), referrer: primaryStream?.referrer || primaryStream?.referrer_url || null, userAgent: primaryStream?.user_agent || primaryStream?.userAgent || null, requiresExternalPlayer: Boolean(primaryStream?.referrer || primaryStream?.referrer_url || primaryStream?.userAgent || primaryStream?.user_agent), streamAvailable: Boolean(primaryStream?.url), kind: 'live', live: true, directStream: Boolean(primaryStream?.url) };
-        });
+        }).filter(item => item.streamAvailable);
         publicIptvCatalogCache = { expiresAt: Date.now() + 10 * 60 * 1000, items }; return items;
     })();
     try { return await publicIptvCatalogPromise; } finally { publicIptvCatalogPromise = null; }
