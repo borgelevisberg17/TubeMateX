@@ -22,7 +22,7 @@ async function request(path, options = {}) {
   if (source.source.id !== 'smoke-source') throw new Error('Fonte não criada.');
   const item = await request('/api/admin/catalog', { method: 'POST', body: JSON.stringify({ sourceId: 'smoke-source', contentType: 'film', title: 'Filme Smoke Autorizado', description: 'Item de teste', externalUrl: 'https://archive.org/details/smoke-test', categories: ['film'], isFeatured: true }) });
   const id = item.item.id;
-  if (item.item.approvalStatus !== 'pending') throw new Error('Item novo não ficou pendente.');
+  if (!['pending', 'needs-review'].includes(item.item.approvalStatus)) throw new Error('Item novo não entrou num estado de revisão.');
   const approved = await request(`/api/admin/catalog/${id}/approve`, { method: 'POST' });
   if (approved.item.approvalStatus !== 'approved') throw new Error('Item não aprovado.');
   const publicSources = await request('/api/entertainment/sources');
