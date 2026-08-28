@@ -17,7 +17,8 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
       for (const route of routes) {
         const page = await context.newPage(); pages.push(page);
         const errors = []; page.on('pageerror', e => errors.push(e.message));
-        const response = await page.goto(base + route.path, { waitUntil:'networkidle' });
+        const response = await page.goto(base + route.path, { waitUntil:'domcontentloaded', timeout:60000 });
+        if (route.body === 'entertainment') await page.locator('#entertainmentRows .ent-rail').first().waitFor({ state:'attached', timeout:60000 });
         if (!response || !response.ok()) throw new Error(`${route.path} não respondeu com sucesso em ${width}px`);
         if (await page.locator('body').getAttribute('data-space') !== route.body) throw new Error(`${route.path} sem data-space correto`);
         for (const selector of route.required) if (await page.locator(selector).count() !== 1) throw new Error(`${route.path} sem ${selector}`);

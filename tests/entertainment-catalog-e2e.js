@@ -50,17 +50,20 @@ const { chromium } = require('playwright');
         })
       }));
       await page.route('**/api/iptv/channels?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [live], source: 'iptv-org' }) }));
+      await page.route('**/api/iptv/meta', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ countries: [{ code: 'AO', count: 2 }, { code: 'BR', count: 12 }, { code: 'PT', count: 12 }], categories: [{ id: 'sports', count: 18 }, { id: 'news', count: 14 }], source: 'iptv-org' }) }));
       await page.route('**/api/search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [film] }) }));
       await page.route('**/api/media/stream?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: 'https://example.com/film.mp4', mimeType: 'video/mp4' }) }));
       await page.route('**/api/media/playlist?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ seasons: [{ seasonNumber: 1, title: 'Temporada 1', episodes: [{ id: 'episode-1', title: 'Episódio 1 · Primeiro capítulo', url: 'https://example.com/episode-1.mp4', duration: 300, kind: 'series' }, { id: 'episode-2', title: 'Episódio 2 · Continuação', url: 'https://example.com/episode-2.mp4', duration: 320, kind: 'series' }] }] }) }));
       await page.route('**/api/downloads', route => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ job: { id: 'cine-download' } }) }));
       await page.goto(`${base}/entertainment.html`, { waitUntil: 'networkidle' });
       await page.locator('#heroTitle').waitFor();
-      for (const selector of ['.entertainment-topbar', '#entHero', '#entertainmentRows', '#iptvSection', '#iptvSourceList', '#entSearchZone']) {
+      for (const selector of ['.entertainment-topbar', '#entHero', '#vodHeading', '#entertainmentRows', '#iptvSection', '#iptvHeading', '#iptvSourceList', '#entSearchZone']) {
         if (await page.locator(selector).count() !== 1) throw new Error(`sem ${selector}`);
       }
       if (!(await page.locator('#heroTitle').textContent()).includes('Entretenimento com origem')) throw new Error('hero institucional não foi renderizado');
       if ((await page.locator('.ent-card').count()) < 3) throw new Error('rails cinematográficos não foram renderizados');
+      if (!(await page.locator('#iptvCountry option[value="AO"]').count())) throw new Error('país Angola não entrou no filtro dinâmico');
+      if (!(await page.locator('#iptvCategory option[value="sports"]').count())) throw new Error('categoria desporto não entrou no filtro dinâmico');
       if ((await page.locator('.ent-card-badge').allTextContents()).some(text => /youtube/i.test(text))) throw new Error('YouTube apareceu nos rails principais do Cine');
       for (const view of ['sports','portugal','brands']) if (await page.locator(`.ent-nav-link[data-view="${view}"]`).count() !== 1) throw new Error(`navegação sem ${view}`);
       await page.locator('.ent-nav-link[data-view="sports"]').click();
