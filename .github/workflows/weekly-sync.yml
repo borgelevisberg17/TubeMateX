@@ -1,0 +1,56 @@
+name: Weekly IPTV inventory sync
+
+on:
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Clone public source repositories
+        run: |
+          mkdir -p sources
+          while read -r repo; do
+            test -z "$repo" && continue
+            git clone --depth 1 "https://github.com/$repo" "sources/$(echo "$repo" | tr '/' '__')"
+          done <<'EOF'
+          iptv-org/iptv
+          iptv-org/epg
+          iptv-org/database
+          Free-TV/IPTV
+          HerbertHe/iptv-sources
+          Ramys/Iptv-Brasil-2026
+          joaoguidugli/FTA-IPTV-Brasil
+          jhonatadev/Iptv-Brasil-2022
+          iptv-com/iptv
+          isactrue/iptv-brasil
+          25011966V/iptv
+          iptvbrazil/iptvbrazil
+          diogo464/iptv-pt
+          abp1989/Portuguese
+          Rodri200906/IPTV-Rodri
+          herme10/iptv-angola-global
+          adrielsoi909-ai/Iptv-Angola
+          EOF
+      - name: Build private inventory
+        run: python3 scripts/iptv_inventory.py --input sources --output inventory.sqlite
+      - name: Validate a bounded sample
+        run: python3 scripts/validate_inventory.py --database inventory.sqlite --sample 500 --timeout 8 --report validation.json
+      - name: Compress database
+        run: gzip -1 -c inventory.sqlite > inventory.sqlite.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iptv-inventory-${{ github.run_number }}
+          path: |
+            inventory.sqlite.gz
+            validation.json
+          retention-days: 30
