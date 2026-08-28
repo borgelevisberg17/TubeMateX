@@ -102,10 +102,108 @@ const databaseReady = new Promise((resolve, reject) => database.exec(`
     );
     CREATE INDEX IF NOT EXISTS downloads_owner_created_idx ON downloads(owner_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS downloads_owner_favorite_idx ON downloads(owner_id, favorite);
+    CREATE TABLE IF NOT EXISTS admin_sources (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        base_url TEXT NOT NULL,
+        allowed_domains_json TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'vod',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS admin_catalog_items (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        thumbnail_url TEXT,
+        external_url TEXT NOT NULL,
+        media_url TEXT,
+        stream_type TEXT NOT NULL DEFAULT 'auto',
+        country TEXT,
+        language TEXT,
+        categories_json TEXT NOT NULL DEFAULT '[]',
+        feed_name TEXT,
+        is_live INTEGER NOT NULL DEFAULT 0,
+        is_featured INTEGER NOT NULL DEFAULT 0,
+        approval_status TEXT NOT NULL DEFAULT 'pending',
+        health_status TEXT NOT NULL DEFAULT 'unknown',
+        health_code INTEGER,
+        health_label TEXT,
+        health_checked_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(source_id) REFERENCES admin_sources(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS admin_catalog_public_idx ON admin_catalog_items(approval_status, is_featured, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS admin_catalog_source_idx ON admin_catalog_items(source_id);
 `, error => error ? reject(error) : resolve()));
 const dbRun = (sql, params = []) => new Promise((resolve, reject) => database.run(sql, params, function onRun(error) { if (error) reject(error); else resolve(this); }));
 const dbGet = (sql, params = []) => new Promise((resolve, reject) => database.get(sql, params, (error, row) => error ? reject(error) : resolve(row)));
 const dbAll = (sql, params = []) => new Promise((resolve, reject) => database.all(sql, params, (error, rows) => error ? reject(error) : resolve(rows || [])));
+
+function adminHashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+    const derived = crypto.scryptSync(String(password), salt, 64, { N: 16384, r: 8, p: 1 }).toString('hex');
+    return `scrypt$16384$8$1$${salt}$${derived}`;
+}
+function adminVerifyHash(password, encoded) {
+    const parts = String(encoded || '').split('$');
+    if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
+    const [, n, r, p, salt, expected] = parts;
+    try {
+        const actual = crypto.scryptSync(String(password), salt, 64, { N: Number(n), r: Number(r), p: Number(p) }).toString('hex');
+        return actual.length === expected.length && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+    } catch { return false; }
+}
+async function verifyAdminPassword(password) {
+    if (ADMIN_PASSWORD_HASH) return adminVerifyHash(password, ADMIN_PASSWORD_HASH);
+    if (IS_PRODUCTION || !ADMIN_PASSWORD) return false;
+    const actual = Buffer.from(String(password)); const expected = Buffer.from(ADMIN_PASSWORD);
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+function adminConfigured() { return Boolean(ADMIN_USERNAME && (ADMIN_PASSWORD_HASH || (!IS_PRODUCTION && ADMIN_PASSWORD))); }
+function adminSessionValid(req) { return Boolean(req.session?.admin?.username && req.session.admin.expiresAt > Date.now()); }
+function requireAdmin(req, res, next) { if (!adminSessionValid(req)) return res.status(401).json({ error: 'Sessão administrativa necessária.' }); next(); }
+function requireAdminCsrf(req, res, next) { const token = req.get('X-Admin-CSRF'); if (!token || token !== req.session?.admin?.csrf) return res.status(403).json({ error: 'Token administrativo inválido.' }); next(); }
+function jsonArray(value, fallback = []) { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : fallback; } catch { return fallback; } }
+function adminSourceRow(row) { return { id: row.id, name: row.name, description: row.description || '', baseUrl: row.base_url, allowedDomains: jsonArray(row.allowed_domains_json), kind: row.kind, enabled: Boolean(row.enabled), createdAt: row.created_at, updatedAt: row.updated_at }; }
+function adminCatalogRow(row) { return { id: row.id, sourceId: row.source_id, sourceName: row.source_name || '', contentType: row.content_type, title: row.title, description: row.description || '', thumbnailUrl: row.thumbnail_url || '', externalUrl: row.external_url, mediaUrl: row.media_url || '', streamType: row.stream_type, country: row.country || '', language: row.language || '', categories: jsonArray(row.categories_json), feedName: row.feed_name || '', isLive: Boolean(row.is_live), isFeatured: Boolean(row.is_featured), approvalStatus: row.approval_status, healthStatus: row.health_status, healthCode: row.health_code || null, healthLabel: row.health_label || '', healthCheckedAt: row.health_checked_at || null, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function cleanText(value, max = 5000) { return String(value || '').trim().slice(0, max); }
+function adminAllowedHostname(url, domains) { try { const hostname = new URL(url).hostname.toLowerCase(); return domains.some(domain => { const normalized = String(domain || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/$/, ''); return normalized && (hostname === normalized || hostname.endsWith(`.${normalized}`)); }); } catch { return false; } }
+async function adminValidateUrl(url, domains, label) { const safe = await validateUrl(url); if (!safe || (IS_PRODUCTION && !safe.startsWith('https://'))) throw new Error(`${label} inválida, insegura ou bloqueada.`); if (!adminAllowedHostname(safe, domains)) throw new Error(`${label} não pertence à allowlist da fonte.`); return safe; }
+async function validateAdminMedia({ mediaUrl, streamType, allowedDomains }) {
+    if (!mediaUrl) return { status: 'not-configured', code: null, label: 'Sem media configurada' };
+    const safe = await adminValidateUrl(mediaUrl, allowedDomains, 'URL de media');
+    const response = await fetch(safe, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(10000) });
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const type = String(streamType || 'auto').toLowerCase();
+    const expected = type === 'hls' || /mpegurl|\.m3u8/i.test(safe) ? 'hls' : type === 'dash' || /dash|\.mpd/i.test(safe) ? 'dash' : type;
+    const compatible = response.ok && (expected === 'hls' ? /mpegurl|m3u8|octet-stream/.test(contentType) : expected === 'dash' ? /dash|xml|octet-stream/.test(contentType) : expected === 'mp4' ? /mp4|video|octet-stream/.test(contentType) : expected === 'webm' ? /webm|video|octet-stream/.test(contentType) : /video|audio|mpegurl|dash|octet-stream/.test(contentType));
+    const redirected = response.status >= 300 && response.status < 400;
+    return { status: redirected ? 'redirect' : compatible ? 'online' : response.ok ? 'incompatible' : 'offline', code: response.status, label: redirected ? `Redirect bloqueado · ${response.status}` : compatible ? `${expected === 'auto' ? 'media' : expected.toUpperCase()} online` : `HTTP ${response.status} · ${contentType || 'tipo desconhecido'}` };
+}
+
+let adminCatalogCache = { expiresAt: 0, value: [] };
+async function loadApprovedAdminCatalog() {
+    if (adminCatalogCache.expiresAt > Date.now()) return adminCatalogCache.value;
+    await databaseReady;
+    const rows = await dbAll(`SELECT i.*, s.name AS source_name FROM admin_catalog_items i JOIN admin_sources s ON s.id = i.source_id WHERE i.approval_status = 'approved' AND s.enabled = 1 ORDER BY i.is_featured DESC, i.updated_at DESC LIMIT 500`);
+    adminCatalogCache = { expiresAt: Date.now() + 30 * 1000, value: rows.map(adminCatalogRow) };
+    return adminCatalogCache.value;
+}
+function clearAdminCatalogCache() { adminCatalogCache = { expiresAt: 0, value: [] }; }
+function publicAdminCatalogItem(item) {
+    const url = item.mediaUrl || item.externalUrl;
+    const isLive = Boolean(item.isLive || item.contentType === 'channel');
+    return { id: `admin-${item.id}`, title: item.title, url, externalUrl: item.externalUrl, thumbnail: item.thumbnailUrl || null, description: item.description || '', duration: 0, site: item.sourceName || 'Fonte autorizada', uploader: item.feedName || item.country || '', kind: item.contentType === 'channel' ? 'live' : (item.contentType === 'film' ? 'film' : 'series'), metadataOnly: !item.mediaUrl, publicPlayback: Boolean(item.mediaUrl), live: isLive, directStream: Boolean(item.mediaUrl), country: item.country || '', language: item.language || '', categories: item.categories || [], quality: '', availabilityLabel: item.healthLabel || '', sourceId: item.sourceId, feedName: item.feedName || '', streamType: item.streamType, streamAvailable: Boolean(item.mediaUrl && item.healthStatus !== 'offline') };
+}
+async function fetchApprovedAdminDiscovery(query = '', limit = 18, filters = {}) {
+    const items = await loadApprovedAdminCatalog(); const term = String(query || '').trim().toLowerCase();
+    return items.filter(item => (!filters.type || item.contentType === filters.type) && (!filters.category || item.categories.includes(filters.category)) && (!term || `${item.title} ${item.description} ${(item.categories || []).join(' ')} ${item.sourceName}`.toLowerCase().includes(term))).slice(0, Math.min(Number(limit) || 18, 60)).map(publicAdminCatalogItem);
+}
 
 const jobs = new Map();
 const cancelledJobIds = new Set();
@@ -129,6 +227,12 @@ const TMDB_LANGUAGE = String(process.env.TMDB_LANGUAGE || 'pt-PT').trim();
 const TMDB_REGION = String(process.env.TMDB_REGION || 'PT').trim().toUpperCase();
 const TMDB_BEARER = String(process.env.TMDB_BEARER_TOKEN || '').trim();
 const CATALOG_CACHE_MS = 10 * 60 * 1000;
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || '').trim();
+const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '').trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '');
+const ADMIN_SESSION_TTL = 8 * 60 * 60 * 1000;
+const ADMIN_ALLOWED_TYPES = new Set(['channel', 'film', 'series', 'anime', 'dorama', 'documentary', 'vod']);
+const ADMIN_STREAM_TYPES = new Set(['auto', 'hls', 'dash', 'mp4', 'webm']);
 const ENTERTAINMENT_CATALOG_SOURCES = [
     { id: 'iptv-org', label: 'IPTV-org', mode: 'live', policy: 'Canais públicos submetidos pela comunidade; disponibilidade e direitos devem ser verificados na origem.', url: 'https://github.com/iptv-org/iptv' },
     { id: 'internet-archive', label: 'Internet Archive', mode: 'vod', policy: 'VOD público apenas quando o item expõe ficheiro de media e metadata/licença na origem.', url: 'https://archive.org/' },
@@ -754,14 +858,15 @@ async function fetchTvmazeDiscovery(query = '', limit = 12) {
     return rows.sort((a, b) => Number(b.rating?.average || 0) - Number(a.rating?.average || 0)).slice(0, Math.min(limit, 20)).map(item => ({ id: `tvmaze-${item.id}`, title: item.name || 'Série TVmaze', url: item.url || `https://www.tvmaze.com/shows/${item.id}`, externalUrl: item.url || `https://www.tvmaze.com/shows/${item.id}`, thumbnail: item.image?.original || item.image?.medium || null, duration: 0, site: 'TVmaze', uploader: item.premiered ? String(item.premiered).slice(0, 4) : '', description: String(item.summary || '').replace(/<[^>]+>/g, '').slice(0, 500), kind: 'series', metadataOnly: true, rating: Number(item.rating?.average || 0), genres: item.genres || [], publicPlayback: false }));
 }
 async function fetchLegalEntertainmentDiscovery(query = '', limit = 18) {
-    const [archive, tmdbMovies, tmdbSeries, anime, tvmaze] = await Promise.all([
+    const [archive, tmdbMovies, tmdbSeries, anime, tvmaze, custom] = await Promise.all([
         fetchArchiveDiscovery(query || 'film', Math.ceil(limit / 3)).catch(() => []),
         fetchTmdbDiscovery('movie', Math.ceil(limit / 3), query).catch(() => []),
         fetchTmdbDiscovery('tv', Math.ceil(limit / 3), query).catch(() => []),
         fetchAniListDiscovery(query, Math.ceil(limit / 3)).catch(() => []),
-        fetchTvmazeDiscovery(query, Math.ceil(limit / 3)).catch(() => [])
+        fetchTvmazeDiscovery(query, Math.ceil(limit / 3)).catch(() => []),
+        fetchApprovedAdminDiscovery(query, Math.ceil(limit / 3)).catch(() => [])
     ]);
-    return uniqueMedia(interleaveMedia([archive, tmdbMovies, tmdbSeries, anime, tvmaze]), limit);
+    return uniqueMedia(interleaveMedia([custom, archive, tmdbMovies, tmdbSeries, anime, tvmaze]), limit);
 }
 const searchDiscovery = (...args) => searchMedia(...args).then(payload => payload.results || []).catch(() => []);
 const entertainmentHomeCache = { expiresAt: 0, value: null };
@@ -778,6 +883,7 @@ async function buildEntertainmentHome() {
     if (entertainmentHomeCache.expiresAt > Date.now() && entertainmentHomeCache.value) return entertainmentHomeCache.value;
     const jobs = [
         ['featured', 'Em destaque no Cine', Promise.all([fetchLegalEntertainmentDiscovery('', 8).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'entertainment' }).catch(() => [])])],
+        ['custom', 'Fontes autorizadas', fetchApprovedAdminDiscovery('', 18).catch(() => [])],
         ['films', 'Filmes públicos e populares', Promise.all([fetchArchiveDiscovery('film', 10).catch(() => []), fetchTmdbDiscovery('movie', 10).catch(() => [])]).then(groups => interleaveMedia(groups))],
         ['series', 'Séries populares e canais de séries', Promise.all([fetchTmdbDiscovery('tv', 10).catch(() => []), fetchTvmazeDiscovery('', 10).catch(() => []), fetchPublicIptvDiscovery(10, { category: 'series' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
         ['anime', 'Anime mais vistos', Promise.all([fetchAniListDiscovery('', 12).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'animation' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
@@ -1007,8 +1113,30 @@ app.get('/api/capabilities', (req, res) => res.json({
     platforms: SUPPORTED_PLATFORMS
 }));
 
+const adminLoginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false, message: { error: 'Demasiadas tentativas administrativas.' } });
+function adminId(value) { return String(value || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 80); }
+function adminDomains(value, baseUrl) { const input = Array.isArray(value) ? value : String(value || '').split(/[,\\n]/); const domains = [...new Set(input.map(domain => String(domain || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/$/, '')).filter(domain => /^[a-z0-9.-]+$/.test(domain) && !isPrivateAddress(domain) && !domain.endsWith('.local') && !domain.endsWith('.internal')))]; try { const hostname = new URL(baseUrl).hostname.toLowerCase(); if (hostname && !domains.includes(hostname)) domains.push(hostname); } catch {} return domains.slice(0, 30); }
+async function getAdminSource(sourceId) { await databaseReady; const row = await dbGet('SELECT * FROM admin_sources WHERE id = ?', [sourceId]); return row ? adminSourceRow(row) : null; }
+async function getAdminCatalogRow(itemId) { await databaseReady; return dbGet('SELECT i.*, s.name AS source_name FROM admin_catalog_items i JOIN admin_sources s ON s.id = i.source_id WHERE i.id = ?', [itemId]); }
+async function adminPayload(req, res) { if (!adminConfigured()) return res.status(503).json({ error: 'Admin não configurado. Define ADMIN_USERNAME e ADMIN_PASSWORD_HASH no ambiente.' }); }
+app.get('/api/admin/session', (req, res) => res.json({ configured: adminConfigured(), authenticated: adminSessionValid(req), username: adminSessionValid(req) ? req.session.admin.username : null, csrf: adminSessionValid(req) ? req.session.admin.csrf : null }));
+app.post('/api/admin/login', adminLoginLimiter, async (req, res) => { if (!adminConfigured()) return res.status(503).json({ error: 'Admin não configurado. Define ADMIN_USERNAME e ADMIN_PASSWORD_HASH no ambiente.' }); const username = String(req.body?.username || '').trim(); const password = String(req.body?.password || ''); const sameUser = username.length === ADMIN_USERNAME.length && crypto.timingSafeEqual(Buffer.from(username), Buffer.from(ADMIN_USERNAME)); if (!sameUser || !(await verifyAdminPassword(password))) return res.status(401).json({ error: 'Credenciais administrativas inválidas.' }); req.session.admin = { username: ADMIN_USERNAME, csrf: crypto.randomBytes(24).toString('hex'), expiresAt: Date.now() + ADMIN_SESSION_TTL }; res.json({ authenticated: true, username: ADMIN_USERNAME, csrf: req.session.admin.csrf }); });
+app.post('/api/admin/logout', requireAdmin, (req, res) => { delete req.session.admin; req.session.save(error => error ? res.status(500).json({ error: 'Não foi possível terminar a sessão.' }) : res.json({ authenticated: false })); });
+app.get('/api/admin/overview', requireAdmin, async (req, res) => { await databaseReady; const [sources, pending, approved, offline] = await Promise.all([dbGet('SELECT COUNT(*) AS count FROM admin_sources'), dbGet("SELECT COUNT(*) AS count FROM admin_catalog_items WHERE approval_status = 'pending'"), dbGet("SELECT COUNT(*) AS count FROM admin_catalog_items WHERE approval_status = 'approved'"), dbGet("SELECT COUNT(*) AS count FROM admin_catalog_items WHERE health_status IN ('offline','incompatible')")]); res.json({ sources: Number(sources.count), pending: Number(pending.count), approved: Number(approved.count), offline: Number(offline.count) }); });
+app.get('/api/admin/sources', requireAdmin, async (req, res) => { await databaseReady; const rows = await dbAll('SELECT * FROM admin_sources ORDER BY updated_at DESC LIMIT 200'); res.json({ sources: rows.map(adminSourceRow) }); });
+app.post('/api/admin/sources', requireAdmin, requireAdminCsrf, async (req, res) => { try { const name = cleanText(req.body?.name, 160); const baseUrl = await validateUrl(cleanText(req.body?.baseUrl, 2048)); const domains = adminDomains(req.body?.allowedDomains, baseUrl); const id = adminId(req.body?.id || name) || `source-${crypto.randomBytes(6).toString('hex')}`; const kind = ['vod', 'live', 'metadata', 'mixed'].includes(req.body?.kind) ? req.body.kind : 'vod'; if (!name || !baseUrl || !domains.length) return res.status(400).json({ error: 'Nome, base URL e allowlist são obrigatórios.' }); const now = new Date().toISOString(); await dbRun('INSERT INTO admin_sources (id,name,description,base_url,allowed_domains_json,kind,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)', [id, name, cleanText(req.body?.description), baseUrl, JSON.stringify(domains), kind, req.body?.enabled === false ? 0 : 1, now, now]); res.status(201).json({ source: await getAdminSource(id) }); } catch (error) { res.status(400).json({ error: error.message.includes('UNIQUE') ? 'Já existe uma fonte com esse ID.' : error.message }); } });
+app.patch('/api/admin/sources/:id', requireAdmin, requireAdminCsrf, async (req, res) => { try { const current = await getAdminSource(req.params.id); if (!current) return res.status(404).json({ error: 'Fonte não encontrada.' }); const baseUrl = req.body?.baseUrl ? await validateUrl(cleanText(req.body.baseUrl, 2048)) : current.baseUrl; const domains = adminDomains(req.body?.allowedDomains ?? current.allowedDomains, baseUrl); const kind = req.body?.kind && ['vod', 'live', 'metadata', 'mixed'].includes(req.body.kind) ? req.body.kind : current.kind; await dbRun('UPDATE admin_sources SET name=?,description=?,base_url=?,allowed_domains_json=?,kind=?,enabled=?,updated_at=? WHERE id=?', [cleanText(req.body?.name ?? current.name, 160), cleanText(req.body?.description ?? current.description), baseUrl, JSON.stringify(domains), kind, req.body?.enabled === undefined ? (current.enabled ? 1 : 0) : (req.body.enabled ? 1 : 0), new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ source: await getAdminSource(req.params.id) }); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.delete('/api/admin/sources/:id', requireAdmin, requireAdminCsrf, async (req, res) => { await databaseReady; const result = await dbRun('DELETE FROM admin_sources WHERE id = ?', [req.params.id]); clearAdminCatalogCache(); res.json({ deleted: Boolean(result.changes) }); });
+app.post('/api/admin/sources/:id/validate', requireAdmin, requireAdminCsrf, async (req, res) => { try { const source = await getAdminSource(req.params.id); if (!source) return res.status(404).json({ error: 'Fonte não encontrada.' }); const url = cleanText(req.body?.mediaUrl || source.baseUrl, 2048); const safe = await adminValidateUrl(url, source.allowedDomains, 'URL de validação'); const result = await validateAdminMedia({ mediaUrl: safe, streamType: req.body?.streamType || 'auto', allowedDomains: source.allowedDomains }); res.json({ url: safe, validation: result }); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.get('/api/admin/catalog', requireAdmin, async (req, res) => { await databaseReady; const params = []; const where = []; if (req.query.status) { where.push('i.approval_status = ?'); params.push(String(req.query.status)); } if (req.query.type) { where.push('i.content_type = ?'); params.push(String(req.query.type)); } if (req.query.sourceId) { where.push('i.source_id = ?'); params.push(String(req.query.sourceId)); } const rows = await dbAll(`SELECT i.*, s.name AS source_name FROM admin_catalog_items i JOIN admin_sources s ON s.id = i.source_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY i.updated_at DESC LIMIT 500`, params); res.json({ items: rows.map(adminCatalogRow) }); });
+app.post('/api/admin/catalog', requireAdmin, requireAdminCsrf, async (req, res) => { try { const source = await getAdminSource(req.body?.sourceId); if (!source) return res.status(400).json({ error: 'Fonte não encontrada.' }); const contentType = String(req.body?.contentType || 'vod'); if (!ADMIN_ALLOWED_TYPES.has(contentType)) return res.status(400).json({ error: 'Tipo de conteúdo inválido.' }); const streamType = ADMIN_STREAM_TYPES.has(req.body?.streamType) ? req.body.streamType : 'auto'; const title = cleanText(req.body?.title, 240); const externalUrl = await adminValidateUrl(cleanText(req.body?.externalUrl, 2048), source.allowedDomains, 'URL de origem'); const mediaUrl = req.body?.mediaUrl ? await adminValidateUrl(cleanText(req.body.mediaUrl, 2048), source.allowedDomains, 'URL de media') : null; const thumbnailUrl = req.body?.thumbnailUrl ? await adminValidateUrl(cleanText(req.body.thumbnailUrl, 2048), source.allowedDomains, 'URL de imagem') : null; if (!title) return res.status(400).json({ error: 'Título obrigatório.' }); const health = mediaUrl ? await validateAdminMedia({ mediaUrl, streamType, allowedDomains: source.allowedDomains }) : { status: 'not-configured', code: null, label: 'Sem media configurada' }; const id = `admin-${crypto.randomBytes(10).toString('hex')}`; const now = new Date().toISOString(); const categories = Array.isArray(req.body?.categories) ? req.body.categories.map(value => cleanText(value, 40).toLowerCase()).filter(Boolean).slice(0, 12) : String(req.body?.categories || '').split(',').map(value => cleanText(value, 40).toLowerCase()).filter(Boolean).slice(0, 12); await dbRun('INSERT INTO admin_catalog_items (id,source_id,content_type,title,description,thumbnail_url,external_url,media_url,stream_type,country,language,categories_json,feed_name,is_live,is_featured,approval_status,health_status,health_code,health_label,health_checked_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [id, source.id, contentType, title, cleanText(req.body?.description), thumbnailUrl, externalUrl, mediaUrl, streamType, cleanText(req.body?.country, 8).toUpperCase(), cleanText(req.body?.language, 16).toLowerCase(), JSON.stringify(categories), cleanText(req.body?.feedName, 160), req.body?.isLive ? 1 : 0, req.body?.isFeatured ? 1 : 0, 'pending', health.status, health.code, health.label, new Date().toISOString(), now, now]); clearAdminCatalogCache(); res.status(201).json({ item: adminCatalogRow(await getAdminCatalogRow(id)) }); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.patch('/api/admin/catalog/:id', requireAdmin, requireAdminCsrf, async (req, res) => { try { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); const source = await getAdminSource(row.source_id); if (!source) return res.status(400).json({ error: 'Fonte do item não encontrada.' }); const contentType = req.body?.contentType || row.content_type; if (!ADMIN_ALLOWED_TYPES.has(contentType)) return res.status(400).json({ error: 'Tipo de conteúdo inválido.' }); const externalUrl = req.body?.externalUrl ? await adminValidateUrl(cleanText(req.body.externalUrl, 2048), source.allowedDomains, 'URL de origem') : row.external_url; const mediaUrl = req.body?.mediaUrl === '' ? null : (req.body?.mediaUrl ? await adminValidateUrl(cleanText(req.body.mediaUrl, 2048), source.allowedDomains, 'URL de media') : row.media_url); const thumbnailUrl = req.body?.thumbnailUrl === '' ? null : (req.body?.thumbnailUrl ? await adminValidateUrl(cleanText(req.body.thumbnailUrl, 2048), source.allowedDomains, 'URL de imagem') : row.thumbnail_url); const streamType = req.body?.streamType && ADMIN_STREAM_TYPES.has(req.body.streamType) ? req.body.streamType : row.stream_type; const health = mediaUrl ? await validateAdminMedia({ mediaUrl, streamType, allowedDomains: source.allowedDomains }) : { status: 'not-configured', code: null, label: 'Sem media configurada' }; const categories = Array.isArray(req.body?.categories) ? req.body.categories.map(value => cleanText(value, 40).toLowerCase()).filter(Boolean).slice(0, 12) : jsonArray(row.categories_json); await dbRun('UPDATE admin_catalog_items SET content_type=?,title=?,description=?,thumbnail_url=?,external_url=?,media_url=?,stream_type=?,country=?,language=?,categories_json=?,feed_name=?,is_live=?,is_featured=?,approval_status=?,health_status=?,health_code=?,health_label=?,health_checked_at=?,updated_at=? WHERE id=?', [contentType, cleanText(req.body?.title ?? row.title, 240), cleanText(req.body?.description ?? row.description), thumbnailUrl, externalUrl, mediaUrl, streamType, cleanText(req.body?.country ?? row.country, 8).toUpperCase(), cleanText(req.body?.language ?? row.language, 16).toLowerCase(), JSON.stringify(categories), cleanText(req.body?.feedName ?? row.feed_name, 160), req.body?.isLive === undefined ? row.is_live : (req.body.isLive ? 1 : 0), req.body?.isFeatured === undefined ? row.is_featured : (req.body.isFeatured ? 1 : 0), 'pending', health.status, health.code, health.label, new Date().toISOString(), new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.post('/api/admin/catalog/:id/validate', requireAdmin, requireAdminCsrf, async (req, res) => { try { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); const source = await getAdminSource(row.source_id); if (!source) return res.status(400).json({ error: 'Fonte do item não encontrada.' }); const validation = await validateAdminMedia({ mediaUrl: row.media_url, streamType: row.stream_type, allowedDomains: source.allowedDomains }); await dbRun('UPDATE admin_catalog_items SET health_status=?,health_code=?,health_label=?,health_checked_at=?,updated_at=? WHERE id=?', [validation.status, validation.code, validation.label, new Date().toISOString(), new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ validation, item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); } catch (error) { res.status(400).json({ error: error.message }); } });
+app.post('/api/admin/catalog/:id/approve', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); if (row.media_url && row.health_status === 'offline') return res.status(409).json({ error: 'Valida a media antes de aprovar um item offline.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='approved',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
+app.post('/api/admin/catalog/:id/reject', requireAdmin, requireAdminCsrf, async (req, res) => { const row = await getAdminCatalogRow(req.params.id); if (!row) return res.status(404).json({ error: 'Item não encontrado.' }); await dbRun("UPDATE admin_catalog_items SET approval_status='rejected',updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]); clearAdminCatalogCache(); res.json({ item: adminCatalogRow(await getAdminCatalogRow(req.params.id)) }); });
+app.delete('/api/admin/catalog/:id', requireAdmin, requireAdminCsrf, async (req, res) => { const result = await dbRun('DELETE FROM admin_catalog_items WHERE id=?', [req.params.id]); clearAdminCatalogCache(); res.json({ deleted: Boolean(result.changes) }); });
 app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
-app.get('/api/entertainment/sources', apiLimiter, (req, res) => res.json({ sources: ENTERTAINMENT_CATALOG_SOURCES, policy: 'Metadata não concede direitos de reprodução. O TubeMateX só reproduz ou descarrega media pública/autorizada fornecida pela origem.' }));
+app.get('/api/entertainment/sources', apiLimiter, async (req, res) => { try { const rows = await dbAll("SELECT id,name,base_url,kind FROM admin_sources WHERE enabled=1 ORDER BY name LIMIT 100"); const sources = [...ENTERTAINMENT_CATALOG_SOURCES, ...rows.map(row => ({ id: `admin-${row.id}`, label: row.name, mode: row.kind, configured: true, policy: 'Fonte administrada, aprovada e allowlisted pelo proprietário do TubeMateX.', url: row.base_url }))]; res.json({ sources, policy: 'Metadata não concede direitos de reprodução. O TubeMateX só reproduz ou descarrega media pública/autorizada fornecida pela origem.' }); } catch { res.json({ sources: ENTERTAINMENT_CATALOG_SOURCES, policy: 'Metadata não concede direitos de reprodução.' }); } });
 app.get('/api/entertainment/home', apiLimiter, async (req, res) => {
     try {
         const home = await buildEntertainmentHome();
@@ -1022,8 +1150,8 @@ app.get('/api/entertainment/search', apiLimiter, async (req, res) => {
     const query = String(req.query.q || '').trim().slice(0, 80);
     if (query.length < 2) return res.status(400).json({ error: 'Indica pelo menos 2 caracteres para pesquisar.' });
     try {
-        const [catalog, channels] = await Promise.all([fetchLegalEntertainmentDiscovery(query, 24), fetchPublicIptvDiscovery(24, { query }).catch(() => [])]);
-        const results = uniqueMedia([...catalog, ...channels], 36);
+        const [catalog, channels, custom] = await Promise.all([fetchLegalEntertainmentDiscovery(query, 24), fetchPublicIptvDiscovery(24, { query }).catch(() => []), fetchApprovedAdminDiscovery(query, 24).catch(() => [])]);
+        const results = uniqueMedia([...custom, ...catalog, ...channels], 36);
         res.json({ query, results, sources: ENTERTAINMENT_CATALOG_SOURCES.filter(source => source.configured !== false).map(source => source.label), note: 'Resultados de metadata abrem a fonte oficial; apenas media pública compatível oferece reprodução ou download.' });
     } catch (error) { res.status(502).json({ error: 'Não foi possível pesquisar o catálogo Cine agora.', errorCode: errorCode(error) }); }
 });
@@ -1407,6 +1535,7 @@ app.get('/terms', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'terms.html
 app.get('/policy', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'privacy.html')));
 app.get('/legacy', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'legacy.html')));
 app.get('/settings', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'settings.html')));
+app.get('/admin', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'admin.html')));
 app.get('/profile', (req, res) => res.sendFile(path.join(FRONTEND_DIR, 'profile.html')));
 
 setInterval(() => {

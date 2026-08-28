@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0b0f">
+  <title>Admin · TubeMateX</title>
+  <link rel="stylesheet" href="/css/index.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="admin-page">
+  <main class="admin-shell">
+    <section id="adminLogin" class="admin-login-card" aria-labelledby="adminLoginTitle">
+      <div class="admin-brand"><span class="admin-mark">TMX</span><span>TubeMateX Console</span></div>
+      <p class="admin-eyebrow">Área protegida</p>
+      <h1 id="adminLoginTitle">Gerir o catálogo</h1>
+      <p class="admin-muted">Fontes autorizadas, canais, filmes, séries, anime, dorama e VOD num só painel.</p>
+      <form id="adminLoginForm" class="admin-form">
+        <label>Utilizador<input name="username" autocomplete="username" required></label>
+        <label>Senha<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="admin-primary" type="submit">Entrar na consola</button>
+      </form>
+      <p id="adminLoginStatus" class="admin-status" role="status"></p>
+    </section>
+
+    <section id="adminApp" hidden>
+      <header class="admin-topbar">
+        <div><p class="admin-eyebrow">TubeMateX · Control room</p><h1>Catálogo autorizado</h1></div>
+        <div class="admin-actions"><a class="admin-ghost" href="/entertainment.html">Abrir Cine</a><button id="adminLogout" class="admin-ghost" type="button">Terminar sessão</button></div>
+      </header>
+      <div id="adminNotice" class="admin-notice" role="status"></div>
+      <section class="admin-metrics" aria-label="Resumo">
+        <article><span>Fontes</span><strong id="metricSources">0</strong></article>
+        <article><span>Pendentes</span><strong id="metricPending">0</strong></article>
+        <article><span>Aprovados</span><strong id="metricApproved">0</strong></article>
+        <article><span>Offline/incompatíveis</span><strong id="metricOffline">0</strong></article>
+      </section>
+      <nav class="admin-tabs" aria-label="Secções da consola"><button class="is-active" data-admin-tab="sources">Fontes</button><button data-admin-tab="catalog">Catálogo</button><button data-admin-tab="approval">Aprovação</button></nav>
+
+      <section data-admin-panel="sources" class="admin-panel-grid">
+        <article class="admin-panel admin-form-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Allowlist + health</p><h2 id="sourceFormTitle">Nova fonte autorizada</h2></div><button id="sourceReset" class="admin-icon-button" type="button">Limpar</button></div>
+          <form id="sourceForm" class="admin-form admin-form-grid">
+            <input type="hidden" name="id">
+            <label>Nome<input name="name" placeholder="Ex.: Minha emissora oficial" required></label>
+            <label>Tipo<select name="kind"><option value="mixed">Misto</option><option value="live">Live</option><option value="vod">VOD</option><option value="metadata">Metadata</option></select></label>
+            <label class="span-2">URL base oficial<input name="baseUrl" type="url" placeholder="https://exemplo.org" required></label>
+            <label class="span-2">Allowlist de domínios <small>Um por linha ou separado por vírgula</small><textarea name="allowedDomains" rows="3" placeholder="exemplo.org\ncdn.exemplo.org"></textarea></label>
+            <label class="span-2">Descrição<textarea name="description" rows="3" placeholder="Direitos, origem e política de utilização"></textarea></label>
+            <label class="check-field"><input name="enabled" type="checkbox" checked> Ativa no catálogo público</label>
+            <div class="form-actions span-2"><button class="admin-primary" type="submit">Guardar fonte</button><button id="sourceValidate" class="admin-secondary" type="button">Validar URL base</button></div>
+          </form>
+        </article>
+        <article class="admin-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Origem controlada</p><h2>Fontes atuais</h2></div><button id="refreshSources" class="admin-secondary" type="button">Atualizar</button></div><div id="sourceList" class="admin-list"></div></article>
+      </section>
+
+      <section data-admin-panel="catalog" class="admin-panel-grid" hidden>
+        <article class="admin-panel admin-form-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Conteúdo editorial</p><h2 id="catalogFormTitle">Adicionar item</h2></div><button id="catalogReset" class="admin-icon-button" type="button">Limpar</button></div>
+          <form id="catalogForm" class="admin-form admin-form-grid">
+            <input type="hidden" name="id">
+            <label>Fonte<select name="sourceId" id="catalogSource" required></select></label>
+            <label>Tipo<select name="contentType"><option value="channel">Canal</option><option value="film">Filme</option><option value="series">Série</option><option value="anime">Anime</option><option value="dorama">Dorama</option><option value="documentary">Documentário</option><option value="vod">VOD</option></select></label>
+            <label class="span-2">Título<input name="title" placeholder="Título exibido no Cine" required></label>
+            <label class="span-2">Descrição<textarea name="description" rows="3" placeholder="Sinopse, programa, idioma ou notas editoriais"></textarea></label>
+            <label>URL da origem<input name="externalUrl" type="url" placeholder="https://origem.example/item"></label>
+            <label>URL de media <small>HLS, DASH, MP4 ou WEBM</small><input name="mediaUrl" type="url" placeholder="https://cdn.example/live/playlist.m3u8"></label>
+            <label>URL da imagem/preview<input name="thumbnailUrl" type="url" placeholder="https://cdn.example/poster.jpg"></label>
+            <label>Tipo de stream<select name="streamType"><option value="auto">Automático</option><option value="hls">HLS</option><option value="dash">MPEG-DASH</option><option value="mp4">MP4</option><option value="webm">WEBM</option></select></label>
+            <label>Feed principal<input name="feedName" placeholder="HD, Portugal, Main"></label>
+            <label>País<input name="country" maxlength="8" placeholder="AO"></label>
+            <label>Idioma<input name="language" maxlength="16" placeholder="por"></label>
+            <label class="span-2">Categorias <small>Separadas por vírgula: filmes, musica, news</small><input name="categories" placeholder="entertainment, general"></label>
+            <label class="check-field"><input name="isLive" type="checkbox"> É ao vivo</label><label class="check-field"><input name="isFeatured" type="checkbox"> Destaque</label>
+            <div class="form-actions span-2"><button class="admin-primary" type="submit">Guardar e enviar para aprovação</button><button id="catalogValidate" class="admin-secondary" type="button">Validar media</button></div>
+          </form>
+        </article>
+        <article class="admin-panel"><div class="admin-panel-heading"><div><p class="admin-eyebrow">Itens geridos</p><h2>Catálogo completo</h2></div><button id="refreshCatalog" class="admin-secondary" type="button">Atualizar</button></div><div class="admin-filters"><select id="catalogStatus"><option value="">Todos os estados</option><option value="pending">Pendentes</option><option value="approved">Aprovados</option><option value="rejected">Rejeitados</option></select><select id="catalogType"><option value="">Todos os tipos</option><option value="channel">Canais</option><option value="film">Filmes</option><option value="series">Séries</option><option value="anime">Anime</option><option value="dorama">Doramas</option><option value="documentary">Documentários</option><option value="vod">VOD</option></select></div><div id="catalogList" class="admin-list"></div></article>
+      </section>
+
+      <section data-admin-panel="approval" class="admin-panel" hidden><div class="admin-panel-heading"><div><p class="admin-eyebrow">Gate editorial</p><h2>Fila de aprovação</h2></div><button id="refreshApproval" class="admin-secondary" type="button">Atualizar</button></div><div id="approvalList" class="admin-approval-list"></div></section>
+    </section>
+  </main>
+  <script src="/js/admin.js" defer></script>
+</body>
+</html>

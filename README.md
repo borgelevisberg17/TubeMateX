@@ -77,3 +77,64 @@ O deployment completo encontra-se em `docker-compose.yml` e `deploy/README.md`. 
 ## Produção e manutenção
 
 Os jobs e os ficheiros temporários são intencionalmente retidos por um período limitado. O serviço deve usar armazenamento persistente para a pasta de dados e uma política de monitorização para acompanhar espaço em disco, memória, falhas do yt-dlp e limites das plataformas de origem. O motor só descarrega conteúdos públicos ou autorizados e está sujeito às políticas e Termos de Serviço de cada plataforma.
+
+## Consola administrativa de fontes e catálogo
+
+O TubeMateX inclui uma consola protegida em `/admin` para gerir fontes autorizadas e itens editoriais. A consola permite criar, editar, desativar e excluir fontes; definir a URL oficial e a allowlist de domínios; cadastrar canais, filmes, séries, anime, doramas, documentários e VOD; adicionar título, descrição, imagem de preview, país, idioma, categorias, feed principal e URL HLS/DASH/MP4/WEBM; validar o estado da media; e aprovar ou rejeitar manualmente cada item antes de o publicar no espaço Cine.
+
+O inventário administrativo usa as tabelas SQLite `admin_sources` e `admin_catalog_items`. Itens novos começam com `approvalStatus=pending`. Apenas itens `approved` associados a fontes `enabled` entram em `/api/entertainment/home`, `/api/entertainment/search` e `/api/entertainment/sources`. A edição de um item aprovado volta a colocá-lo em estado pendente, criando um novo gate editorial.
+
+### Configuração do acesso
+
+Em desenvolvimento local, copia `backend/.env.example` para `backend/.env` e configura:
+
+```env
+NODE_ENV=development
+ADMIN_USERNAME=define-o-utilizador
+ADMIN_PASSWORD=define-a-senha-localmente
+```
+
+Em produção, não uses `ADMIN_PASSWORD`. Gera um hash scrypt fora do código:
+
+```bash
+npm run admin:hash -- "a-tua-senha-forte"
+```
+
+Coloca a saída em `backend/.env`:
+
+```env
+NODE_ENV=production
+ADMIN_USERNAME=define-o-utilizador
+ADMIN_PASSWORD_HASH=scrypt$16384$8$1$...
+```
+
+Usa uma senha exclusiva, longa e armazenada no gestor de segredos do servidor. A senha não deve ser colocada em commits, screenshots, logs ou ficheiros `.env` versionados. A sessão administrativa usa cookie server-side, expiração de oito horas, rate limit de login e token CSRF para operações mutáveis.
+
+### Fluxo recomendado
+
+Primeiro cria uma fonte em **Fontes**, com a URL oficial e os domínios CDN que realmente pertencem ao fornecedor. A allowlist aceita o domínio exato e subdomínios; URLs para localhost, redes privadas, metadata endpoints, utilizador/senha embutidos e hosts internos são rejeitadas. Depois cadastra o item em **Catálogo**, guarda-o e executa **Validar media**. A validação usa HEAD sem seguir redirects para fora da allowlist e classifica o item como `online`, `offline`, `incompatible`, `redirect` ou `not-configured`.
+
+Por fim, revê título, descrição, imagem, categoria, feed, tipo de stream e origem oficial. Só depois usa **Aprovar**. Itens metadata-only podem ser aprovados para descoberta e link para a origem, mas não ganham reprodução direta. Um item com media offline não pode ser aprovado até a origem voltar a responder ou o URL ser corrigido.
+
+### API administrativa
+
+| Endpoint | Operação |
+|---|---|
+| `GET /api/admin/session` | Verifica se o admin está configurado e se a sessão está autenticada |
+| `POST /api/admin/login` | Inicia sessão com `username` e `password` |
+| `POST /api/admin/logout` | Termina a sessão |
+| `GET /api/admin/overview` | Métricas de fontes, pendentes, aprovados e offline |
+| `GET/POST/PATCH/DELETE /api/admin/sources` | CRUD de fontes autorizadas |
+| `POST /api/admin/sources/:id/validate` | Valida a URL base ou media da fonte |
+| `GET/POST/PATCH/DELETE /api/admin/catalog` | CRUD de itens de catálogo |
+| `POST /api/admin/catalog/:id/validate` | Persiste o health check de um item |
+| `POST /api/admin/catalog/:id/approve` | Publica manualmente o item |
+| `POST /api/admin/catalog/:id/reject` | Retira ou rejeita o item |
+
+As rotas `POST`, `PATCH` e `DELETE` exigem o header `X-Admin-CSRF` devolvido depois do login. Todas as URLs de origem, media e imagem têm de pertencer à allowlist da fonte. O painel não transforma o servidor num proxy arbitrário e não contorna DRM, paywalls, autenticação, geoblocking ou direitos de terceiros.
+
+### Rotas públicas alimentadas pelo painel
+
+Depois da aprovação, o item é normalizado para o mesmo contrato dos cards Cine e passa a poder aparecer nos rails **Fontes autorizadas**, **Em destaque**, pesquisa agregada e catálogo de entretenimento. O campo `mediaUrl` controla a reprodução direta; sem ele, o card mantém `metadataOnly=true` e usa `externalUrl` para abrir a origem oficial.
+
+Em deployment Docker Compose, monta o mesmo volume persistente em `app` e `worker`, mantém `DATABASE_PATH` partilhado e configura `ADMIN_USERNAME`/`ADMIN_PASSWORD_HASH` através do ambiente do serviço. Não coloques credenciais reais em `docker-compose.yml`, no Git ou no frontend.
