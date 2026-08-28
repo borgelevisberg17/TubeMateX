@@ -124,6 +124,18 @@ const IPTV_PLAYLIST_SOURCES = [
     { id: 'm3u-cl-total', label: 'M3U.cl total', url: 'https://www.m3u.cl/lista/total.m3u', safety: 'unverified', note: 'Fonte externa; não entra no catálogo automático sem validação individual.' },
     { id: 'iptv-org-nsfw', label: 'IPTV público NSFW', url: 'https://iptv-org.github.io/iptv/index.nsfw.m3u', safety: 'blocked', note: 'Não é carregada pelo produto; endpoint devolveu 404 na auditoria.' }
 ];
+const TMDB_API_KEY = String(process.env.TMDB_API_KEY || '').trim();
+const TMDB_LANGUAGE = String(process.env.TMDB_LANGUAGE || 'pt-PT').trim();
+const TMDB_REGION = String(process.env.TMDB_REGION || 'PT').trim().toUpperCase();
+const TMDB_BEARER = String(process.env.TMDB_BEARER_TOKEN || '').trim();
+const CATALOG_CACHE_MS = 10 * 60 * 1000;
+const ENTERTAINMENT_CATALOG_SOURCES = [
+    { id: 'iptv-org', label: 'IPTV-org', mode: 'live', policy: 'Canais públicos submetidos pela comunidade; disponibilidade e direitos devem ser verificados na origem.', url: 'https://github.com/iptv-org/iptv' },
+    { id: 'internet-archive', label: 'Internet Archive', mode: 'vod', policy: 'VOD público apenas quando o item expõe ficheiro de media e metadata/licença na origem.', url: 'https://archive.org/' },
+    { id: 'tmdb', label: 'TMDB', mode: 'metadata', configured: Boolean(TMDB_API_KEY || TMDB_BEARER), policy: 'Metadata, popularidade e provedores oficiais; não redistribui filmes ou séries.', url: 'https://www.themoviedb.org/' },
+    { id: 'anilist', label: 'AniList', mode: 'metadata', configured: true, policy: 'Metadata pública de anime; reprodução depende da fonte oficial.', url: 'https://anilist.co/' },
+    { id: 'tvmaze', label: 'TVmaze', mode: 'metadata', configured: true, policy: 'Metadata pública de séries e episódios; não fornece streams de terceiros.', url: 'https://www.tvmaze.com/' }
+];
 const SUPPORTED_PLATFORMS = [
     { id: 'youtube', label: 'YouTube', mode: 'download' }, { id: 'youtube-music', label: 'YouTube Music', mode: 'download' },
     { id: 'soundcloud', label: 'SoundCloud', mode: 'download' }, { id: 'vimeo', label: 'Vimeo', mode: 'download' },
@@ -139,7 +151,6 @@ const SUPPORTED_PLATFORMS = [
     { id: 'apple-music', label: 'Apple Music', mode: 'metadata-only', note: 'As faixas do catálogo usam proteção; Apple Music Connect pode ser compatível.' }
 ];
 const SEARCH_PROVIDERS = [...new Set(String(process.env.SEARCH_PROVIDERS || 'ytsearch,scsearch,vimeo,twitch').split(',').map(value => value.trim().toLowerCase()).filter(value => SEARCH_PROVIDER_LABELS[value]))];
-
 const videoQualities = {
     auto: 'Automática',
     1080: 'Até 1080p',
@@ -685,17 +696,63 @@ async function loadPublicIptvCatalog() {
     })();
     try { return await publicIptvCatalogPromise; } finally { publicIptvCatalogPromise = null; }
 }
+function filterPublicIptvCatalog(items, filters = {}) {
+    const query = String(filters.query || '').trim().toLowerCase();
+    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!filters.language || item.languages.includes(String(filters.language).toLowerCase())) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
+}
 async function fetchPublicIptvDiscovery(limit, filters = {}) {
-    const items = await loadPublicIptvCatalog(); const query = String(filters.query || '').toLowerCase();
-    return shuffled(items.filter(item => (!filters.country || item.country === filters.country) && (!filters.language || item.languages.includes(filters.language)) && (!filters.category || item.categories.includes(filters.category)) && (!query || `${item.channelName} ${item.title} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).slice(0, Math.max(limit * 3, limit))).slice(0, limit);
+    const items = filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters);
+    const offset = Math.max(0, Number(filters.offset) || 0);
+    return items.slice(offset, offset + Math.max(1, limit));
+}
+async function fetchPublicIptvCount(filters = {}) {
+    return filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters).length;
 }
 async function fetchArchiveDiscovery(term, limit) {
     const query = encodeURIComponent(`mediatype:movies AND title:(${term})`);
     const response = await fetch(`https://archive.org/advancedsearch.php?q=${query}&fl[]=identifier&fl[]=title&rows=${Math.min(limit, 8)}&output=json`);
     if (!response.ok) return [];
     const docs = ((await response.json()).response?.docs || []).filter(doc => !/you[-_ ]?tube|youtubedl/i.test(`${doc.identifier || ''} ${doc.title || ''}`));
-    const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', kind: 'film' }; } catch { return null; } }));
+    const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', kind: 'film', publicPlayback: true }; } catch { return null; } }));
     return items.filter(Boolean);
+}
+async function fetchTmdbDiscovery(kind, limit, query = '') {
+    if (!TMDB_API_KEY && !TMDB_BEARER) return [];
+    const mediaType = kind === 'tv' ? 'tv' : 'movie';
+    const endpoint = query ? `https://api.themoviedb.org/3/search/${mediaType}?query=${encodeURIComponent(query)}&include_adult=false&page=1` : `https://api.themoviedb.org/3/trending/${mediaType}/week`;
+    const headers = { accept: 'application/json' }; if (TMDB_BEARER) headers.Authorization = `Bearer ${TMDB_BEARER}`;
+    const authQuery = TMDB_BEARER ? '' : `&api_key=${encodeURIComponent(TMDB_API_KEY)}`;
+    const response = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}language=${encodeURIComponent(TMDB_LANGUAGE)}&region=${encodeURIComponent(TMDB_REGION)}${authQuery}`, { headers });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.results || []).slice(0, Math.min(limit, 20)).map(item => ({
+        id: `tmdb-${mediaType}-${item.id}`, title: item.title || item.name || 'Título TMDB', url: `https://www.themoviedb.org/${mediaType}/${item.id}`, externalUrl: `https://www.themoviedb.org/${mediaType}/${item.id}`, thumbnail: item.poster_path ? `https://image.tmdb.org/t/p/w780${item.poster_path}` : (item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null), duration: 0, site: 'TMDB', uploader: item.release_date || item.first_air_date || '', description: item.overview || '', kind: mediaType === 'tv' ? 'series' : 'film', metadataOnly: true, popularity: Number(item.popularity || 0), rating: Number(item.vote_average || 0), publicPlayback: false
+    }));
+}
+async function fetchAniListDiscovery(query = '', limit = 12) {
+    const document = `query($search:String,$perPage:Int!){Page(perPage:$perPage){media(type:ANIME,search:$search,sort:POPULARITY_DESC){id title{romaji english native} coverImage{extraLarge large} description episodes averageScore popularity seasonYear genres siteUrl}}}`;
+    const response = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query: document, variables: { search: query || null, perPage: Math.min(Math.max(limit, 1), 20) } }) });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return (payload.data?.Page?.media || []).map(item => ({ id: `anilist-${item.id}`, title: item.title?.english || item.title?.romaji || item.title?.native || 'Anime', url: item.siteUrl || `https://anilist.co/anime/${item.id}`, externalUrl: item.siteUrl || `https://anilist.co/anime/${item.id}`, thumbnail: item.coverImage?.extraLarge || item.coverImage?.large || null, duration: 0, site: 'AniList', uploader: item.seasonYear ? String(item.seasonYear) : '', description: String(item.description || '').replace(/<[^>]+>/g, '').slice(0, 500), kind: 'series', metadataOnly: true, categories: item.genres || [], episodes: Number(item.episodes || 0), popularity: Number(item.popularity || 0), rating: Number(item.averageScore || 0), publicPlayback: false }));
+}
+async function fetchTvmazeDiscovery(query = '', limit = 12) {
+    const endpoint = query ? `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(query)}` : 'https://api.tvmaze.com/shows?page=0';
+    const response = await fetch(endpoint);
+    if (!response.ok) return [];
+    const payload = await response.json();
+    const rows = query ? payload.map(item => item.show).filter(Boolean) : payload.slice(0, Math.min(limit * 2, 40));
+    return rows.sort((a, b) => Number(b.rating?.average || 0) - Number(a.rating?.average || 0)).slice(0, Math.min(limit, 20)).map(item => ({ id: `tvmaze-${item.id}`, title: item.name || 'Série TVmaze', url: item.url || `https://www.tvmaze.com/shows/${item.id}`, externalUrl: item.url || `https://www.tvmaze.com/shows/${item.id}`, thumbnail: item.image?.original || item.image?.medium || null, duration: 0, site: 'TVmaze', uploader: item.premiered ? String(item.premiered).slice(0, 4) : '', description: String(item.summary || '').replace(/<[^>]+>/g, '').slice(0, 500), kind: 'series', metadataOnly: true, rating: Number(item.rating?.average || 0), genres: item.genres || [], publicPlayback: false }));
+}
+async function fetchLegalEntertainmentDiscovery(query = '', limit = 18) {
+    const [archive, tmdbMovies, tmdbSeries, anime, tvmaze] = await Promise.all([
+        fetchArchiveDiscovery(query || 'film', Math.ceil(limit / 3)).catch(() => []),
+        fetchTmdbDiscovery('movie', Math.ceil(limit / 3), query).catch(() => []),
+        fetchTmdbDiscovery('tv', Math.ceil(limit / 3), query).catch(() => []),
+        fetchAniListDiscovery(query, Math.ceil(limit / 3)).catch(() => []),
+        fetchTvmazeDiscovery(query, Math.ceil(limit / 3)).catch(() => [])
+    ]);
+    return uniqueMedia(interleaveMedia([archive, tmdbMovies, tmdbSeries, anime, tvmaze]), limit);
 }
 const searchDiscovery = (...args) => searchMedia(...args).then(payload => payload.results || []).catch(() => []);
 const entertainmentHomeCache = { expiresAt: 0, value: null };
@@ -711,11 +768,11 @@ function interleaveMedia(groups) {
 async function buildEntertainmentHome() {
     if (entertainmentHomeCache.expiresAt > Date.now() && entertainmentHomeCache.value) return entertainmentHomeCache.value;
     const jobs = [
-        ['featured', 'Em destaque no Cine', Promise.all([fetchArchiveDiscovery('film', 8).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'entertainment' }).catch(() => [])])],
-        ['films', 'Filmes públicos e cinema', fetchArchiveDiscovery('film', 14).catch(() => [])],
-        ['series', 'Séries e canais de séries', fetchPublicIptvDiscovery(14, { category: 'series' }).catch(() => [])],
-        ['anime', 'Anime e animação', fetchPublicIptvDiscovery(14, { category: 'animation' }).catch(() => [])],
-        ['dorama', 'Dorama e drama asiático', fetchPublicIptvDiscovery(14, { query: 'drama' }).catch(() => [])],
+        ['featured', 'Em destaque no Cine', Promise.all([fetchLegalEntertainmentDiscovery('', 8).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'entertainment' }).catch(() => [])])],
+        ['films', 'Filmes públicos e populares', Promise.all([fetchArchiveDiscovery('film', 10).catch(() => []), fetchTmdbDiscovery('movie', 10).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['series', 'Séries populares e canais de séries', Promise.all([fetchTmdbDiscovery('tv', 10).catch(() => []), fetchTvmazeDiscovery('', 10).catch(() => []), fetchPublicIptvDiscovery(10, { category: 'series' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['anime', 'Anime mais vistos', Promise.all([fetchAniListDiscovery('', 12).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'animation' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['dorama', 'Doramas e drama asiático', Promise.all([fetchTmdbDiscovery('tv', 8, 'dorama').catch(() => []), fetchTvmazeDiscovery('dorama', 8).catch(() => [])]).then(groups => interleaveMedia(groups))],
         ['documentary', 'Documentários e factual', fetchArchiveDiscovery('documentary', 10).catch(() => [])],
         ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(14, { category: 'news' }).catch(() => [])],
         ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(18, { category: 'entertainment' }).catch(() => [])],
@@ -942,6 +999,7 @@ app.get('/api/capabilities', (req, res) => res.json({
 }));
 
 app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
+app.get('/api/entertainment/sources', apiLimiter, (req, res) => res.json({ sources: ENTERTAINMENT_CATALOG_SOURCES, policy: 'Metadata não concede direitos de reprodução. O TubeMateX só reproduz ou descarrega media pública/autorizada fornecida pela origem.' }));
 app.get('/api/entertainment/home', apiLimiter, async (req, res) => {
     try {
         const home = await buildEntertainmentHome();
@@ -955,9 +1013,9 @@ app.get('/api/entertainment/search', apiLimiter, async (req, res) => {
     const query = String(req.query.q || '').trim().slice(0, 80);
     if (query.length < 2) return res.status(400).json({ error: 'Indica pelo menos 2 caracteres para pesquisar.' });
     try {
-        const [archive, channels] = await Promise.all([fetchArchiveDiscovery(query, 12).catch(() => []), fetchPublicIptvDiscovery(24, { query }).catch(() => [])]);
-        const results = uniqueMedia([...archive, ...channels], 24);
-        res.json({ query, results, sources: ['Internet Archive', 'IPTV público · iptv-org'], note: 'O Cine não inclui resultados YouTube; essa fonte pertence ao espaço Social.' });
+        const [catalog, channels] = await Promise.all([fetchLegalEntertainmentDiscovery(query, 24), fetchPublicIptvDiscovery(24, { query }).catch(() => [])]);
+        const results = uniqueMedia([...catalog, ...channels], 36);
+        res.json({ query, results, sources: ENTERTAINMENT_CATALOG_SOURCES.filter(source => source.configured !== false).map(source => source.label), note: 'Resultados de metadata abrem a fonte oficial; apenas media pública compatível oferece reprodução ou download.' });
     } catch (error) { res.status(502).json({ error: 'Não foi possível pesquisar o catálogo Cine agora.', errorCode: errorCode(error) }); }
 });
 app.get('/api/discover', apiLimiter, async (req, res) => {
@@ -968,8 +1026,8 @@ app.get('/api/discover', apiLimiter, async (req, res) => {
     catch (error) { console.error('[discover]', error.message); res.status(502).json({ error: 'Não foi possível carregar a descoberta agora.', errorCode: errorCode(error), sources: sourceStatus }); }
 });
 app.get('/api/iptv/channels', apiLimiter, async (req, res) => {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 60); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null };
-    try { const results = await fetchPublicIptvDiscovery(limit, filters); res.json({ results, filters, source: 'iptv-org', note: 'Canais submetidos publicamente; a disponibilidade e os direitos devem ser verificados no momento da reprodução.' }); }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 48, 1), 60); const offset = Math.max(Number(req.query.offset) || 0, 0); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null };
+    try { const [results, total] = await Promise.all([fetchPublicIptvDiscovery(limit, { ...filters, offset }), fetchPublicIptvCount(filters)]); res.json({ results, filters, offset, limit, total, hasMore: offset + results.length < total, source: 'iptv-org', note: 'Canais submetidos publicamente; a disponibilidade e os direitos devem ser verificados no momento da reprodução.' }); }
     catch (error) { console.error('[iptv]', error.message); res.status(502).json({ error: 'Não foi possível consultar os canais IPTV públicos agora.', errorCode: errorCode(error) }); }
 });
 app.get('/api/iptv/meta', apiLimiter, async (req, res) => {

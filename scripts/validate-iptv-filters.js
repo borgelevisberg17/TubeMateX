@@ -1,4 +1,4 @@
-const base = process.env.TEST_BASE_URL || 'http://localhost:3016';
+const base = process.env.BASE_URL || process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
 const cases = [
   {name:'Brasil português notícias',params:'country=BR&language=por&category=news',country:'BR',language:'por',category:'news'},
   {name:'Portugal português entretenimento',params:'country=PT&language=por&category=entertainment',country:'PT',language:'por',category:'entertainment'},

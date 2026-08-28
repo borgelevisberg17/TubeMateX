@@ -1,4 +1,4 @@
-const base = process.env.TEST_BASE_URL || 'http://localhost:3000';
+const base = process.env.BASE_URL || process.env.TEST_BASE_URL || 'http://127.0.0.1:3000';
 (async () => {
   const response = await fetch(`${base}/api/entertainment/home`);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
