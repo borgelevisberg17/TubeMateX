@@ -19,11 +19,12 @@ const sqlite3 = require('sqlite3').verbose();
 
 // Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
 // previamente revisado que contém o namespace yt_dlp_plugins.
-const YT_DLP_PLUGIN_DIR = process.env.YT_DLP_PLUGIN_DIR ? path.resolve(process.env.YT_DLP_PLUGIN_DIR) : null;
+const resolveBackendPath = value => value ? (path.isAbsolute(value) ? value : path.resolve(__dirname, value)) : null;
+const YT_DLP_PLUGIN_DIR = resolveBackendPath(process.env.YT_DLP_PLUGIN_DIR);
 const YT_DLP_COMMON_OPTIONS = {};
-const FFMPEG_LOCATION = process.env.FFMPEG_PATH ? path.resolve(process.env.FFMPEG_PATH) : null;
+const FFMPEG_LOCATION = resolveBackendPath(process.env.FFMPEG_PATH);
 if (FFMPEG_LOCATION) YT_DLP_COMMON_OPTIONS.ffmpegLocation = FFMPEG_LOCATION;
-if (process.env.YTDLP_COOKIES_FILE) { const cookiesFile = path.resolve(process.env.YTDLP_COOKIES_FILE); if (fs.existsSync(cookiesFile)) YT_DLP_COMMON_OPTIONS.cookies = cookiesFile; else console.warn(`[yt-dlp] YTDLP_COOKIES_FILE não encontrado: ${cookiesFile}`); }
+if (process.env.YTDLP_COOKIES_FILE) { const cookiesFile = resolveBackendPath(process.env.YTDLP_COOKIES_FILE); if (fs.existsSync(cookiesFile)) YT_DLP_COMMON_OPTIONS.cookies = cookiesFile; else console.warn(`[yt-dlp] YTDLP_COOKIES_FILE não encontrado: ${cookiesFile}`); }
 if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
 function listYtDlpPlugins() {

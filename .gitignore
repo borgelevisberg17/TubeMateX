@@ -2,6 +2,10 @@
 logs/
 *.log
 *.tmp
+# Segredos locais do yt-dlp
+backend/secrets/
+**/*cookies*.txt
+*.cookies.txt
 
 # Ignorar dependências globais e módulos do Node.js
 node_modules/

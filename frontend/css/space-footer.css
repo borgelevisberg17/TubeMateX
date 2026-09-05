@@ -22,3 +22,9 @@
 .tmx-footer-meta:after{content:"© 2026 TubeMateX. Todos os direitos reservados.";display:block;margin-top:16px;padding-top:16px;border-top:1px solid #ffffff12;color:#70747d;font-size:9px;line-height:1.5}
 @media(max-width:900px){.tmx-footer-inner{grid-template-columns:1fr;gap:30px}.tmx-footer-nav{grid-template-columns:repeat(3,minmax(100px,1fr))}.tmx-footer-meta{padding:18px 0 0;border-top:1px solid #ffffff1c;border-left:0}}
 @media(max-width:560px){.tmx-space-footer{margin-top:56px}.tmx-footer-inner{gap:26px;padding-top:30px;padding-bottom:18px}.tmx-footer-nav{grid-template-columns:repeat(2,minmax(110px,1fr));gap:24px 14px}.tmx-footer-meta{padding-top:16px}}
+
+/* Keep the footer at the end of short pages without overlaying content. */
+body.space-page,body.user-rebuild,body.downloads-page,body.entertainment-page{min-height:100vh;display:flex;flex-direction:column}
+body.space-page>.space-shell,body.entertainment-page>.entertainment-app{display:flex;flex:1;flex-direction:column}
+body.space-page .space-wrap,body.user-rebuild .u-wrap,body.downloads-page .downloads-wrap,body.entertainment-page>.entertainment-app>main{flex:1;width:100%}
+body.space-page>.tmx-space-footer,body.user-rebuild>.tmx-space-footer,body.downloads-page>.tmx-space-footer{flex-shrink:0}
