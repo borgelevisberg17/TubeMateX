@@ -18,6 +18,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}
+      REDIS_DISABLED: "false"
       DATA_DIR: /var/lib/tubematex
       DOWNLOAD_DIR: /var/lib/tubematex/downloads
       HISTORY_DIR: /var/lib/tubematex/history
@@ -54,6 +55,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD no .env}
+      REDIS_DISABLED: "false"
       DATA_DIR: /var/lib/tubematex
       DOWNLOAD_DIR: /var/lib/tubematex/downloads
       HISTORY_DIR: /var/lib/tubematex/history
