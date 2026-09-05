@@ -228,7 +228,7 @@ const IPTV_PLAYLIST_SOURCES = [
     { id: 'iptv-org-spanish', label: 'Canais em espanhol', url: 'https://iptv-org.github.io/iptv/languages/spa.m3u', safety: 'filtered', note: 'Subset da lista geral por idioma; inclui canais geograficamente limitados.' },
     { id: 'iptv-org-spain', label: 'Canais de Espanha', url: 'https://iptv-org.github.io/iptv/countries/es.m3u', safety: 'filtered', note: 'Subset da lista geral por país; inclui labels como Geo-blocked e Not 24/7.' },
     { id: 'm3u-cl-total', label: 'M3U.cl total', url: 'https://www.m3u.cl/lista/total.m3u', safety: 'unverified', note: 'Fonte externa; não entra no catálogo automático sem validação individual.' },
-    { id: 'iptv-org-nsfw', label: 'IPTV público NSFW', url: 'https://iptv-org.github.io/iptv/index.nsfw.m3u', safety: 'blocked', note: 'Não é carregada pelo produto; endpoint devolveu 404 na auditoria.' }
+    { id: 'iptv-org-nsfw', label: 'IPTV público NSFW', url: null, safety: 'blocked', note: 'Não é carregada pelo produto; URL removida da resposta pública porque a auditoria indicou 404.' }
 ];
 const TMDB_API_KEY = String(process.env.TMDB_API_KEY || '').trim();
 const TMDB_LANGUAGE = String(process.env.TMDB_LANGUAGE || 'pt-PT').trim();

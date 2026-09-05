@@ -55,6 +55,24 @@ body[data-space="music"] .track-actions .space-button.primary{border-color:var(-
 
 .ent-catalog-zone{margin-top:34px}.ent-vod-zone{padding-top:28px;border-top:1px solid #ffffff12}.ent-vod-zone>.ent-section-heading{margin-bottom:20px}.ent-live-hub{border-top:2px solid #e50914}.ent-channel-logo{width:100%;height:100%;object-fit:contain;padding:24px;background:#f2eef0}.ent-channel-logo-fallback{display:grid;place-items:center;width:100%;height:100%;color:#fff;background:radial-gradient(circle at 30% 20%,#8a2d3b,#190d13 68%);font:700 clamp(30px,5vw,54px) "Space Grotesk",sans-serif;letter-spacing:-.08em}.ent-card:has(.ent-channel-logo) .ent-card-art:after{background:linear-gradient(0deg,#0d090bd8 0%,transparent 60%)}.ent-card:has(.ent-channel-logo) .ent-card-copy h4{white-space:normal;line-height:1.25}.ent-country-count{color:#a88e95;font-size:10px}@media(max-width:700px){.ent-catalog-zone{margin-top:24px}.ent-vod-zone{padding-top:22px}.ent-channel-logo{padding:18px}}
 
+body[data-ent-view="live"] .ent-hero{min-height:360px}
+body[data-ent-view="live"] .ent-hero-content{padding-bottom:48px}
+body[data-ent-view="live"] .ent-content-shell{margin-top:0}
+body[data-ent-view="live"] .ent-live-hub{border-color:#ffffff22;background:linear-gradient(180deg,#171013,#0c090b);box-shadow:0 18px 60px #0007}
+body[data-ent-view="live"] .ent-vod-zone{opacity:.72}
+.ent-card-actions button:disabled{cursor:not-allowed;opacity:.48}
+.ent-rail-iptv .ent-card{min-height:286px}
+.ent-rail-iptv .ent-card-actions{margin-top:auto}
+.ent-rail-iptv .ent-card-actions button.primary{min-width:96px}
+.ent-rail-iptv .ent-card-facts span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entertainment-channel-controls input,.entertainment-channel-controls select,.entertainment-channel-controls .ent-button{height:44px}
+.entertainment-channel-controls .ent-button{width:100%}
+.ent-search-results,.ent-rail-iptv .ent-card-rail{scroll-padding-inline:4px}
+@media(max-width:700px){body[data-ent-view="live"] .ent-hero{min-height:330px}.ent-section-heading{display:block}.ent-collapse-button{margin-top:12px}.ent-rail-iptv .ent-card{min-height:270px}.ent-rail-iptv .ent-card-actions{display:grid;grid-template-columns:1fr 34px 34px}.ent-rail-iptv .ent-card-actions button{min-width:0}.entertainment-channel-controls input,.entertainment-channel-controls select,.entertainment-channel-controls .ent-button{height:42px}.yt-controls-row{align-items:flex-start}.yt-left-controls{flex-wrap:wrap;gap:5px}.yt-volume-wrap{width:54px}.yt-time-display{min-width:70px}.ent-player-foot{align-items:flex-start;flex-direction:column}}
+
 .ent-card-art-fallback{display:grid;place-items:center;width:100%;height:100%;color:#d6c0c6;background:linear-gradient(145deg,#351923,#120b10);font:700 24px "Space Grotesk",sans-serif;letter-spacing:.08em}
 
 .iptv-load-more-wrap{display:flex;justify-content:center;margin:14px 0 4px}.iptv-load-more-wrap .ent-button{min-width:220px}.catalog-source-tag{text-decoration:none}.yt-right-controls{display:flex;align-items:center;gap:6px}.yt-player-select{height:28px;max-width:88px;border:1px solid #ffffff26;border-radius:4px;color:#fff;background:#161216;padding:0 6px;font:600 10px "DM Sans",sans-serif}.yt-player-select:focus{outline:1px solid #e50914}.yt-select-label{display:inline-flex}.ent-player-shortcuts{color:#927b82;font-size:10px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}@media(max-width:700px){.ent-player-shortcuts{display:none}.yt-skip-btn{display:none}.yt-player-select{max-width:64px}.yt-right-controls{gap:3px}}
+
+.video-drawer:fullscreen .ent-player-stageyt,.video-drawer:-webkit-full-screen .ent-player-stageyt{flex:1;min-height:0;aspect-ratio:auto}
+@media(max-width:620px){.ent-video-drawer .ent-player-stageyt{flex:0 0 auto}}
