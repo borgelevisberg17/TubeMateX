@@ -54,7 +54,8 @@ for (const directory of [DATA_DIR, DOWNLOAD_DIR, HISTORY_DIR]) {
 
 const DATABASE_PATH = resolveConfiguredPath(process.env.DATABASE_PATH, path.join(DATA_DIR, 'tubematex.sqlite'));
 const database = new sqlite3.Database(DATABASE_PATH);
-const redisConfigured = Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
+const redisDisabled = /^(1|true|yes)$/i.test(String(process.env.REDIS_DISABLED || ''));
+const redisConfigured = !redisDisabled && Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
 const QUEUE_NAME = process.env.BULLMQ_QUEUE_NAME || 'tubematex-downloads';
 const BULLMQ_ROLE = process.env.BULLMQ_ROLE || 'both';
 const BULLMQ_RETENTION_SECONDS = 2 * 60 * 60;
