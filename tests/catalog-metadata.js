@@ -1,14 +1,24 @@
 const assert = require('node:assert/strict');
-const ytdlp = require('@openanime/youtube-dl-exec');
+const ytdlpPackage = require('@openanime/youtube-dl-exec');
+const { createYtDlpClient } = require('../backend/services/ytdlp-client');
+
 const cases = [
   { name: 'Spotify', url: 'https://open.spotify.com/track/11dFghVXANMlKmJXsNCbNl' },
   { name: 'Apple Music', url: 'https://music.apple.com/us/album/after-hours/1499378108' }
 ];
+
 (async () => {
+  const ytdlp = createYtDlpClient({ ytdlpModule: ytdlpPackage });
   const report = [];
   for (const item of cases) {
     try {
-      const data = await ytdlp(item.url, { dumpSingleJson: true, skipDownload: true, noWarnings: true, noPlaylist: true, socketTimeout: 20 });
+      const data = await ytdlp(item.url, {
+        dumpSingleJson: true,
+        skipDownload: true,
+        noWarnings: true,
+        noPlaylist: true,
+        socketTimeout: 20
+      });
       assert.ok(data && (data.title || data.track || data.album), `${item.name}: metadata vazia`);
       report.push({ platform: item.name, status: 'metadata-ok', title: data.title || data.track || data.album, extractor: data.extractor_key || data.extractor || null });
     } catch (error) {

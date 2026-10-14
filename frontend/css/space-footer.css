@@ -28,3 +28,5 @@ body.space-page,body.user-rebuild,body.downloads-page,body.entertainment-page{mi
 body.space-page>.space-shell,body.entertainment-page>.entertainment-app{display:flex;flex:1;flex-direction:column}
 body.space-page .space-wrap,body.user-rebuild .u-wrap,body.downloads-page .downloads-wrap,body.entertainment-page>.entertainment-app>main{flex:1;width:100%}
 body.space-page>.tmx-space-footer,body.user-rebuild>.tmx-space-footer,body.downloads-page>.tmx-space-footer{flex-shrink:0}
+
+.tmx-footer-icon svg{width:18px;height:18px;display:block;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}

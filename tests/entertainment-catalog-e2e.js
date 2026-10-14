@@ -57,7 +57,7 @@ const { chromium } = require('playwright');
       await page.route('**/api/downloads', route => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ job: { id: 'cine-download' } }) }));
       await page.goto(`${base}/entertainment.html`, { waitUntil: 'networkidle' });
       await page.locator('#heroTitle').waitFor();
-      for (const selector of ['.entertainment-topbar', '#entHero', '#vodHeading', '#entertainmentRows', '#iptvSection', '#iptvHeading', '#iptvSourceList', '#entSearchZone']) {
+      for (const selector of ['.tmx-app-header', '.tmx-local-nav .entertainment-nav', '#entHero', '#vodHeading', '#entertainmentRows', '#iptvSection', '#iptvHeading', '#iptvSourceList', '#entSearchZone']) {
         if (await page.locator(selector).count() !== 1) throw new Error(`sem ${selector}`);
       }
       if (!(await page.locator('#heroTitle').textContent()).includes('Entretenimento com origem')) throw new Error('hero institucional não foi renderizado');
@@ -90,6 +90,12 @@ const { chromium } = require('playwright');
       await page.locator('#detailEpisodes .ent-episode').nth(1).waitFor();
       if (await page.locator('#detailEpisodes .ent-episode').count() !== 2) throw new Error('temporadas/episódios públicos não foram renderizados');
       await page.locator('#closeDetail').click();
+      const cardListButton = page.locator('.ent-card[data-item-id="film-1"] [data-action="list"]').first();
+      if (!(await cardListButton.getAttribute('aria-label')).startsWith('Remover ')) throw new Error('o cartão não refletiu o item já salvo na Minha lista');
+      await cardListButton.click();
+      if (!(await cardListButton.getAttribute('aria-label')).startsWith('Adicionar ') || await cardListButton.locator('svg').count() !== 1) throw new Error('o estado de remoção não atualizou o rótulo e preservou o SVG');
+      await cardListButton.click();
+      if (!(await cardListButton.getAttribute('aria-label')).startsWith('Remover ') || await cardListButton.locator('svg').count() !== 1) throw new Error('o estado de adição não atualizou o rótulo e preservou o SVG');
       await page.locator('.ent-nav-link[data-view="my-list"]').click();
       if (!(await page.locator('#personalRows').textContent()).includes('Minha lista')) throw new Error('Minha lista não persistiu');
       await page.locator('#openEntertainmentSearch').click();

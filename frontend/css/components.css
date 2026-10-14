@@ -1,0 +1,58 @@
+/* Shared application shell and reusable navigation components. */
+tmx-app-header { display: block; }
+.tmx-app-header {
+  --tmx-fg: #eff6ff;
+  --tmx-fg-muted: #a7b7c8;
+  --tmx-border: #203244;
+  --tmx-header-accent: var(--tmx-accent, #b9f227);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "brand context actions" "nav nav nav";
+  align-items: center; gap: 0 24px; min-height: 72px;
+  padding: 10px clamp(16px, 4vw, 56px);
+  border-bottom: 1px solid var(--tmx-border, #1c3348);
+  color: var(--tmx-fg, #eff6ff); background: var(--tmx-header-bg, #081521);
+}
+.tmx-app-brand { grid-area: brand; display: inline-flex; align-items: center; gap: 9px; color: inherit; text-decoration: none; font: 700 17px/1 "Space Grotesk", sans-serif; }
+.tmx-app-brand svg { width: 24px; height: 24px; fill: none; stroke: var(--tmx-header-accent); stroke-width: 2.4; stroke-linejoin: round; }
+.tmx-app-wordmark { display: inline-block; }
+.tmx-brand-x { color: var(--tmx-header-accent); }
+.tmx-app-context { grid-area: context; color: var(--tmx-fg-muted, #a7b7c8); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+.tmx-main-nav { grid-area: nav; display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; }
+.tmx-main-nav-link { position: relative; display: inline-flex; align-items: center; min-height: 38px; padding: 0 13px; border-radius: 7px; color: var(--tmx-fg-muted, #a7b7c8); text-decoration: none; font-size: 12px; font-weight: 600; transition: color .16s ease, background .16s ease; }
+.tmx-main-nav-link:hover, .tmx-main-nav-link[aria-current="page"] { color: var(--tmx-fg, #eff6ff); background: color-mix(in srgb, var(--tmx-header-accent) 10%, transparent); }
+.tmx-main-nav-link[aria-current="page"]::after { position: absolute; right: 12px; bottom: 3px; left: 12px; height: 2px; border-radius: 2px; background: var(--tmx-header-accent); content: ""; }
+.tmx-header-actions { grid-area: actions; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.tmx-header-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 11px; border: 1px solid var(--tmx-border, #1c3348); border-radius: 8px; color: var(--tmx-fg, #eff6ff); background: transparent; text-decoration: none; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tmx-header-action:hover, .tmx-header-action[aria-current="page"] { border-color: var(--tmx-header-accent); color: var(--tmx-header-accent); background: color-mix(in srgb, var(--tmx-header-accent) 8%, transparent); }
+.tmx-download-count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; color: #07111d; background: var(--tmx-header-accent); font-size: 10px; font-weight: 700; }
+.tmx-local-nav { position: relative; z-index: 2; padding: 4px clamp(16px, 4vw, 56px); border-bottom: 1px solid rgb(255 255 255 / 8%); background: var(--tmx-header-bg, #081521); }
+.tmx-local-nav .entertainment-nav { position: static !important; display: flex; justify-content: center; gap: 8px; width: min(1440px, 100%); margin: 0 auto; padding: 4px 0; background: transparent !important; }
+.tmx-local-nav .ent-nav-link { min-height: 36px; padding-inline: 10px; white-space: nowrap; }
+.tmx-local-nav .ent-nav-link:focus-visible { outline-offset: 1px; }
+html[data-theme="light"] .tmx-app-header { --tmx-header-accent: #b9f227; }
+body[data-space="entertainment"] .tmx-app-header, body[data-space="entertainment"] .tmx-local-nav { --tmx-header-accent: #ff4c68; --tmx-header-bg: #16090e; }
+body[data-space="social"] .tmx-app-header { --tmx-header-accent: #59d9e8; }
+body.downloads-page .tmx-app-header { --tmx-header-accent: #ff5268; --tmx-header-bg: #0b0b0e; }
+body.downloads-page .tmx-app-header { color: #f4edf0; }
+body.downloads-page .tmx-app-context { color: #b7aeb2; }
+@media (min-width: 960px) {
+  .tmx-app-header { grid-template-areas: "brand context nav actions"; grid-template-columns: auto minmax(100px, .6fr) minmax(380px, 1.5fr) auto; }
+}
+@media (max-width: 700px) {
+  .tmx-app-header { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand actions" "nav nav"; gap: 9px 12px; padding: 10px 14px 8px; }
+  .tmx-app-context { display: none; }
+  .tmx-main-nav { justify-content: flex-start; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .tmx-main-nav::-webkit-scrollbar, .tmx-local-nav .entertainment-nav::-webkit-scrollbar { display: none; }
+  .tmx-main-nav-link { min-height: 36px; padding: 0 10px; font-size: 11px; white-space: nowrap; }
+  .tmx-header-actions { gap: 6px; }
+  .tmx-header-action { min-height: 34px; padding: 0 8px; font-size: 10px; }
+  .tmx-local-nav { padding: 2px 12px; }
+  .tmx-local-nav .entertainment-nav { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tmx-main-nav-link { transition: none; }
+}
+
+.tmx-icon-svg, .tmx-inline-icon svg, .tmx-footer-icon svg { display: block; width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tmx-inline-icon svg { width: 18px; height: 18px; }
+.tmx-header-actions .ent-icon-button { width: 38px; height: 38px; }
