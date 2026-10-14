@@ -34,7 +34,7 @@ Com o backend a correr, numa segunda consola:
 npm run validate:iptv
 ```
 
-O comando percorre todos os canais elegíveis PT/EN em todas as categorias, aguarda os lotes, consulta também a saúde das APIs e grava `backend/data/iptv-validation-report.json`. Sobrescreve o caminho com `IPTV_REPORT_PATH=/caminho/relatorio.json`; define o limite de execução com `IPTV_VALIDATION_MAX_MINUTES=45`. O relatório contém resumo por estado e resultados por canal, sem URLs ou credenciais.
+O comando percorre todos os canais elegíveis PT/EN em todas as categorias, aguarda os lotes, consulta também a saúde das APIs e grava `backend/data/iptv-validation-report.json`. O polling padrão é de 15 segundos, respeita `Retry-After` em HTTP 429 e não altera o rate limit normal do backend. Sobrescreve o caminho com `IPTV_REPORT_PATH=/caminho/relatorio.json`; define o limite (padrão: 60 minutos) com `IPTV_VALIDATION_MAX_MINUTES=45`. O relatório contém resumo por estado e resultados por canal, sem URLs ou credenciais.
 
 O catálogo público é dinâmico: o relatório representa o instante da sondagem. Canais podem mudar, ficar offline, funcionar só nalgumas regiões ou deixar de ser compatíveis com um browser/dispositivo.
 

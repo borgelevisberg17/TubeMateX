@@ -5,24 +5,39 @@ const path = require('node:path');
 
 const baseUrl = (process.env.TUBEMATEX_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const reportPath = path.resolve(process.env.IPTV_REPORT_PATH || path.join(__dirname, '../backend/data/iptv-validation-report.json'));
-const pollMs = Math.max(500, Number(process.env.IPTV_VALIDATION_POLL_MS) || 1500);
-const maxMinutes = Math.max(1, Number(process.env.IPTV_VALIDATION_MAX_MINUTES) || 15);
+const pollMs = Math.max(5000, Number(process.env.IPTV_VALIDATION_POLL_MS) || 15000);
+const maxMinutes = Math.max(1, Number(process.env.IPTV_VALIDATION_MAX_MINUTES) || 60);
 const startedAt = Date.now();
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+async function getJson(endpoint) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const response = await fetch(`${baseUrl}${endpoint}`, { signal: AbortSignal.timeout(15000) });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 429 && attempt < 3) {
+      const retryAfter = response.headers.get('retry-after') || '';
+      const seconds = Number(retryAfter);
+      const retryDate = Date.parse(retryAfter);
+      const suggestedMs = Number.isFinite(seconds) && retryAfter.trim() ? seconds * 1000 : Number.isFinite(retryDate) ? retryDate - Date.now() : 30000 * (2 ** attempt);
+      const waitMs = Math.max(1000, Math.min(120000, suggestedMs));
+      process.stdout.write(`[IPTV] HTTP 429; a respeitar Retry-After e aguardar ${Math.ceil(waitMs / 1000)} s.\n`);
+      await sleep(waitMs);
+      continue;
+    }
+    if (!response.ok) throw new Error(payload.error || `API respondeu HTTP ${response.status}`);
+    return payload;
+  }
+  throw new Error('A API continuou a limitar pedidos após as tentativas de espera.');
+}
+
 async function getPage(offset = 0) {
   const params = new URLSearchParams({ limit: '60', offset: String(offset), batchSize: '60' });
-  const response = await fetch(`${baseUrl}/api/iptv/channels?${params}` , { signal: AbortSignal.timeout(15000) });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `API IPTV respondeu HTTP ${response.status}`);
-  return payload;
+  return getJson(`/api/iptv/channels?${params}`);
 }
 
 async function getSourceHealth() {
-  const response = await fetch(`${baseUrl}/api/entertainment/sources/health`, { signal: AbortSignal.timeout(15000) });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `Health APIs respondeu HTTP ${response.status}`);
+  const payload = await getJson('/api/entertainment/sources/health');
   return payload.sources || [];
 }
 
