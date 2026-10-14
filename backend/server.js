@@ -16,6 +16,11 @@ const { Queue, Worker } = require('bullmq');
 const rateLimit = require('express-rate-limit');
 const ytdlp = require('@openanime/youtube-dl-exec');
 const sqlite3 = require('sqlite3').verbose();
+const { createSystemRouter } = require('./routes/system-routes');
+const { createMediaRouter } = require('./routes/media-routes');
+const { createMediaService } = require('./services/media-service');
+const { createDownloadRouter } = require('./routes/download-routes');
+const { createLibraryRouter } = require('./routes/library-routes');
 
 // Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
 // previamente revisado que contém o namespace yt_dlp_plugins.
@@ -222,6 +227,7 @@ const queue = [];
 let activeJobs = 0;
 const pausedOwners = new Set();
 const INFO_CACHE_MS = 5 * 60 * 1000;
+const { fetchInfo, fetchPlaylistInfo, errorCode, translateError } = createMediaService({ ytdlp, ytdlpCommonOptions: YT_DLP_COMMON_OPTIONS, infoCache, infoCacheMs: INFO_CACHE_MS });
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
 const IPTV_PLAYLIST_SOURCES = [
@@ -748,29 +754,6 @@ async function searchMedia(query, type = 'all', limit = 8, source = 'all') {
     return { results: merged, unavailableSources };
 }
 
-async function fetchInfo(url) {
-    const cached = infoCache.get(url);
-    if (cached && cached.expiresAt > Date.now()) return cached.value;
-    const result = await ytdlp(url, {
-        ...YT_DLP_COMMON_OPTIONS,
-        dumpSingleJson: true,
-        skipDownload: true,
-        noWarnings: true,
-        noPlaylist: true,
-        noCheckCertificates: true,
-        socketTimeout: 15
-    });
-    const value = {
-        title: result.title || result.fulltitle || 'Download sem título',
-        thumbnail: result.thumbnail || null,
-        duration: Number(result.duration || 0),
-        site: result.extractor_key || result.extractor || new URL(url).hostname,
-        uploader: result.uploader || null
-    };
-    infoCache.set(url, { value, expiresAt: Date.now() + INFO_CACHE_MS });
-    return value;
-}
-
 const DISCOVERY_TERMS = {
     music: ['lofi music', 'live acoustic session', 'indie music', 'jazz session', 'podcast'],
     social: ['creative short video', 'street food', 'dance performance', 'travel vlog'],
@@ -936,29 +919,6 @@ async function discoverMedia(area, limit) {
     const value = { term, results }; discoverCache.set(cacheKey, { expiresAt: Date.now() + 5 * 60 * 1000, value }); return value;
 }
 
-function errorCode(error) {
-    const raw = String(error?.stderr || error?.message || error || '');
-    if (/Sign in|not a bot|age-restricted|login required|members-only/i.test(raw)) return 'authentication-required';
-    if (/Requested format is not available|format.*not available/i.test(raw)) return 'format-unavailable';
-    if (/DRM|protected content/i.test(raw)) return 'drm-protected';
-    if (/copyright|blocked in your country|not available in your country/i.test(raw)) return 'region-blocked';
-    if (/Unsupported URL|no suitable extractor/i.test(raw)) return 'unsupported-url';
-    if (/Video unavailable|removed|private video/i.test(raw)) return 'content-unavailable';
-    if (/File is larger than/i.test(raw)) return 'file-too-large';
-    return 'processing-error';
-}
-function translateError(error) {
-    const code = errorCode(error);
-    if (code === 'unsupported-url') return 'Este site ou URL não é suportado pelo motor de download.';
-    if (code === 'content-unavailable') return 'O conteúdo não está disponível, foi removido ou é privado.';
-    if (code === 'authentication-required') return 'O YouTube bloqueou esta sessão por verificação anti-bot. O TubeMateX não pode contornar esse bloqueio automaticamente: configura um cookies.txt local em YTDLP_COOKIES_FILE ou YTDLP_COOKIES_FROM_BROWSER no servidor, sem o comitar, e tenta novamente.';
-    if (code === 'format-unavailable') return 'A qualidade pedida não existe neste conteúdo. Escolhe Automática ou tenta outra qualidade.';
-    if (code === 'drm-protected') return 'Este catálogo usa DRM e não pode ser descarregado pelo TubeMateX.';
-    if (code === 'region-blocked') return 'O conteúdo está bloqueado por direitos ou região.';
-    if (code === 'file-too-large') return 'O ficheiro excede o limite de tamanho permitido.';
-    return 'Não foi possível processar este download. Confirma o link e tenta novamente.';
-}
-
 async function runJob(job) {
     activeJobs += 1;
     emit(job, { status: 'fetching', progress: { percent: 0, label: 'A analisar o conteúdo…' } });
@@ -1109,25 +1069,21 @@ async function createJob(ownerId, url, format, quality = 'auto') {
     return job;
 }
 
-app.get('/health', async (req, res) => {
-    let distributed = null;
-    if (distributedQueue) {
-        try { distributed = await distributedQueue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed'); } catch { distributed = { error: 'indisponível' }; }
-    }
-    res.json({ status: 'ok', service: 'TubeMateX', role: BULLMQ_ROLE, queue: queue.length, active: activeJobs, distributed });
-});
-
-app.get('/api/platforms', (req, res) => res.json({ platforms: SUPPORTED_PLATFORMS, plugins: listYtDlpPlugins() }));
-app.get('/api/plugins', (req, res) => res.json({ enabled: Boolean(YT_DLP_PLUGIN_DIR), directoryConfigured: Boolean(YT_DLP_PLUGIN_DIR), plugins: listYtDlpPlugins(), policy: 'Plugins devem ser instalados e revisados pelo administrador; não são baixados pela UI.' }));
-
-app.get('/api/capabilities', (req, res) => res.json({
-    formats: Object.entries(allowedFormats).map(([id, item]) => ({ id, label: item.label, type: item.type })),
-    qualities: Object.entries(videoQualities).map(([id, label]) => ({ id, label })),
+app.use(createSystemRouter({
+    distributedQueue,
+    getQueueSize: () => queue.length,
+    getActiveJobs: () => activeJobs,
+    bullmqRole: BULLMQ_ROLE,
+    listYtDlpPlugins,
+    ytdlpPluginDir: YT_DLP_PLUGIN_DIR,
+    allowedFormats,
+    videoQualities,
     maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS,
     maxDownloadSize: MAX_DOWNLOAD_SIZE,
-    searchProviders: SEARCH_PROVIDERS.map(provider => SEARCH_PROVIDER_LABELS[provider] || provider),
+    searchProviders: SEARCH_PROVIDERS,
+    searchProviderLabels: SEARCH_PROVIDER_LABELS,
     youtubeAuthConfigured: Boolean(YT_DLP_COMMON_OPTIONS.cookies || YT_DLP_COMMON_OPTIONS.cookiesFromBrowser),
-    platforms: SUPPORTED_PLATFORMS
+    supportedPlatforms: SUPPORTED_PLATFORMS
 }));
 
 const adminLoginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false, message: { error: 'Demasiadas tentativas administrativas.' } });
@@ -1248,300 +1204,60 @@ app.get('/api/search', apiLimiter, async (req, res) => {
     }
 });
 
-async function fetchPlaylistInfo(url) {
-    const result = await ytdlp(url, { ...YT_DLP_COMMON_OPTIONS, dumpSingleJson: true, flatPlaylist: true, skipDownload: true, noWarnings: true, noCheckCertificates: true, socketTimeout: 20, playlistEnd: 100 });
-    const extractor = result.extractor_key || result.extractor || new URL(url).hostname;
-    const entries = (Array.isArray(result.entries) ? result.entries : []).filter(entry => entry && (entry.id || entry.url)).map((entry, index) => {
-        const entryUrl = entry.webpage_url || entry.original_url || entry.url || (entry.id && /youtube/i.test(extractor) ? `https://www.youtube.com/watch?v=${encodeURIComponent(entry.id)}` : null);
-        return entryUrl ? { id: `episode-${entry.id || index + 1}`, title: entry.title || `Episódio ${index + 1}`, url: entryUrl, thumbnail: entry.thumbnail || null, duration: Number(entry.duration || 0), uploader: entry.uploader || result.uploader || null, site: extractor, kind: 'series', episodeNumber: Number(entry.episode_number || entry.playlist_index || index + 1), seasonNumber: Number(entry.season_number || 1) } : null;
-    }).filter(Boolean);
-    const seasons = [...new Set(entries.map(entry => entry.seasonNumber || 1))].sort((a, b) => a - b).map(seasonNumber => ({ seasonNumber, title: `Temporada ${seasonNumber}`, episodes: entries.filter(entry => (entry.seasonNumber || 1) === seasonNumber) }));
-    return { title: result.title || 'Série da fonte', site: extractor, seasons };
-}
-app.get('/api/media/playlist', apiLimiter, async (req, res) => {
-    const url = await validateUrl(req.query.url);
-    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
-    try { res.json(await fetchPlaylistInfo(url)); }
-    catch (error) { console.error('[playlist]', error?.stderr || error?.message || error); res.status(422).json({ error: 'Esta fonte não expõe uma lista pública de episódios compatível.', errorCode: errorCode(error) }); }
-});
-app.get('/api/media/info', apiLimiter, async (req, res) => {
-    const url = await validateUrl(req.query.url);
-    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
-    try {
-        const info = await fetchInfo(url);
-        res.json(info);
-    } catch (error) {
-        res.status(422).json({ error: translateError(error) });
-    }
-});
+app.use(createMediaRouter({
+    apiLimiter,
+    validateUrl,
+    fetchPlaylistInfo,
+    fetchInfo,
+    ytdlp,
+    ytdlpCommonOptions: YT_DLP_COMMON_OPTIONS,
+    errorCode,
+    translateError
+}));
 
-app.get('/api/media/stream', apiLimiter, async (req, res) => {
-    const url = await validateUrl(req.query.url);
-    const type = String(req.query.type || 'audio').toLowerCase() === 'video' ? 'video' : 'audio';
-    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
-    try {
-        const result = await ytdlp(url, {
-            ...YT_DLP_COMMON_OPTIONS,
-            dumpSingleJson: true,
-            skipDownload: true,
-            noWarnings: true,
-            noPlaylist: true,
-            noCheckCertificates: true,
-            socketTimeout: 15,
-            format: type === 'video' ? 'bv*+ba/bv*' : 'bestaudio/best'
-        });
-        const requestedFormats = Array.isArray(result.requested_formats) ? result.requested_formats : [];
-        const combined = result.url && result.vcodec !== 'none' && result.acodec !== 'none' ? result : null;
-        const selected = type === 'video'
-            ? (combined || requestedFormats.find(item => item.url && item.vcodec !== 'none' && item.acodec !== 'none') || requestedFormats.find(item => item.url && item.vcodec !== 'none') || result)
-            : (result.url && result.acodec !== 'none' ? result : requestedFormats.find(item => item.url && item.acodec !== 'none') || result);
-        const streamUrl = selected.url;
-        if (!streamUrl) return res.status(422).json({ error: 'Esta fonte não disponibilizou uma URL de reprodução compatível. Tenta outra qualidade ou fonte.' });
-        res.json({
-            url: streamUrl,
-            title: result.title || 'Pré-visualização',
-            thumbnail: result.thumbnail || null,
-            duration: Number(result.duration || 0),
-            mimeType: selected.mime || (type === 'video' ? 'video/mp4' : 'audio/mpeg'),
-            type
-        });
-    } catch (error) {
-        console.error('[stream]', error?.stderr || error?.message || error);
-        res.status(422).json({ error: translateError(error), errorCode: errorCode(error) });
-    }
-});
-app.post('/api/downloads', downloadLimiter, async (req, res) => {
-    const url = await validateUrl(req.body?.url);
-    const format = String(req.body?.format || 'mp4').toLowerCase();
-    const quality = String(req.body?.quality || 'auto').toLowerCase();
-    if (!url) return res.status(400).json({ error: 'Indica um URL público válido começado por http:// ou https://.' });
-    if (!allowedFormats[format]) return res.status(400).json({ error: 'Formato de saída não suportado.' });
-    if (allowedFormats[format].type === 'video' && !videoQualities[quality]) return res.status(400).json({ error: 'Qualidade de vídeo não suportada.' });
-    const ownerId = getVisitorId(req, res);
-    const job = await createJob(ownerId, url, format, quality);
-    res.status(202).json({ job: publicJob(job), message: 'Download adicionado à fila.' });
-});
+app.use(createDownloadRouter({
+    downloadLimiter,
+    validateUrl,
+    allowedFormats,
+    videoQualities,
+    getVisitorId,
+    createJob,
+    publicJob,
+    jobs,
+    loadDistributedJob,
+    cancelledJobIds,
+    queue,
+    distributedQueue,
+    emit,
+    redisClient,
+    jobStateKey,
+    bullmqRetentionSeconds: BULLMQ_RETENTION_SECONDS,
+    jobEventChannel,
+    jobCancelChannel,
+    eventSubscriber,
+    jobEventClients,
+    processQueue,
+    conversionFormats,
+    loadHistory,
+    storedPath,
+    downloadDir: DOWNLOAD_DIR,
+    convertMedia,
+    addHistory,
+    clientHistory,
+    pausedOwners
+}));
 
-app.get('/api/downloads', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    const activeStatuses = new Set(['queued', 'fetching', 'downloading', 'paused']);
-    const owned = [...jobs.values()].filter(job => job.ownerId === ownerId);
-    const active = owned.filter(job => activeStatuses.has(job.status)).map(publicJob);
-    const counts = owned.reduce((acc, job) => { const status = job.status || 'unknown'; acc[status] = (acc[status] || 0) + 1; return acc; }, { queued: 0, fetching: 0, downloading: 0, paused: 0, completed: 0, failed: 0, cancelled: 0 });
-    res.json({ jobs: active, counts, activeCount: active.length, paused: pausedOwners.has(ownerId) });
-});
-app.get('/api/downloads/:id', async (req, res) => {
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Download não encontrado ou já expirou.' });
-    const ownerId = getVisitorId(req, res);
-    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
-    res.json(jobs.has(req.params.id) ? publicJob(job) : job);
-});
-
-app.delete('/api/downloads/:id', async (req, res) => {
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Download não encontrado.' });
-    const ownerId = getVisitorId(req, res);
-    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
-    if (['completed', 'failed', 'cancelled'].includes(job.status)) return res.json(jobs.has(req.params.id) ? publicJob(job) : job);
-    const patch = { status: 'cancelled', error: 'Download cancelado.', progress: { percent: 0, label: 'Download cancelado' } };
-    cancelledJobIds.add(req.params.id);
-    job.cancelled = true;
-    if (job.process?.kill) job.process.kill('SIGTERM');
-    if (job.status === 'queued') {
-        const index = queue.indexOf(job);
-        if (index >= 0) queue.splice(index, 1);
-    }
-    if (distributedQueue) {
-        const bullJob = await distributedQueue.getJob(req.params.id);
-        if (bullJob && ['waiting', 'delayed', 'paused'].includes(await bullJob.getState())) await bullJob.remove().catch(() => {});
-    }
-    if (jobs.has(req.params.id)) emit(job, patch);
-    else if (redisClient?.isReady) {
-        const nextState = { ...job, ...patch };
-        await redisClient.set(jobStateKey(req.params.id), JSON.stringify(nextState), { EX: BULLMQ_RETENTION_SECONDS });
-        await redisClient.publish(jobEventChannel(req.params.id), `event: update\\ndata: ${JSON.stringify(nextState)}\\n\\n`);
-    }
-    if (redisClient?.isReady) await redisClient.publish(jobCancelChannel(req.params.id), 'cancel');
-    res.json(jobs.has(req.params.id) ? publicJob(jobs.get(req.params.id)) : { ...job, ...patch });
-});
-
-async function setJobPaused(job, paused) {
-    if (!job || ['completed', 'failed', 'cancelled'].includes(job.status)) return job;
-    if (paused) {
-        if (job.status === 'queued') {
-            const index = queue.indexOf(job);
-            if (index >= 0) queue.splice(index, 1);
-        }
-        if (job.process?.kill && ['fetching', 'downloading'].includes(job.status)) job.process.kill('SIGSTOP');
-        emit(job, { status: 'paused', paused: true, progress: job.progress || { percent: 0, label: 'Pausado' } });
-        return job;
-    }
-    if (job.status !== 'paused') return job;
-    if (job.process?.kill) {
-        job.process.kill('SIGCONT');
-        emit(job, { status: 'downloading', paused: false, progress: { ...(job.progress || {}), label: 'A retomar…' } });
-    } else {
-        job.status = 'queued';
-        job.paused = false;
-        queue.push(job);
-        emit(job, { status: 'queued', progress: { ...(job.progress || {}), label: 'Na fila…' } });
-        processQueue();
-    }
-    return job;
-}
-
-async function setAllDownloadsPaused(ownerId, paused) {
-    if (paused) pausedOwners.add(ownerId); else pausedOwners.delete(ownerId);
-    const owned = [...jobs.values()].filter(job => job.ownerId === ownerId);
-    await Promise.all(owned.map(job => setJobPaused(job, paused)));
-    if (!paused) processQueue();
-    return owned.map(publicJob);
-}
-
-app.post('/api/downloads/pause-all', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json({ paused: true, jobs: await setAllDownloadsPaused(ownerId, true) });
-});
-
-app.post('/api/downloads/resume-all', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json({ paused: false, jobs: await setAllDownloadsPaused(ownerId, false) });
-});
-
-app.post('/api/downloads/:id/pause', async (req, res) => {
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Download não encontrado.' });
-    const ownerId = getVisitorId(req, res);
-    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
-    res.json(publicJob(await setJobPaused(job, true)));
-});
-
-app.post('/api/downloads/:id/resume', async (req, res) => {
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Download não encontrado.' });
-    const ownerId = getVisitorId(req, res);
-    if (job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este download.' });
-    res.json(publicJob(await setJobPaused(job, false)));
-});
-
-app.get('/api/downloads/:id/events', async (req, res) => {
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    if (!job) return res.status(404).end();
-    const ownerId = getVisitorId(req, res);
-    if (job.ownerId !== ownerId) return res.status(403).end();
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders?.();
-    const initial = jobs.has(req.params.id) ? publicJob(job) : job;
-    res.write(`event: update\ndata: ${JSON.stringify(initial)}\n\n`);
-    if (!jobEventClients.has(req.params.id)) jobEventClients.set(req.params.id, new Set());
-    jobEventClients.get(req.params.id).add(res);
-    if (!eventSubscriber && jobs.has(req.params.id)) job.clients.push(res);
-    const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 15000);
-    req.on('close', () => {
-        clearInterval(heartbeat);
-        jobEventClients.get(req.params.id)?.delete(res);
-        if (jobEventClients.get(req.params.id)?.size === 0) jobEventClients.delete(req.params.id);
-        if (jobs.has(req.params.id)) job.clients = job.clients.filter(client => client !== res);
-    });
-});
-
-app.post('/api/downloads/:id/convert', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    const requested = String(req.body?.format || '').toLowerCase();
-    const preset = conversionFormats[requested];
-    if (!preset) return res.status(400).json({ error: 'Formato de conversão não suportado.' });
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    const historyItem = (await loadHistory(ownerId)).find(item => item.id === req.params.id);
-    if (!job && !historyItem) return res.status(404).json({ error: 'Download não encontrado.' });
-    if ((job || historyItem).ownerId && (job || historyItem).ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este ficheiro.' });
-    if (job && job.status !== 'completed') return res.status(409).json({ error: 'A conversão só está disponível após o download terminar.' });
-    const inputPath = job?.filePath || storedPath(historyItem?.storedName);
-    if (!inputPath || !fs.existsSync(inputPath)) return res.status(404).json({ error: 'O ficheiro original já não está disponível.' });
-    const conversionId = `${req.params.id}-convert-${requested}-${Date.now()}`;
-    const outputName = `${path.basename(inputPath, path.extname(inputPath))}.${preset.extension}`;
-    const outputPath = path.join(DOWNLOAD_DIR, `${conversionId}.${preset.extension}`);
-    try {
-        await convertMedia(inputPath, outputPath, preset);
-        const entry = { id: conversionId, title: `${job?.title || historyItem?.title || 'Ficheiro'} · ${preset.extension.toUpperCase()}`, thumbnail: job?.thumbnail || historyItem?.thumbnail, format: requested, formatLabel: requested.toUpperCase(), quality: historyItem?.quality || job?.quality, qualityLabel: historyItem?.qualityLabel || job?.qualityLabel, site: job?.site || historyItem?.site, size: fs.statSync(outputPath).size, fileName: outputName, storedName: path.basename(outputPath), createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), downloadUrl: `/api/downloads/${conversionId}/file` };
-        await addHistory(ownerId, entry);
-        res.status(201).json({ ...clientHistory([entry])[0], downloadUrl: `/api/downloads/${conversionId}/file` });
-    } catch (error) { if (fs.existsSync(outputPath)) fs.rmSync(outputPath, { force: true }); res.status(422).json({ error: error.message || 'A conversão falhou.' }); }
-});
-
-app.get('/api/downloads/:id/file', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    const job = jobs.get(req.params.id) || await loadDistributedJob(req.params.id);
-    const historyItem = (await loadHistory(ownerId)).find(item => item.id === req.params.id);
-    if (job && job.ownerId !== ownerId) return res.status(403).json({ error: 'Sem acesso a este ficheiro.' });
-    const filePath = job?.filePath || storedPath(job?.storedName) || storedPath(historyItem?.storedName);
-    if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'O ficheiro já não está disponível.' });
-    const fileName = job?.fileName || historyItem?.fileName || 'tubematex-download';
-    res.download(filePath, fileName);
-});
-
-app.get('/api/library', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    const allItems = await loadHistory(ownerId);
-    const filtered = libraryQuery(allItems, req.query);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 24, 1), 100);
-    const offset = Math.max(Number(req.query.offset) || 0, 0);
-    const items = clientHistory(filtered.slice(offset, offset + limit));
-    const formats = [...new Set(allItems.map(item => item.format).filter(Boolean))].sort();
-    const sites = [...new Set(allItems.map(item => item.site).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
-    res.json({ items, total: filtered.length, offset, limit, hasMore: offset + items.length < filtered.length, facets: { formats, sites } });
-});
-
-app.get('/api/favorites', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json(clientHistory(libraryQuery(await loadHistory(ownerId), { favorite: 'true', sort: 'recent' })));
-});
-
-app.patch('/api/library/:id/favorite', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    const item = await dbGet('SELECT id, favorite FROM downloads WHERE id = ? AND owner_id = ?', [req.params.id, ownerId]);
-    if (!item) return res.status(404).json({ error: 'Download não encontrado no histórico.' });
-    const value = typeof req.body?.favorite === 'boolean' ? req.body.favorite : !Boolean(item.favorite);
-    await dbRun('UPDATE downloads SET favorite = ?, favorite_at = ? WHERE id = ? AND owner_id = ?', [value ? 1 : 0, value ? new Date().toISOString() : null, item.id, ownerId]);
-    res.json({ id: item.id, favorite: value });
-});
-
-app.get('/api/history', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json(clientHistory(await loadHistory(ownerId)));
-});
-
-function csvValue(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
-app.get('/api/history/export.json', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.setHeader('Content-Disposition', 'attachment; filename="tubematex-history.json"');
-    res.json(clientHistory(await loadHistory(ownerId)));
-});
-app.get('/api/history/export.csv', async (req, res) => {
-    const ownerId = getVisitorId(req, res); const items = clientHistory(await loadHistory(ownerId));
-    const columns = ['id','title','format','formatLabel','quality','qualityLabel','site','size','createdAt','completedAt','downloadUrl','favorite'];
-    const csv = [columns.join(','), ...items.map(item => columns.map(column => csvValue(item[column])).join(','))].join('\\n');
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', 'attachment; filename="tubematex-history.csv"'); res.send(`\\ufeff${csv}`);
-});
-app.get('/api/user/downloads', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json(clientHistory(await loadHistory(ownerId)));
-});
-
-app.delete('/api/history/:id', async (req, res) => {
-    const ownerId = getVisitorId(req, res); const item = (await loadHistory(ownerId)).find(entry => entry.id === req.params.id);
-    if (!item) return res.status(404).json({ error: 'Item não encontrado no histórico.' });
-    const job = jobs.get(item.id); const filePath = job?.filePath || storedPath(item.storedName); if (filePath && fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
-    await dbRun('DELETE FROM downloads WHERE id = ? AND owner_id = ?', [req.params.id, ownerId]); res.json({ message: 'Item removido.' });
-});
-
-app.delete('/api/history', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    await clearHistory(ownerId);
-    res.json({ message: 'Histórico eliminado.' });
-});
+app.use(createLibraryRouter({
+    getVisitorId,
+    loadHistory,
+    libraryQuery,
+    clientHistory,
+    dbGet,
+    dbRun,
+    jobs,
+    storedPath,
+    clearHistory
+}));
 
 // Compatibilidade com a API original do repositório.
 app.get('/video-info', apiLimiter, async (req, res) => {
@@ -1549,16 +1265,6 @@ app.get('/video-info', apiLimiter, async (req, res) => {
     if (!url) return res.status(400).json({ error: 'URL não fornecida ou inválida.' });
     fetchInfo(url).then(info => res.json(info)).catch(error => res.status(422).json({ error: translateError(error) }));
 });
-app.get('/history', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    res.json(clientHistory(await loadHistory(ownerId)));
-});
-app.post('/clear-history', async (req, res) => {
-    const ownerId = getVisitorId(req, res);
-    await clearHistory(ownerId);
-    res.json({ message: 'Histórico eliminado.' });
-});
-
 app.get('/auth/google', (req, res, next) => {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.redirect('/?auth=unavailable');
     passport.authenticate('google', { scope: ['profile', 'email'], state: true })(req, res, next);
