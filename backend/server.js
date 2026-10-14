@@ -23,6 +23,9 @@ const { createMediaRouter } = require('./routes/media-routes');
 const { createMediaService } = require('./services/media-service');
 const { createDownloadRouter } = require('./routes/download-routes');
 const { createLibraryRouter } = require('./routes/library-routes');
+const { createStreamValidator } = require('./services/stream-validator');
+const { createIptvHealthService } = require('./services/iptv-health-service');
+const { createCatalogSourceHealth } = require('./services/catalog-source-health');
 
 // Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
 // previamente revisado que contém o namespace yt_dlp_plugins.
@@ -214,11 +217,11 @@ function clearAdminCatalogCache() { adminCatalogCache = { expiresAt: 0, value: [
 function publicAdminCatalogItem(item) {
     const url = item.mediaUrl || item.externalUrl;
     const isLive = Boolean(item.isLive || item.contentType === 'channel');
-    return { id: `admin-${item.id}`, title: item.title, url, externalUrl: item.externalUrl, thumbnail: item.thumbnailUrl || null, description: item.description || '', duration: 0, site: item.sourceName || 'Fonte autorizada', uploader: item.feedName || item.country || '', kind: item.contentType === 'channel' ? 'live' : (item.contentType === 'film' ? 'film' : 'series'), metadataOnly: !item.mediaUrl, publicPlayback: Boolean(item.mediaUrl), live: isLive, directStream: Boolean(item.mediaUrl), country: item.country || '', language: item.language || '', categories: item.categories || [], quality: '', availabilityLabel: item.healthLabel || '', sourceId: item.sourceId, feedName: item.feedName || '', streamType: item.streamType, streamAvailable: Boolean(item.mediaUrl && item.healthStatus !== 'offline') };
+    return { id: `admin-${item.id}`, title: item.title, url, externalUrl: item.externalUrl, thumbnail: item.thumbnailUrl || null, description: item.description || '', duration: 0, site: item.sourceName || 'Fonte autorizada', uploader: item.feedName || item.country || '', kind: item.contentType === 'channel' ? 'live' : (item.contentType === 'film' ? 'film' : 'series'), metadataOnly: !item.mediaUrl, publicPlayback: Boolean(item.mediaUrl && item.healthStatus === 'online'), live: isLive, directStream: Boolean(item.mediaUrl && item.healthStatus === 'online'), country: item.country || '', language: item.language || '', categories: item.categories || [], quality: '', availabilityLabel: item.healthLabel || '', sourceId: item.sourceId, feedName: item.feedName || '', streamType: item.streamType, streamAvailable: Boolean(item.mediaUrl && item.healthStatus === 'online') };
 }
 async function fetchApprovedAdminDiscovery(query = '', limit = 18, filters = {}) {
     const items = await loadApprovedAdminCatalog(); const term = String(query || '').trim().toLowerCase();
-    return items.filter(item => (!filters.type || item.contentType === filters.type) && (!filters.category || item.categories.includes(filters.category)) && (!term || `${item.title} ${item.description} ${(item.categories || []).join(' ')} ${item.sourceName}`.toLowerCase().includes(term))).slice(0, Math.min(Number(limit) || 18, 60)).map(publicAdminCatalogItem);
+    return items.filter(item => item.mediaUrl && item.healthStatus === 'online' && ['por', 'eng'].includes(normalizedLanguage(item.language)) && (!filters.type || item.contentType === filters.type) && (!filters.category || item.categories.includes(filters.category)) && (!term || `${item.title} ${item.description} ${(item.categories || []).join(' ')} ${item.sourceName}`.toLowerCase().includes(term))).slice(0, Math.min(Number(limit) || 18, 60)).map(publicAdminCatalogItem);
 }
 
 const jobs = new Map();
@@ -233,11 +236,7 @@ const { fetchInfo, fetchPlaylistInfo, errorCode, translateError } = createMediaS
 
 const SEARCH_PROVIDER_LABELS = { ytsearch: 'YouTube', scsearch: 'SoundCloud', vimeo: 'Vimeo', twitch: 'Twitch' };
 const IPTV_PLAYLIST_SOURCES = [
-    { id: 'iptv-org-general', label: 'IPTV público mundial', url: 'https://iptv-org.github.io/iptv/index.m3u', safety: 'filtered', note: 'Fonte geral; o backend cruza blocklist DMCA/NSFW e metadata do catálogo.' },
-    { id: 'iptv-org-spanish', label: 'Canais em espanhol', url: 'https://iptv-org.github.io/iptv/languages/spa.m3u', safety: 'filtered', note: 'Subset da lista geral por idioma; inclui canais geograficamente limitados.' },
-    { id: 'iptv-org-spain', label: 'Canais de Espanha', url: 'https://iptv-org.github.io/iptv/countries/es.m3u', safety: 'filtered', note: 'Subset da lista geral por país; inclui labels como Geo-blocked e Not 24/7.' },
-    { id: 'm3u-cl-total', label: 'M3U.cl total', url: 'https://www.m3u.cl/lista/total.m3u', safety: 'unverified', note: 'Fonte externa; não entra no catálogo automático sem validação individual.' },
-    { id: 'iptv-org-nsfw', label: 'IPTV público NSFW', url: null, safety: 'blocked', note: 'Não é carregada pelo produto; URL removida da resposta pública porque a auditoria indicou 404.' }
+    { id: 'iptv-org-verified', label: 'IPTV-org · canais PT/EN', url: 'https://iptv-org.github.io/api/', safety: 'filtered', note: 'Todas as categorias, desde que o idioma seja português ou inglês e a stream HTTPS passe validação; DRM, autenticação, bloqueios e headers externos não são contornados.' }
 ];
 const TMDB_API_KEY = String(process.env.TMDB_API_KEY || '').trim();
 const TMDB_LANGUAGE = String(process.env.TMDB_LANGUAGE || 'pt-PT').trim();
@@ -764,6 +763,16 @@ const DISCOVERY_TERMS = {
 };
 const discoverCache = new Map();
 let publicIptvCatalogCache = { expiresAt: 0, items: [] }; let publicIptvCatalogPromise = null;
+const streamValidator = createStreamValidator();
+const iptvHealthService = createIptvHealthService({ probeStream: streamValidator.probeStream, concurrency: Number(process.env.IPTV_VALIDATION_CONCURRENCY || 4), ttlMs: Number(process.env.IPTV_VALIDATION_TTL_MS || 30 * 60 * 1000) });
+const archiveHealthService = createIptvHealthService({ probeStream: streamValidator.probeStream, concurrency: 3, ttlMs: 30 * 60 * 1000 });
+const catalogSourceHealth = createCatalogSourceHealth({ env: process.env });
+function normalizedLanguage(value) {
+    const language = String(value || '').trim().toLowerCase().replace(/_/g, '-');
+    if (/^(por|pt)(?:$|[-\s])/.test(language) || /portugu[eê]s/.test(language)) return 'por';
+    if (/^(eng|en)(?:$|[-\s])/.test(language) || /english|ingl[eê]s/.test(language)) return 'eng';
+    return null;
+}
 function shuffled(items) { return [...items].sort(() => Math.random() - 0.5); }
 async function fetchSpotifyDiscovery(term, limit) {
     if (!process.env.SPOTIFY_ACCESS_TOKEN) return [];
@@ -781,55 +790,90 @@ async function fetchAppleMusicDiscovery(term, limit) {
     return (payload.results?.songs?.data || []).map(item => ({ id: `apple-music-${item.id}`, title: item.attributes?.name || 'Faixa Apple Music', url: item.attributes?.url, externalUrl: item.attributes?.url, thumbnail: item.attributes?.artwork?.url?.replace('{w}', '640').replace('{h}', '640') || null, duration: Math.round(Number(item.attributes?.durationInMillis || 0) / 1000), site: 'Apple Music', uploader: item.attributes?.artistName || null, kind: 'music', metadataOnly: true })).filter(item => item.url);
 }
 async function loadPublicIptvCatalog() {
-    if (publicIptvCatalogCache.expiresAt > Date.now() && publicIptvCatalogCache.items.length) return publicIptvCatalogCache.items;
+    if (publicIptvCatalogCache.expiresAt > Date.now()) return publicIptvCatalogCache.items;
     if (publicIptvCatalogPromise) return publicIptvCatalogPromise;
     publicIptvCatalogPromise = (async () => {
-        const [channelsResponse, streamsResponse, feedsResponse, blocklistResponse, logosResponse] = await Promise.all([fetch('https://iptv-org.github.io/api/channels.json'), fetch('https://iptv-org.github.io/api/streams.json'), fetch('https://iptv-org.github.io/api/feeds.json'), fetch('https://iptv-org.github.io/api/blocklist.json'), fetch('https://iptv-org.github.io/api/logos.json')]);
-        if (!channelsResponse.ok || !streamsResponse.ok || !feedsResponse.ok || !blocklistResponse.ok || !logosResponse.ok) return [];
-        const channels = await channelsResponse.json(); const streams = await streamsResponse.json(); const feeds = await feedsResponse.json(); const blocklist = await blocklistResponse.json(); const logos = await logosResponse.json();
-        const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel));
-        const feedById = new Map(feeds.map(feed => [`${feed.channel}::${feed.id}`, feed]));
-        const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
-        const validStreams = streams.filter(stream => /^https?:\/\//i.test(stream.url || '') && !blocked.has(stream.channel));
-        const streamsByChannel = new Map(); for (const stream of validStreams) { const list = streamsByChannel.get(stream.channel) || []; list.push(stream); streamsByChannel.set(stream.channel, list); }
-        const feedsByChannel = new Map(); for (const feed of feeds) { const list = feedsByChannel.get(feed.channel) || []; list.push(feed); feedsByChannel.set(feed.channel, list); }
-        const items = channels.filter(channel => channel?.id && channel.country && !channel.is_nsfw && !blocked.has(channel.id)).map(channel => {
-            const country = channel.country === 'UK' ? 'GB' : channel.country;
-            const channelFeeds = feedsByChannel.get(channel.id) || [];
-            const channelStreams = streamsByChannel.get(channel.id) || [];
-            const mainFeed = channelFeeds.find(feed => feed.is_main) || channelFeeds[0] || null;
-            const primaryStream = channelStreams.find(stream => stream.feed && mainFeed?.id === stream.feed) || channelStreams[0] || null;
-            const primaryFeed = primaryStream ? (feedById.get(`${channel.id}::${primaryStream.feed}`) || mainFeed) : mainFeed;
-            const languages = primaryFeed?.languages || [];
-            const categories = Array.isArray(channel.categories) && channel.categories.length ? channel.categories : ['general'];
-            const logo = logoByKey.get(`${channel.id}::${primaryStream?.feed || mainFeed?.id || ''}`) || logoByKey.get(`${channel.id}::`) || null;
-            const sourceLabel = primaryStream?.label || (channelStreams.length ? null : 'Sem stream verificada');
-            const streamAlternatives = channelStreams.map(stream => ({ url: stream.url, feed: stream.feed || null, label: stream.label || null, quality: stream.quality || null, referrer: stream.referrer || stream.referrer_url || null, userAgent: stream.user_agent || stream.userAgent || null, requiresExternalPlayer: Boolean(stream.referrer || stream.referrer_url || stream.user_agent || stream.userAgent) }));
-            return { id: `iptv-${channel.id}`, channelId: channel.id, channelName: channel.name || channel.id, title: channel.name || channel.id, altNames: Array.isArray(channel.alt_names) ? channel.alt_names : [], url: primaryStream?.url || null, externalUrl: channel.website || 'https://iptv-org.github.io/', thumbnail: logo, duration: 0, site: 'IPTV público · iptv-org', uploader: country, country, language: languages[0] || null, languages, categories, quality: primaryStream?.quality || null, availabilityLabel: sourceLabel, feedCount: channelFeeds.length, streamCount: channelStreams.length, feeds: channelFeeds.map(feed => ({ id: feed.id, name: feed.name || null, languages: feed.languages || [], alt: feed.alt || null })), streams: streamAlternatives, referrer: primaryStream?.referrer || primaryStream?.referrer_url || null, userAgent: primaryStream?.user_agent || primaryStream?.userAgent || null, requiresExternalPlayer: Boolean(primaryStream?.referrer || primaryStream?.referrer_url || primaryStream?.user_agent || primaryStream?.userAgent), streamAvailable: Boolean(primaryStream?.url), kind: 'live', live: true, directStream: Boolean(primaryStream?.url) };
-        }).filter(item => item.streamAvailable);
-        publicIptvCatalogCache = { expiresAt: Date.now() + 10 * 60 * 1000, items }; return items;
+        const previous = publicIptvCatalogCache.items;
+        try {
+            const urls = ['channels', 'streams', 'feeds', 'blocklist', 'logos'].map(name => `https://iptv-org.github.io/api/${name}.json`);
+            const signal = AbortSignal.timeout(12000);
+            const responses = await Promise.all(urls.map(url => fetch(url, { signal })));
+            if (responses.some(response => !response.ok)) throw new Error(`IPTV-org respondeu HTTP ${responses.find(response => !response.ok)?.status || 'inválido'}`);
+            const [channels, streams, feeds, blocklist, logos] = await Promise.all(responses.map(response => response.json()));
+            if (![channels, streams, feeds, blocklist, logos].every(Array.isArray)) throw new Error('IPTV-org devolveu dados com formato inválido.');
+            const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel));
+            const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
+            const streamsByChannel = new Map(); for (const stream of streams) { const list = streamsByChannel.get(stream.channel) || []; list.push(stream); streamsByChannel.set(stream.channel, list); }
+            const feedsByChannel = new Map(); for (const feed of feeds) { const list = feedsByChannel.get(feed.channel) || []; list.push(feed); feedsByChannel.set(feed.channel, list); }
+            const items = channels.filter(channel => channel?.id && channel.country && !channel.is_nsfw && !blocked.has(channel.id)).map(channel => {
+                const country = channel.country === 'UK' ? 'GB' : channel.country;
+                const channelFeeds = feedsByChannel.get(channel.id) || [];
+                const supportedFeeds = channelFeeds.filter(feed => (feed.languages || []).some(language => normalizedLanguage(language)));
+                const supportedFeedIds = new Set(supportedFeeds.map(feed => feed.id));
+                const channelStreams = (streamsByChannel.get(channel.id) || []).filter(stream => /^https?:\/\//i.test(stream.url || '') && !blocked.has(stream.channel) && supportedFeedIds.has(stream.feed));
+                const categories = (Array.isArray(channel.categories) && channel.categories.length ? channel.categories : ['general']).map(value => String(value).toLowerCase());
+                if (!supportedFeeds.length || !channelStreams.length) return null;
+                const mainFeed = supportedFeeds.find(feed => feed.is_main) || supportedFeeds[0];
+                const primaryStream = channelStreams.find(stream => stream.feed === mainFeed.id) || channelStreams[0];
+                const primaryFeed = supportedFeeds.find(feed => feed.id === primaryStream.feed) || mainFeed;
+                const languages = [...new Set((primaryFeed.languages || []).map(normalizedLanguage).filter(Boolean))];
+                const logo = logoByKey.get(`${channel.id}::${primaryStream.feed || mainFeed.id}`) || logoByKey.get(`${channel.id}::`) || null;
+                const streamAlternatives = channelStreams.map(stream => ({ url: stream.url, feed: stream.feed || null, label: stream.label || null, quality: stream.quality || null, referrer: stream.referrer || stream.referrer_url || null, userAgent: stream.user_agent || stream.userAgent || null, requiresExternalPlayer: Boolean(stream.referrer || stream.referrer_url || stream.user_agent || stream.userAgent) }));
+                return { id: `iptv-${channel.id}`, channelId: channel.id, channelName: channel.name || channel.id, title: channel.name || channel.id, altNames: Array.isArray(channel.alt_names) ? channel.alt_names : [], url: primaryStream.url, externalUrl: channel.website || 'https://iptv-org.github.io/', thumbnail: logo, duration: 0, site: 'IPTV público · iptv-org', uploader: country, country, language: languages[0] || null, languages, categories, quality: primaryStream.quality || null, availabilityLabel: 'A aguardar verificação', feedCount: supportedFeeds.length, streamCount: streamAlternatives.length, feeds: supportedFeeds.map(feed => ({ id: feed.id, name: feed.name || null, languages: feed.languages || [], alt: feed.alt || null })), streams: streamAlternatives, referrer: primaryStream.referrer || primaryStream.referrer_url || null, userAgent: primaryStream.user_agent || primaryStream.userAgent || null, requiresExternalPlayer: Boolean(primaryStream.referrer || primaryStream.referrer_url || primaryStream.user_agent || primaryStream.userAgent), streamAvailable: true, kind: 'live', live: true, directStream: true };
+            }).filter(Boolean);
+            publicIptvCatalogCache = { expiresAt: Date.now() + 10 * 60 * 1000, items };
+            return items;
+        } catch (error) {
+            if (previous.length) { publicIptvCatalogCache = { expiresAt: Date.now() + 30000, items: previous }; return previous; }
+            throw error;
+        }
     })();
     try { return await publicIptvCatalogPromise; } finally { publicIptvCatalogPromise = null; }
 }
 function filterPublicIptvCatalog(items, filters = {}) {
     const query = String(filters.query || '').trim().toLowerCase();
-    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!filters.language || item.languages.includes(String(filters.language).toLowerCase())) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.altNames || []).join(' ')} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => Number(b.streamAvailable) - Number(a.streamAvailable) || `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
+    const language = normalizedLanguage(filters.language);
+    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!language || item.languages.includes(language)) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.altNames || []).join(' ')} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
+}
+async function getValidatedPublicIptvPage(limit, filters = {}) {
+    const candidates = filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters);
+    const offset = Math.max(0, Number(filters.offset) || 0);
+    const pageLimit = Math.max(1, Math.min(60, Number(limit) || 12));
+    let snapshot = iptvHealthService.snapshot(candidates, { scheduleValidation: false });
+    if (filters.scheduleValidation !== false) {
+        if (snapshot.pendingCount === 0) {
+            const batchSize = Math.max(1, Math.min(pageLimit, Number(filters.batchSize) || Number(process.env.IPTV_VALIDATION_BATCH_SIZE || 12)));
+            const unverified = candidates.filter(item => !iptvHealthService.statusOf(item) && !iptvHealthService.isPending(item)).slice(0, batchSize);
+            iptvHealthService.schedule(unverified);
+            snapshot = iptvHealthService.snapshot(candidates, { scheduleValidation: false });
+        }
+    }
+    const results = snapshot.items.slice(offset, offset + pageLimit);
+    const validation = candidates.slice(offset, offset + pageLimit).map(item => {
+        const status = iptvHealthService.statusOf(item);
+        const state = status?.status || (iptvHealthService.isPending(item) ? 'checking' : 'unverified');
+        return { channelId: item.channelId, channelName: item.channelName, language: item.language, categories: item.categories, status: state, label: status?.label || (state === 'checking' ? 'Verificação em curso' : 'A aguardar validação'), checkedAt: status?.checkedAt ? new Date(status.checkedAt).toISOString() : null, latencyMs: status?.latencyMs ?? null };
+    });
+    return { results, validation, total: snapshot.items.length, candidateCount: snapshot.totalCandidates, pendingValidationCount: snapshot.pendingCount, remainingValidationCount: snapshot.unknownCount, excludedCount: snapshot.failedCount, offset, limit: pageLimit, hasMore: offset + results.length < snapshot.items.length || snapshot.pendingCount > 0 || snapshot.unknownCount > 0 };
 }
 async function fetchPublicIptvDiscovery(limit, filters = {}) {
-    const items = filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters);
-    const offset = Math.max(0, Number(filters.offset) || 0);
-    return items.slice(offset, offset + Math.max(1, limit));
+    return (await getValidatedPublicIptvPage(limit, { ...filters, scheduleValidation: false })).results;
 }
 async function fetchPublicIptvCount(filters = {}) {
-    return filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters).length;
+    return (await getValidatedPublicIptvPage(60, { ...filters, scheduleValidation: false })).total;
 }
 async function fetchArchiveDiscovery(term, limit) {
     const query = encodeURIComponent(`mediatype:movies AND title:(${term})`);
-    const response = await fetch(`https://archive.org/advancedsearch.php?q=${query}&fl[]=identifier&fl[]=title&rows=${Math.min(limit, 8)}&output=json`);
+    const signal = AbortSignal.timeout(8000);
+    const response = await fetch(`https://archive.org/advancedsearch.php?q=${query}&fl[]=identifier&fl[]=title&rows=${Math.min(limit, 4)}&output=json`, { signal });
     if (!response.ok) return [];
     const docs = ((await response.json()).response?.docs || []).filter(doc => !/you[-_ ]?tube|youtubedl/i.test(`${doc.identifier || ''} ${doc.title || ''}`));
-    const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', kind: 'film', publicPlayback: true }; } catch { return null; } }));
-    return items.filter(Boolean);
+    const items = await Promise.all(docs.map(async doc => { try { const metadataResponse = await fetch(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`, { signal }); if (!metadataResponse.ok) return null; const metadata = await metadataResponse.json(); const rawLanguages = Array.isArray(metadata.metadata?.language) ? metadata.metadata.language : [metadata.metadata?.language || metadata.metadata?.languagecode || '']; const languages = [...new Set(rawLanguages.map(normalizedLanguage).filter(Boolean))]; if (!languages.length) return null; const file = (metadata.files || []).find(entry => /\.(mp4|webm|ogv|m4v)$/i.test(entry.name || '') && !entry.private); if (!file) return null; return { id: `archive-${doc.identifier}`, title: doc.title || doc.identifier, url: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(file.name)}`, externalUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, thumbnail: `https://archive.org/services/img/${encodeURIComponent(doc.identifier)}`, duration: 0, site: 'Internet Archive', uploader: 'Catálogo público', language: languages[0], languages, kind: 'film', publicPlayback: true }; } catch { return null; } }));
+    const candidates = items.filter(Boolean);
+    if (!candidates.length) return [];
+    archiveHealthService.snapshot(candidates);
+    await archiveHealthService.waitForIdle({ timeoutMs: 12000 }).catch(() => {});
+    return archiveHealthService.snapshot(candidates, { scheduleValidation: false }).items;
 }
 async function fetchTmdbDiscovery(kind, limit, query = '') {
     if (!TMDB_API_KEY && !TMDB_BEARER) return [];
@@ -860,15 +904,11 @@ async function fetchTvmazeDiscovery(query = '', limit = 12) {
     return rows.sort((a, b) => Number(b.rating?.average || 0) - Number(a.rating?.average || 0)).slice(0, Math.min(limit, 20)).map(item => ({ id: `tvmaze-${item.id}`, title: item.name || 'Série TVmaze', url: item.url || `https://www.tvmaze.com/shows/${item.id}`, externalUrl: item.url || `https://www.tvmaze.com/shows/${item.id}`, thumbnail: item.image?.original || item.image?.medium || null, duration: 0, site: 'TVmaze', uploader: item.premiered ? String(item.premiered).slice(0, 4) : '', description: String(item.summary || '').replace(/<[^>]+>/g, '').slice(0, 500), kind: 'series', metadataOnly: true, rating: Number(item.rating?.average || 0), genres: item.genres || [], publicPlayback: false }));
 }
 async function fetchLegalEntertainmentDiscovery(query = '', limit = 18) {
-    const [archive, tmdbMovies, tmdbSeries, anime, tvmaze, custom] = await Promise.all([
-        fetchArchiveDiscovery(query || 'film', Math.ceil(limit / 3)).catch(() => []),
-        fetchTmdbDiscovery('movie', Math.ceil(limit / 3), query).catch(() => []),
-        fetchTmdbDiscovery('tv', Math.ceil(limit / 3), query).catch(() => []),
-        fetchAniListDiscovery(query, Math.ceil(limit / 3)).catch(() => []),
-        fetchTvmazeDiscovery(query, Math.ceil(limit / 3)).catch(() => []),
-        fetchApprovedAdminDiscovery(query, Math.ceil(limit / 3)).catch(() => [])
+    const [archive, custom] = await Promise.all([
+        fetchArchiveDiscovery(query || 'film', Math.min(limit, 4)).catch(() => []),
+        fetchApprovedAdminDiscovery(query, limit).catch(() => [])
     ]);
-    return uniqueMedia(interleaveMedia([custom, archive, tmdbMovies, tmdbSeries, anime, tvmaze]), limit);
+    return uniqueMedia(interleaveMedia([custom, archive]).filter(item => item.publicPlayback && item.streamAvailable && !item.metadataOnly), limit);
 }
 const searchDiscovery = (...args) => searchMedia(...args).then(payload => payload.results || []).catch(() => []);
 const entertainmentHomeCache = { expiresAt: 0, value: null };
@@ -886,10 +926,10 @@ async function buildEntertainmentHome() {
     const jobs = [
         ['featured', 'Em destaque no Cine', Promise.all([fetchLegalEntertainmentDiscovery('', 8).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'entertainment' }).catch(() => [])])],
         ['custom', 'Fontes autorizadas', fetchApprovedAdminDiscovery('', 18).catch(() => [])],
-        ['films', 'Filmes públicos e populares', Promise.all([fetchArchiveDiscovery('film', 10).catch(() => []), fetchTmdbDiscovery('movie', 10).catch(() => [])]).then(groups => interleaveMedia(groups))],
-        ['series', 'Séries populares e canais de séries', Promise.all([fetchTmdbDiscovery('tv', 10).catch(() => []), fetchTvmazeDiscovery('', 10).catch(() => []), fetchPublicIptvDiscovery(10, { category: 'series' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
-        ['anime', 'Anime mais vistos', Promise.all([fetchAniListDiscovery('', 12).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'animation' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
-        ['dorama', 'Doramas e drama asiático', Promise.all([fetchTmdbDiscovery('tv', 8, 'dorama').catch(() => []), fetchTvmazeDiscovery('dorama', 8).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['films', 'Filmes reproduzíveis', Promise.all([fetchArchiveDiscovery('film', 4).catch(() => []), fetchApprovedAdminDiscovery('', 8, { type: 'film' }).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'movies' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['series', 'Séries reproduzíveis', Promise.all([fetchApprovedAdminDiscovery('', 8, { type: 'series' }).catch(() => []), fetchPublicIptvDiscovery(8, { category: 'series' }).catch(() => [])]).then(groups => interleaveMedia(groups))],
+        ['anime', 'Canais de animação', fetchPublicIptvDiscovery(8, { category: 'animation' }).catch(() => [])],
+        ['dorama', 'Doramas e drama asiático', fetchApprovedAdminDiscovery('', 8, { category: 'dorama' }).catch(() => [])],
         ['documentary', 'Documentários e factual', fetchArchiveDiscovery('documentary', 10).catch(() => [])],
         ['news', 'Notícias ao vivo', fetchPublicIptvDiscovery(14, { category: 'news' }).catch(() => [])],
         ['live', 'Canais ao vivo públicos', fetchPublicIptvDiscovery(18, { category: 'entertainment' }).catch(() => [])],
@@ -1152,8 +1192,12 @@ app.post('/api/admin/import-playlist', requireAdmin, requireAdminCsrf, async (re
         clearAdminCatalogCache(); res.status(201).json({ imported, skipped, skippedReasons, found: rows.length, truncated: content.split(/\r?\n/).filter(line => /^https?:\/\//i.test(line.trim())).length > rows.length });
     } catch (error) { res.status(400).json({ error: error.message }); }
 });
-app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Apenas fontes filtered entram no catálogo; unverified requer validação individual; blocked não é carregada.' }));
+app.get('/api/iptv/playlists', apiLimiter, (req, res) => res.json({ sources: IPTV_PLAYLIST_SOURCES, policy: 'Só canais em português ou inglês de qualquer categoria aparecem após uma validação de stream HTTPS; fontes que exigem DRM, autenticação ou headers externos não são contornadas.' }));
 app.get('/api/entertainment/sources', apiLimiter, async (req, res) => { try { const rows = await dbAll("SELECT id,name,base_url,kind FROM admin_sources WHERE enabled=1 ORDER BY name LIMIT 100"); const sources = [...ENTERTAINMENT_CATALOG_SOURCES, ...rows.map(row => ({ id: `admin-${row.id}`, label: row.name, mode: row.kind, configured: true, policy: 'Fonte administrada, aprovada e allowlisted pelo proprietário do TubeMateX.', url: row.base_url }))]; res.json({ sources, policy: 'Metadata não concede direitos de reprodução. O TubeMateX só reproduz ou descarrega media pública/autorizada fornecida pela origem.' }); } catch { res.json({ sources: ENTERTAINMENT_CATALOG_SOURCES, policy: 'Metadata não concede direitos de reprodução.' }); } });
+app.get('/api/entertainment/sources/health', apiLimiter, async (_req, res) => {
+    try { res.json({ sources: await catalogSourceHealth.checkAll(), policy: 'Estado mede reachability da API, não direitos de reprodução, disponibilidade regional ou compatibilidade de cada media.' }); }
+    catch { res.status(502).json({ error: 'Não foi possível verificar as APIs de catálogo agora.' }); }
+});
 app.get('/api/entertainment/home', apiLimiter, async (req, res) => {
     try {
         const home = await buildEntertainmentHome();
@@ -1168,8 +1212,8 @@ app.get('/api/entertainment/search', apiLimiter, async (req, res) => {
     if (query.length < 2) return res.status(400).json({ error: 'Indica pelo menos 2 caracteres para pesquisar.' });
     try {
         const [catalog, channels, custom] = await Promise.all([fetchLegalEntertainmentDiscovery(query, 24), fetchPublicIptvDiscovery(24, { query }).catch(() => []), fetchApprovedAdminDiscovery(query, 24).catch(() => [])]);
-        const results = uniqueMedia([...custom, ...catalog, ...channels], 36);
-        res.json({ query, results, sources: ENTERTAINMENT_CATALOG_SOURCES.filter(source => source.configured !== false).map(source => source.label), note: 'Resultados de metadata abrem a fonte oficial; apenas media pública compatível oferece reprodução ou download.' });
+        const results = uniqueMedia([...custom, ...catalog, ...channels].filter(item => item.publicPlayback && item.streamAvailable && !item.metadataOnly), 36);
+        res.json({ query, results, sources: ['IPTV-org (streams verificadas)', 'Internet Archive (media pública validada)', 'Fontes administradas e aprovadas'], note: 'Só são devolvidos streams validados como acessíveis; DRM, autenticação e bloqueios geográficos não são contornados.' });
     } catch (error) { res.status(502).json({ error: 'Não foi possível pesquisar o catálogo Cine agora.', errorCode: errorCode(error) }); }
 });
 app.get('/api/discover', apiLimiter, async (req, res) => {
@@ -1180,8 +1224,8 @@ app.get('/api/discover', apiLimiter, async (req, res) => {
     catch (error) { console.error('[discover]', error.message); res.status(502).json({ error: 'Não foi possível carregar a descoberta agora.', errorCode: errorCode(error), sources: sourceStatus }); }
 });
 app.get('/api/iptv/channels', apiLimiter, async (req, res) => {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 48, 1), 60); const offset = Math.max(Number(req.query.offset) || 0, 0); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null };
-    try { const [results, total] = await Promise.all([fetchPublicIptvDiscovery(limit, { ...filters, offset }), fetchPublicIptvCount(filters)]); res.json({ results, filters, offset, limit, total, hasMore: offset + results.length < total, source: 'iptv-org', note: 'Canais submetidos publicamente; a disponibilidade e os direitos devem ser verificados no momento da reprodução.' }); }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 48, 1), 60); const offset = Math.max(Number(req.query.offset) || 0, 0); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null, batchSize: Math.min(Math.max(Number(req.query.batchSize) || 12, 1), 60) };
+    try { const page = await getValidatedPublicIptvPage(limit, { ...filters, offset }); res.json({ ...page, filters, source: 'iptv-org', note: 'Lista apenas streams HTTPS acessíveis e estruturalmente válidas na última verificação; bloqueios de região, autenticação e DRM não são contornados.' }); }
     catch (error) { console.error('[iptv]', error.message); res.status(502).json({ error: 'Não foi possível consultar os canais IPTV públicos agora.', errorCode: errorCode(error) }); }
 });
 app.get('/api/iptv/meta', apiLimiter, async (req, res) => {

@@ -78,6 +78,8 @@
     let hls = null;
     let hlsRecoveryAttempts = 0;
     let dash = null;
+    let playbackGeneration = 0;
+    let playbackAbortController = null;
     const PROGRESS_KEY = 'tubematex-entertainment-progress';
     const LIST_KEY = 'tubematex-entertainment-list';
 
@@ -167,7 +169,7 @@
       if (seconds > 5 && (!video.duration || seconds < video.duration - 3)) current.unshift({ ...safeItem(currentItem), progressSeconds: Math.floor(seconds), durationSeconds: Number(video.duration || currentItem.duration || 0), updatedAt: Date.now() });
       saveJson(PROGRESS_KEY, current.slice(0, 30)); renderPersonal();
     }
-    function showPlayerError(message) { if (videoLoading) videoLoading.hidden = true; if (videoError) { videoError.innerHTML = `<span>${esc(message)}</span><button type="button" data-player-retry>Tentar novamente</button>`; videoError.hidden = false; videoError.querySelector('[data-player-retry]')?.addEventListener('click', () => currentItem && playItem(currentItem), { once: true }); } if (videoPlayToggle) videoPlayToggle.textContent = '▶'; notify(message, 'error'); }
+    function showPlayerError(message, generation = playbackGeneration) { if (generation !== playbackGeneration) return; if (videoLoading) videoLoading.hidden = true; if (videoError) { videoError.innerHTML = `<span>${esc(message)}</span><button type="button" data-player-retry>Tentar novamente</button>`; videoError.hidden = false; videoError.querySelector('[data-player-retry]')?.addEventListener('click', () => currentItem && playItem(currentItem), { once: true }); } if (videoPlayToggle) videoPlayToggle.textContent = '▶'; notify(message, 'error'); }
     function hlsFailureMessage(data, item) { const statusCode = Number(data?.response?.code || data?.networkDetails?.status || 0); if (/geo-blocked/i.test(item?.availabilityLabel || '') || statusCode === 401 || statusCode === 403) return 'Este canal está bloqueado para esta região ou exige headers da fonte. Usa VLC, mpv ou abre a fonte original.'; if (statusCode === 404 || statusCode === 410) return 'O manifesto ou os segmentos deste canal já não estão disponíveis. Escolhe outro canal.'; if (data?.type === 'mediaError') return 'O codec deste canal não é compatível com o browser. Tenta VLC ou mpv.'; return 'A stream live está indisponível ou não pôde ser descodificada. Tenta a fonte externa.'; }
     function resetUserActivity() {
       if (!ytPlayerStage) return;
@@ -184,8 +186,12 @@
 
     async function playItem(item) {
       const value = register(item); if (!value) return;
-      if (value.metadataOnly || (value.live && !value.url)) { if (value.externalUrl) window.open(value.externalUrl, '_blank', 'noopener'); else notify('Este item não tem uma fonte externa válida.', 'error'); return; }
+      if (value.metadataOnly || (value.live && !value.url)) { closeVideo(); if (value.externalUrl) window.open(value.externalUrl, '_blank', 'noopener'); else notify('Este item não tem uma fonte externa válida.', 'error'); return; }
       if (!video) return;
+      const sameItem = Boolean(currentItem && keyOf(currentItem) === keyOf(value));
+      const generation = ++playbackGeneration;
+      playbackAbortController?.abort(); playbackAbortController = null;
+      if (!sameItem) failedStreamUrls = new Set();
       try {
         video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); currentItem = value; currentStreamUrl = ''; if (videoError) videoError.hidden = true; if (videoLoading) videoLoading.hidden = false; videoDrawer.hidden = false; $('#videoTitle').textContent = value.title; $('#videoMeta').textContent = `${value.site}${value.live ? ' · Ao vivo' : ''}${value.availabilityLabel ? ` · ${value.availabilityLabel}` : ''}`; if (videoPlayerNote) videoPlayerNote.textContent = value.live ? 'Player interno · canal live HLS quando disponível' : 'Player interno · stream VOD fornecida pela fonte'; notify('A preparar reprodução…');
         if (ytLiveBadge) ytLiveBadge.hidden = !value.live;
@@ -200,29 +206,78 @@
           seenUrls.add(stream.url);
           return true;
         });
-        if (value.live && (!streamCandidates.length || /geo-blocked/i.test(value.availabilityLabel || ''))) { showPlayerError(/geo-blocked/i.test(value.availabilityLabel || '') ? 'Este canal está marcado como bloqueado para esta região. Usa VLC, mpv ou a fonte original.' : 'As fontes deste canal exigem headers que o browser não pode enviar. Usa VLC, mpv ou a fonte original.'); return; }
+        if (value.live && (!streamCandidates.length || /geo-blocked/i.test(value.availabilityLabel || ''))) { showPlayerError(/geo-blocked/i.test(value.availabilityLabel || '') ? 'Este canal está marcado como bloqueado para esta região. Usa VLC, mpv ou a fonte original.' : 'As fontes deste canal exigem headers que o browser não pode enviar. Usa VLC, mpv ou a fonte original.', generation); return; }
         const selected = streamCandidates[0] || value;
         if (videoQuality) { videoQuality.innerHTML = '<option value="-1">Auto</option>'; videoQuality.hidden = true; }
         if (videoPlaybackRate) videoPlaybackRate.value = '1';
         if (videoPip) videoPip.hidden = !document.pictureInPictureEnabled;
         let payload = value.directStream || value.live ? { url: selected.url, mimeType: selected.mimeType || value.mimeType || 'application/vnd.apple.mpegurl' } : null;
-        if (!payload) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(value.url)}&type=video`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); }
+        if (!payload) {
+          const controller = new AbortController(); playbackAbortController = controller;
+          const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+          try {
+            const response = await fetch(`/api/media/stream?url=${encodeURIComponent(value.url)}&type=video`, { signal: controller.signal });
+            payload = await response.json().catch(() => ({}));
+            if (generation !== playbackGeneration) return;
+            if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.');
+          } finally { window.clearTimeout(timeoutId); if (playbackAbortController === controller) playbackAbortController = null; }
+        }
+        if (generation !== playbackGeneration) return;
         if (!payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.');
         currentStreamUrl = payload.url;
         if (value.live && currentStreamUrl !== value.url && videoPlayerNote) videoPlayerNote.textContent = `Player interno · fonte alternativa${selected.label ? ` · ${selected.label}` : ''}`;
         const isHls = /\.m3u8(?:$|\?)/i.test(payload.url);
         const isDash = /\.mpd(?:$|\?)/i.test(payload.url);
         if (isDash && videoPlayerNote) videoPlayerNote.textContent = 'Player interno · MPEG-DASH';
-        if (isDash && window.dashjs?.MediaPlayer) { dash = window.dashjs.MediaPlayer().create(); dash.initialize(video, payload.url, false); dash.on(window.dashjs.MediaPlayer.events.ERROR, data => { if (data?.error) { failedStreamUrls.add(currentStreamUrl); dash.reset(); dash = null; const next = (value.streams || []).some(stream => stream.url && !failedStreamUrls.has(stream.url) && !stream.requiresExternalPlayer); if (next) { notify('A fonte DASH falhou; a tentar uma alternativa…', ''); playItem(value); } else showPlayerError('Este stream MPEG-DASH não pôde ser reproduzido. Tenta VLC, mpv ou a fonte original.'); } }); }
-        else if (isHls && window.Hls?.isSupported()) { hlsRecoveryAttempts = 0; hls = new window.Hls({ enableWorker: true, lowLatencyMode: false, maxBufferLength: 30, backBufferLength: 30, manifestLoadingMaxRetry: 3, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 5, manifestLoadingRetryDelay: 1000, levelLoadingRetryDelay: 1000, fragLoadingRetryDelay: 1000 }); hls.loadSource(payload.url); hls.attachMedia(video); hls.on(window.Hls.Events.MANIFEST_PARSED, (_event, data) => { hlsRecoveryAttempts = 0; if (videoLoading) videoLoading.hidden = true; if (videoQuality && Array.isArray(data?.levels) && data.levels.length > 1) { videoQuality.innerHTML = '<option value="-1">Auto</option>' + data.levels.map((level, index) => `<option value="${index}">${level.height ? `${level.height}p` : `${Math.round(Number(level.bitrate || 0) / 1000)} kbps`}</option>`).join(''); videoQuality.hidden = false; } }); hls.on(window.Hls.Events.ERROR, (_event, data) => { if (!data?.fatal) return; if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR && hlsRecoveryAttempts < 3) { hlsRecoveryAttempts += 1; notify(`A reconectar ao stream… (${hlsRecoveryAttempts}/3)`, ''); window.setTimeout(() => hls?.startLoad(-1), 1000 * hlsRecoveryAttempts); return; } if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR && hlsRecoveryAttempts < 3) { hlsRecoveryAttempts += 1; notify(`A recuperar o media… (${hlsRecoveryAttempts}/3)`, ''); hls.recoverMediaError(); return; } failedStreamUrls.add(currentStreamUrl); hls.destroy(); hls = null; if ((value.streams || []).some(stream => stream.url && !failedStreamUrls.has(stream.url) && !stream.requiresExternalPlayer)) { notify('A fonte falhou; a tentar uma alternativa…', ''); playItem(value); } else showPlayerError(hlsFailureMessage(data, value)); }); } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
+        video.addEventListener('loadedmetadata', () => {
+          if (generation !== playbackGeneration) return;
+          if (videoDuration) videoDuration.textContent = playerTime(video.duration);
+          if (videoLoading) videoLoading.hidden = true;
+          const saved = progressItems().find(entry => keyOf(entry) === keyOf(value));
+          if (saved?.progressSeconds && Number.isFinite(video.duration)) { try { video.currentTime = Math.min(saved.progressSeconds, Math.max(0, video.duration - 3)); } catch {} }
+          notify('Reprodução preparada.', 'success');
+        }, { once: true });
+        if (isDash && window.dashjs?.MediaPlayer) {
+          const player = window.dashjs.MediaPlayer().create(); dash = player; player.initialize(video, payload.url, false);
+          player.on(window.dashjs.MediaPlayer.events.ERROR, data => {
+            if (generation !== playbackGeneration || !data?.error) return;
+            failedStreamUrls.add(currentStreamUrl); player.reset(); if (dash === player) dash = null;
+            const next = (value.streams || []).some(stream => stream.url && !failedStreamUrls.has(stream.url) && !stream.requiresExternalPlayer);
+            if (next) { notify('A fonte DASH falhou; a tentar uma alternativa…', ''); playItem(value); }
+            else showPlayerError('Este stream MPEG-DASH não pôde ser reproduzido. Tenta VLC, mpv ou a fonte original.', generation);
+          });
+        } else if (isHls && window.Hls?.isSupported()) {
+          hlsRecoveryAttempts = 0;
+          const player = new window.Hls({ enableWorker: true, lowLatencyMode: false, capLevelToPlayerSize: true, maxBufferLength: 20, maxMaxBufferLength: 45, maxBufferSize: 50 * 1000 * 1000, backBufferLength: 10, manifestLoadingMaxRetry: 3, levelLoadingMaxRetry: 3, fragLoadingMaxRetry: 5, manifestLoadingRetryDelay: 1000, levelLoadingRetryDelay: 1000, fragLoadingRetryDelay: 1000 });
+          hls = player; player.loadSource(payload.url); player.attachMedia(video);
+          player.on(window.Hls.Events.MANIFEST_PARSED, (_event, data) => {
+            if (generation !== playbackGeneration) return;
+            hlsRecoveryAttempts = 0;
+            if (videoQuality && Array.isArray(data?.levels) && data.levels.length > 1) { videoQuality.innerHTML = '<option value="-1">Auto</option>' + data.levels.map((level, index) => `<option value="${index}">${level.height ? `${level.height}p` : `${Math.round(Number(level.bitrate || 0) / 1000)} kbps`}</option>`).join(''); videoQuality.hidden = false; }
+          });
+          player.on(window.Hls.Events.ERROR, (_event, data) => {
+            if (generation !== playbackGeneration || !data?.fatal) return;
+            if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR && hlsRecoveryAttempts < 3) { hlsRecoveryAttempts += 1; const attempt = hlsRecoveryAttempts; notify(`A reconectar ao stream… (${attempt}/3)`, ''); window.setTimeout(() => { if (generation === playbackGeneration && hls === player) player.startLoad(-1); }, 1000 * attempt); return; }
+            if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR && hlsRecoveryAttempts < 3) { hlsRecoveryAttempts += 1; notify(`A recuperar o media… (${hlsRecoveryAttempts}/3)`, ''); player.recoverMediaError(); return; }
+            failedStreamUrls.add(currentStreamUrl); player.destroy(); if (hls === player) hls = null;
+            if ((value.streams || []).some(stream => stream.url && !failedStreamUrls.has(stream.url) && !stream.requiresExternalPlayer)) { notify('A fonte falhou; a tentar uma alternativa…', ''); playItem(value); }
+            else showPlayerError(hlsFailureMessage(data, value), generation);
+          });
+        } else if (isHls && video.canPlayType('application/vnd.apple.mpegurl')) video.src = payload.url;
         else if (!isHls && !isDash) video.src = payload.url;
         else if (isDash) throw new Error('Este browser não conseguiu carregar o player MPEG-DASH. Tenta VLC, mpv ou a fonte original.');
         else throw new Error('Este browser não suporta a reprodução HLS deste canal.');
-        if (!hls && !dash) video.load(); video.addEventListener('loadedmetadata', () => { if (videoLoading) videoLoading.hidden = true; const saved = progressItems().find(entry => keyOf(entry) === keyOf(value)); if (saved?.progressSeconds && Number.isFinite(video.duration)) { try { video.currentTime = Math.min(saved.progressSeconds, Math.max(0, video.duration - 3)); } catch {} } }, { once: true }); notify('Reprodução pronta.', 'success');
+        if (!hls && !dash) video.load();
+        notify('A ligar à fonte de vídeo…');
         if (root.dataset.autoplay === 'true') await video.play().catch(() => {});
-      } catch (error) { if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); showPlayerError(error.message || 'Não foi possível reproduzir este item.'); }
+      } catch (error) {
+        if (generation !== playbackGeneration) return;
+        if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; }
+        video.removeAttribute('src'); video.load();
+        showPlayerError(error.name === 'AbortError' ? 'A fonte demorou demasiado a responder. Tenta novamente ou escolhe outra.' : (error.message || 'Não foi possível reproduzir este item.'), generation);
+      }
     }
-    function closeVideo() { failedStreamUrls = new Set(); hlsRecoveryAttempts = 0; if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
+    function closeVideo() { playbackGeneration += 1; playbackAbortController?.abort(); playbackAbortController = null; failedStreamUrls = new Set(); hlsRecoveryAttempts = 0; if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; }
     function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured' || row.id === 'documentary'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), sports: homePayload.rows.filter(row => row.id === 'sports'), portugal: homePayload.rows.filter(row => row.id === 'portugal'), brands: homePayload.rows.filter(row => row.id === 'brands'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
     function activateView(view) { activeView = view; root.dataset.entView = view; const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; document.querySelectorAll('.ent-nav-link').forEach(button => { const selected = button.dataset.view === view; button.classList.toggle('active', selected); button.setAttribute('aria-pressed', String(selected)); }); if (view === 'live') { renderRows(rowForView(view)); renderPersonal(); $('#iptvSection')?.scrollIntoView({ behavior, block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); if (view === 'my-list' && !listItems().length) { if (rows) rows.innerHTML = empty('A tua lista está vazia. Explora o catálogo e clica em ＋ para guardar filmes, séries e canais.'); } window.scrollTo({ top: 0, behavior }); } }
     async function loadHome() {
@@ -233,10 +288,10 @@
       const results = $('#iptvResults'); const statusLine = $('#iptvStatus');
       if (!results || !statusLine) return;
       const requestId = ++iptvRequestSequence;
-      const query = $('#iptvQuery')?.value.trim() || ''; const country = $('#iptvCountry')?.value || ''; const language = $('#iptvLanguage')?.value || ''; const category = $('#iptvCategory')?.value || '';
+      const query = $('#iptvQuery')?.value.trim() || ''; const country = $('#iptvCountry')?.value || ''; const selectedLanguage = $('#iptvLanguage')?.value || ''; const language = ['por', 'eng'].includes(selectedLanguage) ? selectedLanguage : ''; const category = $('#iptvCategory')?.value || '';
       const loadButton = $('#loadIptv'); const moreButton = $('#loadMoreIptv');
       if (!append) { iptvOffset = 0; iptvTotal = 0; results.innerHTML = '<div class="ent-loading-state">Consultando canais públicos…</div>'; }
-      statusLine.textContent = append ? 'Carregando mais canais…' : 'Consultando catálogo IPTV…';
+      statusLine.textContent = append ? 'Carregando mais canais verificados…' : 'Consultando e validando streams…';
       results.setAttribute('aria-busy', 'true');
       if (loadButton) loadButton.disabled = true;
       if (moreButton) moreButton.disabled = true;
@@ -245,15 +300,21 @@
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Canais indisponíveis.');
         if (requestId !== iptvRequestSequence) return;
+        const pending = Number(payload.pendingValidationCount || 0);
+        const remaining = Number(payload.remainingValidationCount || 0);
         const items = (payload.results || []).map(register);
         if (!append) results.innerHTML = '';
-        if (!items.length && !append) results.innerHTML = empty('Nenhum canal aprovado corresponde aos filtros.');
-        else results.insertAdjacentHTML('beforeend', items.map(card).join(''));
+        if (items.length) results.insertAdjacentHTML('beforeend', items.map(card).join(''));
+        else if (!append && pending > 0) results.innerHTML = `<div class="ent-loading-state">A validar ${pending} fontes. Só serão mostrados canais com stream acessível e compatível.</div>`;
+        else if (!append && remaining > 0) results.innerHTML = `<div class="ent-loading-state">Esta tranche não encontrou streams reproduzíveis. Ainda há ${remaining} canais por validar; usa o botão abaixo para continuar.</div>`;
+        else if (!append) results.innerHTML = empty(Number(payload.candidateCount) ? 'Nenhuma stream passou a validação. Fontes protegidas, inacessíveis ou incompatíveis foram excluídas.' : 'Nenhum canal em português ou inglês corresponde aos filtros.');
         iptvTotal = Number(payload.total || 0);
         iptvOffset += items.length;
-        statusLine.textContent = `${iptvOffset} de ${iptvTotal} canais públicos · origem iptv-org`;
-        if (moreButton) { moreButton.hidden = !Boolean(payload.hasMore); moreButton.textContent = `Carregar mais canais (${Math.min(60, Math.max(0, iptvTotal - iptvOffset))} disponíveis)`; }
-        notify(`${iptvOffset} canais IPTV públicos carregados.`, items.length ? 'success' : '');
+        statusLine.textContent = pending || remaining ? `${iptvOffset} reproduzíveis · ${pending} em validação · ${remaining} por validar · ${Number(payload.excludedCount || 0)} excluídos` : `${iptvOffset} de ${iptvTotal} canais validados · português/inglês`;
+        if (moreButton) { moreButton.hidden = pending > 0 || !Boolean(payload.hasMore); moreButton.textContent = remaining > 0 ? `Validar mais fontes (${remaining} por verificar)` : `Carregar mais canais (${Math.max(0, iptvTotal - iptvOffset)} disponíveis)`; }
+        if (!pending && !remaining) notify(`${iptvOffset} canais IPTV reproduzíveis carregados.`, items.length ? 'success' : '');
+        else if (pending > 0 && !items.length) notify(`A verificar ${pending} canais IPTV em segundo plano…`, '');
+        if (pending > 0 && !append) window.setTimeout(() => { if (requestId === iptvRequestSequence) loadIptv(false); }, 1800);
       } catch (error) {
         if (requestId !== iptvRequestSequence) return;
         if (!append) results.innerHTML = empty(error.message || 'Canais IPTV indisponíveis.');
@@ -267,8 +328,34 @@
         }
       }
     }
-    async function loadSources() { const box = $('#iptvSourceList'); if (!box) return; try { const [playlistResponse, catalogResponse] = await Promise.all([fetch('/api/iptv/playlists'), fetch('/api/entertainment/sources')]); const playlists = await playlistResponse.json(); const catalog = await catalogResponse.json(); const playlistTags = (playlists.sources || []).map(source => `<span class="iptv-source-tag ${esc(source.safety)}" title="${esc(source.note)}">${esc(source.label)} · ${esc(source.safety === 'filtered' ? 'filtrada' : source.safety === 'blocked' ? 'bloqueada' : 'não verificada')}</span>`).join(''); const catalogTags = (catalog.sources || []).map(source => source.url ? `<a class="iptv-source-tag catalog-source-tag" href="${esc(source.url)}" target="_blank" rel="noopener" title="${esc(source.policy || '')}">${esc(source.label)} · ${esc(source.mode || 'metadata')}${source.configured === false ? ' · opcional' : ''}</a>` : `<span class="iptv-source-tag catalog-source-tag" title="${esc(source.policy || '')}">${esc(source.label)} · ${esc(source.mode || 'metadata')}${source.configured === false ? ' · opcional' : ''}</span>`).join(''); box.innerHTML = `<div class="iptv-source-heading"><strong>Fontes auditadas</strong><span>${esc(catalog.policy || playlists.policy || '')}</span></div>${playlistTags}${catalogTags}`; } catch { box.textContent = 'Estado das fontes indisponível; nenhuma lista externa foi importada.'; } }
-    async function loadIptvMeta() { try { const response = await fetch('/api/iptv/meta'); if (!response.ok) return; const payload = await response.json(); const country = $('#iptvCountry'); const category = $('#iptvCategory'); const countryNames = { AO: 'Angola', BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', GB: 'Reino Unido', KR: 'Coreia do Sul', JP: 'Japão', ES: 'Espanha', FR: 'França', DE: 'Alemanha', MZ: 'Moçambique', CV: 'Cabo Verde' }; const categoryNames = { news: 'Notícias', movies: 'Filmes', series: 'Séries', documentary: 'Documentários', cooking: 'Cozinha', music: 'Música', religious: 'Religioso', kids: 'Infantil', animation: 'Anime/animação', sports: 'Desporto', general: 'Generalista', entertainment: 'Entretenimento', culture: 'Cultura', education: 'Educação' }; if (country) country.innerHTML = '<option value="">Todos os países</option>' + (payload.countries || []).map(item => `<option value="${esc(item.code)}">${esc(countryNames[item.code] || item.code)} · ${item.count}</option>`).join(''); if (category) category.innerHTML = '<option value="">Todos os géneros</option>' + (payload.categories || []).map(item => `<option value="${esc(item.id)}">${esc(categoryNames[item.id] || item.id)} · ${item.count}</option>`).join(''); } catch {} }
+    async function loadSources() {
+      const box = $('#iptvSourceList'); if (!box) return;
+      try {
+        const [playlistResponse, catalogResponse, healthResponse] = await Promise.all([fetch('/api/iptv/playlists'), fetch('/api/entertainment/sources'), fetch('/api/entertainment/sources/health')]);
+        const [playlists, catalog, health] = await Promise.all([playlistResponse.json(), catalogResponse.json(), healthResponse.ok ? healthResponse.json() : Promise.resolve({ sources: [] })]);
+        const healthById = new Map((health.sources || []).map(source => [source.id, source]));
+        const statusName = { online: 'API online', 'not-configured': 'não configurada', unavailable: 'API indisponível', error: 'erro ao validar' };
+        const playlistTags = (playlists.sources || []).map(source => `<span class="iptv-source-tag ${esc(source.safety)}" title="${esc(source.note)}">${esc(source.label)} · ${esc(source.safety === 'filtered' ? 'filtrada' : source.safety === 'blocked' ? 'bloqueada' : 'não verificada')}</span>`).join('');
+        const catalogTags = (catalog.sources || []).map(source => {
+          const status = healthById.get(source.id); const suffix = status ? ` · ${statusName[status.status] || status.status}` : '';
+          const label = `${source.label} · ${source.mode || 'metadata'}${source.configured === false ? ' · opcional' : ''}${suffix}`;
+          const title = [source.policy, status?.note].filter(Boolean).join(' ');
+          return source.url ? `<a class="iptv-source-tag catalog-source-tag" href="${esc(source.url)}" target="_blank" rel="noopener" title="${esc(title)}">${esc(label)}</a>` : `<span class="iptv-source-tag catalog-source-tag" title="${esc(title)}">${esc(label)}</span>`;
+        }).join('');
+        box.innerHTML = `<div class="iptv-source-heading"><strong>Fontes auditadas</strong><span>${esc(catalog.policy || playlists.policy || '')} A reachability da API não garante playback; fontes metadata-only não fornecem streams.</span></div>${playlistTags}${catalogTags}`;
+      } catch { box.textContent = 'Estado das fontes indisponível; nenhuma lista externa foi importada.'; }
+    }
+    async function loadIptvMeta() {
+      try {
+        const response = await fetch('/api/iptv/meta'); if (!response.ok) return;
+        const payload = await response.json(); const country = $('#iptvCountry'); const category = $('#iptvCategory'); const language = $('#iptvLanguage');
+        const countryNames = { AO: 'Angola', BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', GB: 'Reino Unido', KR: 'Coreia do Sul', JP: 'Japão', ES: 'Espanha', FR: 'França', DE: 'Alemanha', MZ: 'Moçambique', CV: 'Cabo Verde' };
+        const categoryNames = { news: 'Notícias', movies: 'Filmes', series: 'Séries', documentary: 'Documentários', cooking: 'Cozinha', music: 'Música', religious: 'Religioso', kids: 'Infantil', animation: 'Anime/animação', sports: 'Desporto', general: 'Generalista', entertainment: 'Entretenimento', culture: 'Cultura', education: 'Educação' };
+        if (language) { const selected = language.value; language.innerHTML = '<option value="">Português e inglês</option><option value="por">Português</option><option value="eng">Inglês</option>'; language.value = ['por', 'eng'].includes(selected) ? selected : ''; }
+        if (country) country.innerHTML = '<option value="">Todos os países</option>' + (payload.countries || []).map(item => `<option value="${esc(item.code)}">${esc(countryNames[item.code] || item.code)} · ${item.count}</option>`).join('');
+        if (category) category.innerHTML = '<option value="">Todas as categorias</option>' + (payload.categories || []).map(item => `<option value="${esc(item.id)}">${esc(categoryNames[item.id] || item.id)} · ${item.count}</option>`).join('');
+      } catch {}
+    }
     async function search(event) {
       event?.preventDefault(); const term = $('#spaceQuery').value.trim(); if (term.length < 2) return notify('Escreve pelo menos 2 caracteres para pesquisar.', 'error'); searchZone.hidden = false; searchResults.innerHTML = '<div class="ent-loading-state">A consultar fontes reais…</div>'; notify('A pesquisar no catálogo…');
       try { let payload; if (/^https?:\/\//i.test(term)) { const response = await fetch(`/api/media/info?url=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível resolver este URL.'); payload = { results: [{ ...payload, url: term, kind: 'film' }] }; } else { const response = await fetch(`/api/entertainment/search?q=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A pesquisa falhou.'); } const items = (payload.results || []).map(register); searchResults.innerHTML = items.length ? items.map(card).join('') : empty('Nenhum resultado real para esta pesquisa.'); notify(`${items.length} resultados encontrados.`, items.length ? 'success' : ''); searchZone.scrollIntoView({ behavior: 'smooth', block: 'start' }); }

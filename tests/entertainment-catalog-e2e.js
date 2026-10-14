@@ -13,14 +13,16 @@ const { chromium } = require('playwright');
         url: 'https://www.youtube.com/watch?v=film-1',
         thumbnail: 'https://i.ytimg.com/vi/film-1/hqdefault.jpg',
         site: 'Internet Archive', uploader: 'Catálogo público',
-        description: 'Metadata real fornecida pela origem.', duration: 540, kind: 'film'
+        description: 'Media pública de demonstração.', duration: 540, kind: 'film',
+        publicPlayback: true, streamAvailable: true, metadataOnly: false
       };
       const series = { ...film, id: 'series-1', title: 'Série pública com episódios', kind: 'series', playlistUrl: 'https://www.youtube.com/playlist?list=series-1' };
       const live = {
         id: 'iptv-1', title: 'Record News · Direto', channelName: 'Record News',
         url: 'https://example.com/record.m3u8', thumbnail: 'https://example.com/record.png',
         site: 'IPTV público · iptv-org', country: 'BR', language: 'por', languages: ['por'],
-        categories: ['news'], quality: 'HD', availabilityLabel: 'Not 24/7', kind: 'live', live: true, directStream: true
+        categories: ['news'], quality: 'HD', availabilityLabel: 'Verificada', kind: 'live', live: true, directStream: true,
+        publicPlayback: true, streamAvailable: true, metadataOnly: false, validationStatus: 'online'
       };
       const sports = { ...live, id: 'iptv-sports-1', title: 'Arena Sport 1 · Direto', channelName: 'Arena Sport 1', categories: ['sports'] };
       const portugal = { ...live, id: 'iptv-pt-1', title: 'SIC Notícias · Direto', channelName: 'SIC Notícias', country: 'PT', availabilityLabel: 'Geo-blocked' };
@@ -39,6 +41,9 @@ const { chromium } = require('playwright');
         generatedAt: new Date().toISOString()
       };
       await page.route('**/api/entertainment/home', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(home) }));
+      await page.route('**/api/entertainment/sources', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sources: [{ id: 'iptv-org', label: 'IPTV-org', mode: 'live', url: 'https://github.com/iptv-org/iptv' }], policy: 'Fontes públicas.' }) }));
+      await page.route('**/api/entertainment/sources/health', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sources: [{ id: 'iptv-org', mode: 'live', status: 'online', note: 'API disponível' }] }) }));
+      await page.route('**/api/entertainment/search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ query: 'filme', results: [film] }) }));
       await page.route('**/api/iptv/playlists', route => route.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify({
@@ -88,6 +93,7 @@ const { chromium } = require('playwright');
       if (await page.locator('.ent-nav-link[data-view="sports"]').getAttribute('aria-pressed') !== 'true' || await page.locator('.ent-nav-link[data-view="home"]').getAttribute('aria-pressed') !== 'false') throw new Error('o estado da navegação não acompanhou a vista selecionada');
       if (!(await page.locator('.ent-rail-heading').allTextContents()).some(text => /Desporto ao vivo/i.test(text))) throw new Error('rail de desporto não abriu');
       if (!(await page.locator('#iptvSourceList').textContent()).includes('bloqueada')) throw new Error('estado da fonte bloqueada não foi exposto');
+      if (!(await page.locator('#iptvSourceList').textContent()).includes('API online')) throw new Error('a saúde da API não foi exposta');
       await page.locator('#toggleIptv').click();
       if (await page.locator('#toggleIptv').getAttribute('aria-expanded') !== 'false' || await page.locator('#iptvBody').isVisible()) throw new Error('o painel IPTV não recolheu ou não anunciou o estado fechado');
       await page.locator('#toggleIptv').click();

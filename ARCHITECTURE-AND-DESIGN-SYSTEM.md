@@ -66,6 +66,7 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 - `npm run test:backend`: executa testes unitários de serviços/componentes e testes de contrato HTTP com o runner nativo `node:test` (sem banco real nem serviços externos).
 - `npm test`: atalho para a suíte unitária e de contrato do backend; os fluxos de navegador continuam disponíveis nos comandos E2E existentes.
 - `npm run test:e2e` e testes de domínio (`test:catalog`, `test:entertainment`, `test:admin`) validam fluxos e contratos existentes.
+- `npm run validate:iptv`: percorre os canais IPTV elegíveis em português/inglês de todas as categorias e produz um relatório por canal; exige o backend ativo. Consulte [STREAMING-VALIDATION-AND-PERFORMANCE.md](STREAMING-VALIDATION-AND-PERFORMANCE.md).
 - Para revisão visual, verificar a página inicial e um fluxo representativo de cada área em larguras desktop, tablet e móvel; rever também modo claro, teclado e movimento reduzido.
 - Mudanças de API devem manter testes smoke/contrato para input inválido, ausência de credenciais e limites; não acrescentar credenciais nem ficheiros `.env` ao Git.
 
@@ -76,7 +77,8 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 3. **Passo 2 (em curso):** navegação global e ações principais já usam SVGs inline com rótulos textuais/ARIA; Cine recebe ícones SVG nos cartões; contrastes dos tokens, acentos de navegação e componentes IPTV passam verificação automatizada. IPTV agora tem filtros com rótulos visíveis, submissão por Enter, limpeza, busy state, estados de erro anunciáveis, prevenção de respostas fora de ordem, estado acessível das vistas e foco visível. Próximo: estender a substituição aos ícones dos controlos do player e aos estados repetidos quando uma extração oferecer ganho real.
 4. **Backend (base inicial feita):** `node:test` cobre classificação/tradução de erros, cache de metadata e contratos de health, capabilities e media info. Ampliar cobertura nas rotas de downloads/biblioteca e nos limites/autorização antes de extrair persistência para repositórios.
 5. **Operação:** adicionar logs estruturados com request/job IDs, métricas de fila e indicadores de falha das fontes sem expor URLs privadas ou dados de sessão.
+6. **Streaming (base inicial feita):** separar APIs de metadata de reprodução; verificar fontes públicas, idiomas PT/EN, HTTPS/DNS, manifesto/segmento e disponibilidade por canal; limitar concorrência/cache e permitir auditoria completa via `npm run validate:iptv`. Próximo: medir latência real do player, erros de CORS/codec por dispositivo e métricas históricas sem armazenar URLs sensíveis.
 
-## Fora do escopo desta iteração
+## Limites desta iteração
 
-Não alteramos política de download, autenticação, persistência, contratos da API, conteúdo editorial ou deployment. Essas áreas exigem mudanças funcionais próprias e validação isolada.
+Foram adicionados contratos de saúde das fontes e validação individual IPTV; não alteramos política de download, autenticação, persistência ou deployment. O sistema não contorna DRM, autenticação ou bloqueios geográficos. Essa proteção só pode mudar mediante integração oficial, autorização do titular e validação jurídica/técnica específica.

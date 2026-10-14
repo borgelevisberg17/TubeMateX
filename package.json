@@ -9,6 +9,7 @@
     "test": "npm run test:backend",
     "test:e2e": "node tests/e2e.js && node tests/profile-e2e.js && node tests/settings-e2e.js && node tests/downloads-e2e.js",
     "test:catalog": "node tests/catalog-metadata.js",
+    "validate:iptv": "node scripts/validate-iptv.js",
     "test:entertainment": "node tests/entertainment-home-api-smoke.js && node tests/entertainment-integrations-smoke.js && node tests/entertainment-catalog-e2e.js",
     "test:downloads": "node tests/downloads-e2e.js",
     "test:platforms": "node tests/platform-download-smoke.js",
