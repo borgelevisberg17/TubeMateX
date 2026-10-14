@@ -1,0 +1,51 @@
+/* Player refinado: modal acessível, controlos visíveis e layout responsivo. */
+body.tmx-player-open{overflow:hidden}
+.ent-video-drawer{overscroll-behavior:contain}
+.ent-video-drawer .video-drawer-card{overflow:auto;overscroll-behavior:contain;scrollbar-color:#52303a transparent}
+.ent-video-drawer .video-drawer-head h2{max-width:min(72vw,920px);margin:0;overflow:hidden;color:#fff;font:600 16px/1.25 "Space Grotesk",sans-serif;text-overflow:ellipsis;white-space:nowrap}
+.ent-video-drawer .video-drawer-head #closeVideo{min-width:76px;min-height:44px}
+.ent-player-stageyt{outline:none;touch-action:manipulation}
+.ent-player-stageyt:focus-visible{outline:3px solid #fff;outline-offset:4px}
+.yt-center-play{z-index:8;width:72px;height:72px;border:1px solid #ffffffaa;box-shadow:0 8px 30px #0009}
+.ent-player-stageyt.has-error .yt-center-play{display:none}
+.yt-overlay-controls{z-index:7}
+.ent-player-loading{z-index:6;pointer-events:none;background:#080609c9;backdrop-filter:blur(2px)}
+.ent-player-error{z-index:9;pointer-events:none}
+.yt-seek-bar-wrap:focus-within{outline:3px solid #fff;outline-offset:3px;border-radius:4px}
+.yt-btn:focus-visible,.yt-player-select:focus-visible,.yt-player-volume:focus-visible,.ent-player-source:focus-visible,.ent-player-error button:focus-visible,#closeVideo:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.yt-player-volume{min-height:24px}
+.ent-player-error button{min-height:44px;padding:10px 16px;pointer-events:auto}
+.ent-player-foot{flex-wrap:wrap;line-height:1.45}
+.ent-player-shortcuts{max-width:100%;text-align:center}
+
+@media(max-width:620px){
+  .ent-video-drawer{align-items:stretch;overflow-y:auto;padding:0}
+  .ent-video-drawer .video-drawer-card{width:100%;height:100vh;height:100dvh;min-height:100vh;min-height:100dvh;max-height:none;margin:0;justify-content:flex-start;gap:12px;padding:calc(12px + env(safe-area-inset-top)) 10px calc(12px + env(safe-area-inset-bottom));border:0;border-radius:0;background:#050507}
+  .ent-video-drawer .video-drawer-head{flex:0 0 auto;min-height:52px;padding:0 2px}
+  .ent-video-drawer .video-drawer-head h2{max-width:calc(100vw - 120px);font-size:15px}
+  .ent-video-drawer .ent-player-stageyt{flex:0 0 auto;width:100%;aspect-ratio:16/9;border-radius:8px}
+  .ent-video-drawer .ent-player-foot{align-items:flex-start;flex-direction:column;gap:5px;margin-top:auto;padding-top:8px}
+  .ent-player-shortcuts{display:none}
+  .ent-player-source{min-height:44px;padding:10px 0;text-align:left}
+  .yt-overlay-controls{padding:10px 8px 8px}
+  .yt-controls-row{flex-wrap:wrap;gap:4px}
+  .yt-left-controls,.yt-right-controls{min-width:0;flex-wrap:wrap;gap:4px}
+  .yt-btn{min-width:40px;height:42px;padding:0 6px}
+  .yt-skip-btn{min-width:54px}
+  .yt-volume-wrap{width:52px}
+  .yt-time-display{font-size:10px}
+  .yt-live-badge{padding:3px 5px;font-size:9px}
+}
+
+@media(max-width:360px){
+  .yt-left-controls,.yt-right-controls{gap:2px}
+  .yt-btn{min-width:36px}
+  .yt-skip-btn{min-width:48px;padding:0 5px}
+  .yt-volume-wrap{width:44px}
+  .yt-time-display{font-size:9px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .ent-player-loading span{animation:none;opacity:.85}
+  .yt-center-play,.yt-overlay-controls{transition:none}
+}
