@@ -54,6 +54,7 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 - HTML semântico: um `main` identificado, títulos hierárquicos, links para navegação e botões para ações.
 - Toda página oferece “Saltar para o conteúdo principal”; foco visível e ordem de tabulação coerente.
 - Campos têm nome acessível; botões de ícone têm `aria-label`; resultados e mensagens assíncronas são anunciáveis por tecnologia assistiva.
+- Na área IPTV, cada filtro tem rótulo visível associado ao controlo; carregamento, estado ocupado e resultados são expostos sem depender só de cor; navegação e recolhimento anunciam o estado atual.
 - Controlos de tamanho de toque e contrastes legíveis, incluindo tema claro e esquema de alto contraste do sistema.
 - Respeitar `prefers-reduced-motion` e não depender de animação para transmitir informação.
 - Testar teclado, leitor de ecrã e zoom, além de verificações automáticas; uma verificação automatizada não comprova conformidade WCAG.
@@ -61,7 +62,7 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 ## Qualidade e verificações
 
 - `npm run test:accessibility`: verifica convenções estruturais, navegação partilhada e SVGs acessíveis em todas as páginas principais.
-- `npm run test:contrast`: calcula razões WCAG AA dos tokens por tema e dos acentos do cabeçalho. A inclusão no CI fica pendente de habilitar a permissão GitHub `Workflows` para o conector.
+- `npm run test:contrast`: calcula razões WCAG AA dos tokens por tema, dos acentos do cabeçalho e dos componentes IPTV (inclui placeholders e foco não textual). A inclusão no CI fica pendente de habilitar a permissão GitHub `Workflows` para o conector.
 - `npm run test:backend`: executa testes unitários de serviços/componentes e testes de contrato HTTP com o runner nativo `node:test` (sem banco real nem serviços externos).
 - `npm test`: atalho para a suíte unitária e de contrato do backend; os fluxos de navegador continuam disponíveis nos comandos E2E existentes.
 - `npm run test:e2e` e testes de domínio (`test:catalog`, `test:entertainment`, `test:admin`) validam fluxos e contratos existentes.
@@ -72,7 +73,7 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 
 1. **Fundação (feito):** tokens partilhados, aliases visuais consistentes, foco global, skip link, redução de movimento, estados acessíveis na busca e teste de estrutura.
 2. **Shell e componentes iniciais (feito):** cabeçalho/ações e navegação partilhados nas sete telas principais; cartão reutilizável em Música e Social; categorias locais do Cine preservadas.
-3. **Passo 2 (em curso):** navegação global e ações principais já usam SVGs inline com rótulos textuais/ARIA; Cine recebe ícones SVG nos cartões; contrastes dos tokens e acentos de navegação passam verificação WCAG AA automatizada. Próximo: estender a substituição aos ícones dos controlos do player e aos estados repetidos quando uma extração oferecer ganho real.
+3. **Passo 2 (em curso):** navegação global e ações principais já usam SVGs inline com rótulos textuais/ARIA; Cine recebe ícones SVG nos cartões; contrastes dos tokens, acentos de navegação e componentes IPTV passam verificação automatizada. IPTV agora tem filtros com rótulos visíveis, submissão por Enter, limpeza, busy state, estados de erro anunciáveis, prevenção de respostas fora de ordem, estado acessível das vistas e foco visível. Próximo: estender a substituição aos ícones dos controlos do player e aos estados repetidos quando uma extração oferecer ganho real.
 4. **Backend (base inicial feita):** `node:test` cobre classificação/tradução de erros, cache de metadata e contratos de health, capabilities e media info. Ampliar cobertura nas rotas de downloads/biblioteca e nos limites/autorização antes de extrair persistência para repositórios.
 5. **Operação:** adicionar logs estruturados com request/job IDs, métricas de fila e indicadores de falha das fontes sem expor URLs privadas ou dados de sessão.
 

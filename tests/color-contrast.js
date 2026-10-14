@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const root = path.join(__dirname, '..');
 const designCss = fs.readFileSync(path.join(root, 'frontend/css/design-system.css'), 'utf8');
 const componentCss = fs.readFileSync(path.join(root, 'frontend/css/components.css'), 'utf8');
+const spaceCss = fs.readFileSync(path.join(root, 'frontend/css/spaces-detail.css'), 'utf8');
 
 function blockFor(css, selector) {
   const start = css.indexOf(selector);
@@ -13,6 +14,19 @@ function blockFor(css, selector) {
   const close = css.indexOf('}', open);
   assert.ok(open > start && close > open, `bloco CSS inválido: ${selector}`);
   return css.slice(open + 1, close);
+}
+function blockForLast(css, selector) {
+  const start = css.lastIndexOf(selector);
+  assert.notEqual(start, -1, `regra CSS ausente: ${selector}`);
+  const open = css.indexOf('{', start);
+  const close = css.indexOf('}', open);
+  assert.ok(open > start && close > open, `bloco CSS inválido: ${selector}`);
+  return css.slice(open + 1, close);
+}
+function cssProperty(block, name) {
+  const match = block.match(new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`));
+  assert.ok(match, `propriedade CSS ausente: ${name}`);
+  return match[1].trim();
 }
 function variable(block, name) {
   const match = block.match(new RegExp(`(?:^|\\s)${name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*:\\s*([^;]+)`));
@@ -72,4 +86,20 @@ for (const [name, accent, background] of headerVariants) {
 }
 expectContrast('cabeçalho: navegação secundária', headerMuted, '#081521');
 expectContrast('cabeçalho: ações primárias', headerFg, '#081521');
-console.log('COLOR_CONTRAST_OK — tokens e acentos de navegação atendem WCAG AA para texto normal.');
+
+const iptvLabel = blockForLast(spaceCss, '.iptv-filter{');
+const iptvControl = blockForLast(spaceCss, '.entertainment-channel-controls input,.entertainment-channel-controls select{');
+const iptvPlaceholder = blockForLast(spaceCss, '.entertainment-channel-controls input::placeholder{');
+const iptvFocus = blockForLast(spaceCss, '.entertainment-channel-controls input:focus-visible');
+const iptvOutlineColor = cssProperty(iptvFocus, 'outline').match(/#[\da-f]{3,8}\b/i)?.[0];
+assert.ok(iptvOutlineColor, 'cor do foco IPTV ausente');
+expectContrast('IPTV: rótulo do filtro', cssProperty(iptvLabel, 'color'), '#100c0f');
+expectContrast('IPTV: texto dos campos', cssProperty(iptvControl, 'color'), cssProperty(iptvControl, 'background'));
+expectContrast('IPTV: placeholder da pesquisa', cssProperty(iptvPlaceholder, 'color'), cssProperty(iptvControl, 'background'));
+expectContrast('IPTV: estado e contagem', '#a98e95', '#100c0f');
+expectContrast('IPTV: botão de pesquisa', '#ffffff', '#b20710');
+expectContrast('IPTV: foco de teclado', iptvOutlineColor, cssProperty(iptvControl, 'background'), 3);
+expectContrast('IPTV: fonte filtrada', '#7fe3ba', '#100c0f');
+expectContrast('IPTV: fonte não verificada', '#efc870', '#100c0f');
+expectContrast('IPTV: fonte bloqueada', '#e88991', '#100c0f');
+console.log('COLOR_CONTRAST_OK — tokens, acentos e componentes IPTV atendem WCAG AA para texto normal; foco não textual ≥ 3:1.');

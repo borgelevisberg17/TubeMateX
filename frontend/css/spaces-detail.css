@@ -76,3 +76,14 @@ body[data-ent-view="live"] .ent-vod-zone{opacity:.72}
 
 .video-drawer:fullscreen .ent-player-stageyt,.video-drawer:-webkit-full-screen .ent-player-stageyt{flex:1;min-height:0;aspect-ratio:auto}
 @media(max-width:620px){.ent-video-drawer .ent-player-stageyt{flex:0 0 auto}}
+
+/* IPTV: labels, touch targets and keyboard focus */
+.iptv-filter{display:grid;gap:6px;min-width:0;color:#e0cfd4;font:600 11px "DM Sans",sans-serif}
+.iptv-filter>label{line-height:1.2}
+.iptv-filter-actions{display:flex;gap:8px;align-items:end}
+.iptv-filter-actions .ent-button{flex:1;min-height:44px;white-space:nowrap;padding-inline:12px}
+.entertainment-channel-controls input:focus-visible,.entertainment-channel-controls select:focus-visible,.entertainment-channel-controls button:focus-visible,.ent-nav-link:focus-visible,.ent-collapse-button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+@media(max-width:1100px){.entertainment-channel-controls .iptv-filter-search,.entertainment-channel-controls .iptv-filter-actions{grid-column:1/-1}}
+@media(max-width:560px){.entertainment-channel-controls .iptv-filter-search,.entertainment-channel-controls .iptv-filter-actions{grid-column:auto}.iptv-filter-actions{gap:7px}.iptv-filter-actions .ent-button{padding-inline:9px}}
+.ent-rail-iptv .ent-card-rail{grid-auto-columns:minmax(210px,280px)}
+@media(max-width:420px){.ent-rail-iptv .ent-card-rail{grid-auto-columns:minmax(210px,calc(70vw - 8px))}}
