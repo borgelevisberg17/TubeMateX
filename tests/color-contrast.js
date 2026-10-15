@@ -47,10 +47,26 @@ function contrast(foreground, background) {
   const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
+function resolveColor(value, seen = new Set()) {
+  const input = String(value).trim();
+  if (/^#(?:[\\da-f]{3}|[\\da-f]{6})$/i.test(input)) return input;
+  const ref = input.match(/^var\\((--[\\w-]+)(?:,\\s*(.+))?\\)$/);
+  assert.ok(ref, 'cor/token CSS não suportado pelo validador: ' + input);
+  const name = ref[1], fallback = ref[2];
+  assert.ok(!seen.has(name), 'referência circular no token ' + name);
+  const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+  const declaration = designCss.match(new RegExp('(?:^|[;\\s])' + escaped + '\\s*:\\s*([^;]+)'));
+  const next = declaration?.[1]?.trim() || fallback;
+  assert.ok(next, 'token de cor não resolvido: ' + name);
+  seen.add(name);
+  return resolveColor(next, seen);
+}
 function expectContrast(label, foreground, background, minimum = 4.5) {
-  const ratio = contrast(foreground, background);
-  assert.ok(ratio >= minimum, `${label}: contraste ${ratio.toFixed(2)}:1 abaixo de ${minimum}:1 (${foreground} sobre ${background})`);
-  console.log(`PASS ${label}: ${ratio.toFixed(2)}:1`);
+  const resolvedForeground = resolveColor(foreground);
+  const resolvedBackground = resolveColor(background);
+  const ratio = contrast(resolvedForeground, resolvedBackground);
+  assert.ok(ratio >= minimum, label + ': contraste ' + ratio.toFixed(2) + ':1 abaixo de ' + minimum + ':1 (' + resolvedForeground + ' sobre ' + resolvedBackground + ')');
+  console.log('PASS ' + label + ': ' + ratio.toFixed(2) + ':1');
 }
 
 const dark = blockFor(designCss, ':root');
