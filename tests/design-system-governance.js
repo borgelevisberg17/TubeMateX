@@ -7,6 +7,7 @@ const design = fs.readFileSync(path.join(root, 'frontend/css/design-system.css')
 const components = fs.readFileSync(path.join(root, 'frontend/css/components.css'), 'utf8');
 const js = fs.readFileSync(path.join(root, 'frontend/js/components.js'), 'utf8');
 const spaces = fs.readFileSync(path.join(root, 'frontend/css/spaces.css'), 'utf8');
+const userRebuild = fs.readFileSync(path.join(root, 'frontend/css/user-rebuild.css'), 'utf8');
 const docs = fs.readFileSync(path.join(root, 'DESIGN-SYSTEM-GOVERNANCE.md'), 'utf8');
 
 for (const token of [
