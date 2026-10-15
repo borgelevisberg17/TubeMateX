@@ -12,9 +12,10 @@ test('exige SESSION_SECRET com pelo menos 32 bytes em produção', () => {
     () => resolveSessionSecret({ isProduction: true, configuredSecret: 'too-short' }),
     /SESSION_SECRET.*at least 32 bytes/
   );
+  const strongSecret = crypto.randomBytes(MIN_SECRET_BYTES).toString('hex');
   assert.equal(
-    resolveSessionSecret({ isProduction: true, configuredSecret: crypto.randomBytes(MIN_SECRET_BYTES).toString('hex') }),
-    crypto.randomBytes(0).toString('hex') || assert.match(crypto.randomBytes(MIN_SECRET_BYTES).toString('hex'), /^[a-f0-9]{64}$/)[0]
+    resolveSessionSecret({ isProduction: true, configuredSecret: strongSecret }),
+    strongSecret
   );
 });
 
