@@ -1,10 +1,10 @@
 /* Catalog UI refinements — keeps the existing public-source and playback policy intact. */
 .entertainment-page {
-  --catalog-accent: #e50914;
-  --catalog-accent-soft: #ff5260;
-  --catalog-panel: #120e12;
-  --catalog-line: #ffffff18;
-  --catalog-muted: #b9a9ae;
+  --catalog-accent: var(--tmx-accent-entertainment);
+  --catalog-accent-soft: color-mix(in srgb, var(--tmx-accent-entertainment) 82%, white);
+  --catalog-panel: var(--tmx-surface);
+  --catalog-line: var(--tmx-border);
+  --catalog-muted: var(--tmx-text-secondary);
 }
 
 /* The hero keeps its public thumbnail when available and has a deliberate fallback when not. */
@@ -322,12 +322,12 @@
 }
 .ent-card-actions button.primary {
   padding: 5px 9px;
-  border-color: #e50914;
+  border-color: var(--catalog-accent);
   background: linear-gradient(110deg, #c70a16, #9f0710);
   white-space: nowrap;
 }
 .ent-card-actions button.primary:hover {
-  background: #e50914;
+  background: var(--catalog-accent);
 }
 .ent-card-actions button:not(.primary) {
   width: 36px;
@@ -345,7 +345,7 @@
   background: #ffffff30;
 }
 .ent-card-progress span {
-  background: linear-gradient(90deg, #ff2637, #e50914);
+  background: linear-gradient(90deg, #ff2637, var(--catalog-accent));
 }
 
 /* Actionable empty state: never invent titles when public sources return no rows. */
@@ -419,7 +419,7 @@
   cursor: pointer;
 }
 .ent-catalog-empty-actions button:first-child {
-  border-color: #e50914;
+  border-color: var(--catalog-accent);
   color: #fff;
   background: #b20710;
 }
@@ -438,7 +438,7 @@
 }
 .ent-live-hub {
   border-color: #ffffff1c;
-  border-top: 2px solid #e50914;
+  border-top: 2px solid var(--catalog-accent);
   border-radius: 15px;
   background: linear-gradient(145deg, #171015, #0e0c10 70%);
   box-shadow: 0 18px 45px #0004;
@@ -642,7 +642,7 @@
   background: #141015;
 }
 .iptv-search-control:focus-within {
-  border-color: #e50914;
+  border-color: var(--catalog-accent);
   box-shadow: 0 0 0 3px #e5091426;
 }
 .iptv-search-control svg {
@@ -960,7 +960,7 @@
   transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 .iptv-quick-chip:hover { border-color: #ffffff48; color: #fff; }
-.iptv-quick-chip[aria-pressed="true"] { border-color: #e50914; color: #fff; background: #b20710; }
+.iptv-quick-chip[aria-pressed="true"] { border-color: var(--catalog-accent); color: #fff; background: #b20710; }
 .iptv-quick-chip:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 @media (max-width: 700px) { .iptv-quick-filters { margin-top: 12px; } }
 
