@@ -53,6 +53,23 @@ function logEvent(level, event, fields = {}) {
     const writer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
     writer(JSON.stringify(record));
 }
+async function incrementDownloadMetric(key, amount = 1) {
+    if (redisClient?.isReady) {
+        try { await redisClient.incrBy(`tubematex:metrics:v1:${key}`, amount); return; }
+        catch (error) { logEvent('warn', 'metrics.redis_write_failed', { metric: key, message: error.message }); }
+    }
+    requestMetrics[key] = (requestMetrics[key] || 0) + amount;
+}
+async function readDownloadMetrics() {
+    const keys = ['downloadsCompleted', 'downloadsFailed', 'downloadsTimedOut', 'bytesDownloaded'];
+    if (redisClient?.isReady) {
+        try {
+            const values = await redisClient.mGet(keys.map(key => `tubematex:metrics:v1:${key}`));
+            return Object.fromEntries(keys.map((key, index) => [key, Number(values[index] || 0)]));
+        } catch (error) { logEvent('warn', 'metrics.redis_read_failed', { message: error.message }); }
+    }
+    return Object.fromEntries(keys.map(key => [key, Number(requestMetrics[key] || 0)]));
+}
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const SESSION_SECRET = resolveSessionSecret({ isProduction: IS_PRODUCTION, configuredSecret: process.env.SESSION_SECRET });
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -999,6 +1016,7 @@ async function runJob(job) {
         const downloadTimer = setTimeout(() => {
             job.timedOut = true;
             logEvent('warn', 'download.timeout', { requestId: job.requestId || null, jobId: job.id, ownerId: job.ownerId, timeoutMs: DOWNLOAD_TIMEOUT_MS });
+            incrementDownloadMetric('downloadsTimedOut').catch(() => {});
             child.kill('SIGTERM');
             setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 5000).unref();
         }, DOWNLOAD_TIMEOUT_MS);
@@ -1020,7 +1038,7 @@ async function runJob(job) {
         job.fileName = finalName;
         job.size = fs.statSync(finalPath).size;
         if (job.size > MAX_DOWNLOAD_SIZE) { fs.rmSync(finalPath, { force: true }); job.filePath = null; throw new Error('O ficheiro excedeu o limite máximo permitido.'); }
-        requestMetrics.bytesDownloaded += job.size;
+        await incrementDownloadMetric('bytesDownloaded', job.size);
         job.completedAt = new Date().toISOString();
         await addHistory(job.ownerId, {
             id: job.id,
@@ -1038,15 +1056,15 @@ async function runJob(job) {
             completedAt: job.completedAt,
             downloadUrl: `/api/downloads/${job.id}/file`
         });
-        requestMetrics.downloadsCompleted += 1;
+        await incrementDownloadMetric('downloadsCompleted');
         emit(job, { status: 'completed', progress: { percent: 100, label: 'Download concluído' } });
     } catch (error) {
         logEvent('error', 'download.failed', { requestId: job.requestId || null, jobId: job.id, ownerId: job.ownerId, timedOut: Boolean(job.timedOut), message: String(error?.stderr || error?.message || error).slice(0, 500) });
-        if (job.timedOut) requestMetrics.downloadsTimedOut += 1;
+        if (job.timedOut) { /* timeout counter is recorded when the timer fires */ }
         if (job.cancelled) {
             emit(job, { status: 'cancelled', error: 'Download cancelado.', progress: { percent: 0, label: 'Download cancelado' } });
         } else {
-            requestMetrics.downloadsFailed += 1;
+            await incrementDownloadMetric('downloadsFailed');
             emit(job, { status: 'failed', error: translateError(error), errorCode: errorCode(error), progress: { percent: 0, label: 'O download falhou' } });
         }
         if (job.filePath && fs.existsSync(job.filePath)) fs.rmSync(job.filePath, { force: true });
@@ -1394,11 +1412,13 @@ app.get('/api/user', (req, res) => {
     });
 });
 
-app.get('/internal/metrics', (req, res) => {
+app.get('/internal/metrics', async (req, res) => {
     const token = String(process.env.METRICS_TOKEN || '');
     if (!token || req.get('Authorization') !== `Bearer ${token}`) return res.status(404).end();
     const activeJobsCount = [...jobs.values()].filter(job => ['fetching', 'downloading'].includes(job.status)).length;
-    res.json({ ...requestMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, localQueueLength: queue.length, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()) });
+    const downloadMetrics = await readDownloadMetrics();
+    const errorRate5xx = requestMetrics.total ? requestMetrics.errors5xx / requestMetrics.total : 0;
+    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, localQueueLength: queue.length, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, localQueueSaturated: queue.length >= MAX_PENDING_DOWNLOADS } });
 });
 
 app.use(express.static(FRONTEND_DIR, { maxAge: IS_PRODUCTION ? '1d' : 0 }));
