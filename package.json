@@ -1,7 +1,7 @@
 {
   "name": "youtube-downloader-backend",
   "version": "1.0.0",
-  "description": "Backend para download de v\u00eddeos do YouTube usando Express, play-dl e yt-dlp-exec",
+  "description": "Backend para download de vídeos do YouTube usando Express, play-dl e yt-dlp-exec",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
@@ -25,7 +25,6 @@
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
-    "axios": "^1.12.2",
     "bullmq": "^6.3.1",
     "connect-redis": "^10.0.0",
     "connect-sqlite3": "^0.9.16",
