@@ -1151,3 +1151,178 @@
     backdrop-filter: none;
   }
 }
+
+
+/* IPTV discovery: catálogo em grelha, sem paginação/validação a interromper a leitura. */
+.ent-rail-iptv .iptv-channel-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 205px), 1fr));
+  grid-auto-flow: row;
+  grid-auto-rows: 1fr;
+  gap: 16px;
+  width: 100%;
+  overflow: visible;
+  padding: 4px 0 10px;
+  scroll-snap-type: none;
+}
+.ent-rail-iptv .iptv-channel-list > .ent-card {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-art {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 16 / 10;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 154px;
+  padding: 12px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy h4 {
+  display: -webkit-box;
+  grid-column: auto;
+  grid-row: auto;
+  min-height: 2.5em;
+  overflow: hidden;
+  font-size: 13px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy p {
+  grid-column: auto;
+  grid-row: auto;
+  min-height: 1.4em;
+  margin-top: 4px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-facts {
+  grid-column: auto;
+  grid-row: auto;
+  align-self: auto;
+  padding-top: 8px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-actions {
+  grid-column: auto;
+  grid-row: auto;
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.iptv-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 205px), 1fr));
+  gap: 16px;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+.iptv-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 250px;
+  padding: 0 0 12px;
+  overflow: hidden;
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  background: #171116;
+}
+.iptv-skeleton-art,
+.iptv-skeleton-line {
+  display: block;
+  overflow: hidden;
+  background: linear-gradient(100deg, #211920 15%, #30242c 35%, #211920 55%);
+  background-size: 220% 100%;
+  animation: iptv-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+.iptv-skeleton-art { aspect-ratio: 16 / 10; }
+.iptv-skeleton-line { width: 78%; height: 10px; margin: 0 12px; border-radius: 5px; }
+.iptv-skeleton-line.short { width: 46%; height: 8px; }
+@keyframes iptv-skeleton-shimmer { to { background-position-x: -220%; } }
+@media (max-width: 700px) {
+  .ent-rail-iptv .iptv-channel-list,
+  .iptv-skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ent-rail-iptv .iptv-channel-list .ent-card-copy { min-height: 146px; padding: 9px; }
+  .ent-rail-iptv .iptv-channel-list .ent-card-actions { grid-template-columns: minmax(0, 1fr) 32px 32px; gap: 4px; }
+  .ent-rail-iptv .iptv-channel-list .ent-card-actions button:not(.primary) { width: 32px; }
+  .ent-rail-iptv .iptv-channel-list .ent-card-copy h4 { font-size: 12px; }
+  .iptv-skeleton-card { min-height: 216px; gap: 8px; }
+}
+@media (max-width: 350px) {
+  .ent-rail-iptv .iptv-channel-list,
+  .iptv-skeleton-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iptv-skeleton-art, .iptv-skeleton-line { animation: none; background: #282128; }
+}
+
+/* Desktop cinema player: the image remains primary; controls recede until interaction. */
+@media (min-width: 901px) {
+  .ent-video-drawer { padding: clamp(18px, 3vh, 38px); }
+  .ent-video-drawer .video-drawer-card {
+    width: min(1500px, calc(100vw - 72px));
+    height: min(1000px, calc(100dvh - 56px));
+    gap: 10px;
+    padding: clamp(18px, 2vw, 30px);
+    border-color: #ffffff18;
+    border-radius: 16px;
+    background: #08080a;
+    box-shadow: 0 36px 140px #000e;
+  }
+  .ent-video-drawer .video-drawer-head { min-height: 54px; padding: 0 4px 10px; }
+  .ent-video-drawer .video-drawer-head #closeVideo {
+    position: relative; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0;
+    overflow: hidden; border-color: transparent; border-radius: 50%;
+    color: transparent; font-size: 0; background: #ffffff10;
+  }
+  .ent-video-drawer .video-drawer-head #closeVideo::before,
+  .ent-video-drawer .video-drawer-head #closeVideo::after {
+    position: absolute; top: 21px; left: 12px; width: 20px; height: 2px;
+    border-radius: 2px; background: #fff; content: ""; transform: rotate(45deg);
+  }
+  .ent-video-drawer .video-drawer-head #closeVideo::after { transform: rotate(-45deg); }
+  .ent-video-drawer .ent-player-stageyt {
+    flex: 1 1 auto; min-height: 0; max-height: calc(100dvh - 210px);
+    aspect-ratio: 16 / 9; border: 0; border-radius: 10px;
+    background: #000; box-shadow: 0 16px 50px #0009;
+  }
+  .yt-overlay-controls {
+    gap: 5px; padding: 52px 24px 18px;
+    background: linear-gradient(0deg, #000e 0%, #0008 34%, transparent 100%);
+  }
+  .yt-btn { min-width: 40px; height: 40px; border-color: transparent; background: transparent; color: #fff; box-shadow: none; }
+  .yt-btn:hover { transform: none; border-color: #ffffff1c; background: #ffffff19; }
+  .yt-left-controls, .yt-right-controls { gap: 5px; }
+  .yt-seek-bar-wrap { min-height: 4px; background: #ffffff70; }
+  .yt-seek-bar-wrap:hover { min-height: 6px; }
+  .ent-video-drawer .ent-player-foot { min-height: 28px; font-size: 10px; }
+}
+.ent-video-drawer .yt-icon {
+  display: block; width: 19px; height: 19px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.yt-center-play .yt-icon { width: 27px; height: 27px; fill: currentColor; stroke: none; }
+.yt-center-play { display: grid; place-items: center; }
+@media (max-width: 700px) {
+  .yt-btn { color: #fff; }
+  .yt-btn .yt-icon { width: 17px; height: 17px; }
+}
+@media (max-width: 360px) {
+  .ent-video-drawer .yt-center-play { display: none !important; }
+}
+
+.ent-player-stageyt:has(.ent-player-loading:not([hidden])) .yt-center-play {
+  opacity: 0;
+  pointer-events: none;
+}
+.ent-player-stageyt.user-inactive.playing .yt-overlay-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
