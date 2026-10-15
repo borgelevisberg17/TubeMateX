@@ -18,6 +18,7 @@
     "vercel-build": "apt-get update && apt-get install -y python3-pip && pip3 install --upgrade yt-dlp",
     "test:accessibility": "node tests/design-system-accessibility.js",
     "test:contrast": "node tests/color-contrast.js",
+    "test:design-system": "node tests/design-system-governance.js",
     "test:backend:unit": "node --test backend/test/unit/*.test.js",
     "test:backend:contract": "node --test backend/test/contracts/*.test.js",
     "test:backend": "npm run test:backend:unit && npm run test:backend:contract",

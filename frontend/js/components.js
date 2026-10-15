@@ -130,7 +130,45 @@
     </article>`;
   }
 
-  const api = { escapeHtml, mediaCard, renderHeader };
+  function createButton(label, options = {}) {
+    const variant = ['primary', 'quiet', 'danger'].includes(options.variant) ? options.variant : 'secondary';
+    const button = element('button', `tmx-btn${variant === 'secondary' ? '' : ` tmx-btn--${variant}`}`, label);
+    button.type = options.type === 'submit' || options.type === 'reset' ? options.type : 'button';
+    button.disabled = Boolean(options.disabled);
+    if (options.ariaLabel) button.setAttribute('aria-label', options.ariaLabel);
+    return button;
+  }
+
+  function createState(options = {}) {
+    const kind = ['loading', 'empty', 'success', 'error', 'unavailable'].includes(options.kind) ? options.kind : 'empty';
+    const state = element('section', 'tmx-state');
+    state.dataset.kind = kind;
+    if (options.label) state.setAttribute('aria-label', options.label);
+    if (kind === 'loading') {
+      state.setAttribute('role', 'status');
+      state.setAttribute('aria-live', 'polite');
+      state.setAttribute('aria-busy', 'true');
+    }
+    if (options.title) state.append(element('h2', 'tmx-state__title', options.title));
+    if (options.body) state.append(element('p', 'tmx-state__body', options.body));
+    if (typeof options.onAction === 'function' && options.actionLabel) {
+      const action = createButton(options.actionLabel, { variant: 'primary' });
+      action.addEventListener('click', options.onAction);
+      state.append(action);
+    }
+    return state;
+  }
+
+  function createToast(message, options = {}) {
+    const kind = ['success', 'warning', 'error'].includes(options.kind) ? options.kind : 'info';
+    const toast = element('div', `tmx-toast tmx-toast--${kind}`, message);
+    toast.dataset.kind = kind;
+    toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
+    return toast;
+  }
+
+  const api = { escapeHtml, mediaCard, renderHeader, createButton, createState, createToast };
   if (typeof window !== 'undefined') {
     window.TMXComponents = api;
     document.querySelectorAll('tmx-app-header').forEach(renderHeader);

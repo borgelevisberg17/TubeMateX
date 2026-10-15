@@ -29,9 +29,10 @@ function cssProperty(block, name) {
   return match[1].trim();
 }
 function variable(block, name) {
-  const match = block.match(new RegExp(`(?:^|\\s)${name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*:\\s*([^;]+)`));
-  assert.ok(match, `token ausente: ${name}`);
-  return match[1].trim();
+  const escaped = name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+  const match = block.match(new RegExp('(?:^|\\s)' + escaped + '\\s*:\\s*([^;]+)'));
+  assert.ok(match, 'token ausente: ' + name);
+  return resolveColor(match[1].trim(), new Set(), block);
 }
 function rgb(value) {
   const match = value.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
@@ -47,10 +48,27 @@ function contrast(foreground, background) {
   const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
+function resolveColor(value, seen = new Set(), context = '') {
+  const input = String(value).trim();
+  if (input.startsWith('#')) return input;
+  if (!input.startsWith('var(')) return input;
+  const name = input.slice(4).split(/[),]/)[0].trim();
+  assert.ok(name.startsWith('--'), 'token CSS inválido: ' + input);
+  assert.ok(!seen.has(name), 'referência circular no token ' + name);
+  const pattern = new RegExp(name + '\\s*:\\s*([^;]+)');
+  const declaration = context.match(pattern) || designCss.match(pattern);
+  const fallback = input.includes(',') ? input.slice(input.indexOf(',') + 1, input.lastIndexOf(')')).trim() : null;
+  const next = declaration?.[1]?.trim() || fallback;
+  assert.ok(next, 'token de cor não resolvido: ' + name);
+  seen.add(name);
+  return resolveColor(next, seen, context);
+}
 function expectContrast(label, foreground, background, minimum = 4.5) {
-  const ratio = contrast(foreground, background);
-  assert.ok(ratio >= minimum, `${label}: contraste ${ratio.toFixed(2)}:1 abaixo de ${minimum}:1 (${foreground} sobre ${background})`);
-  console.log(`PASS ${label}: ${ratio.toFixed(2)}:1`);
+  const resolvedForeground = resolveColor(foreground);
+  const resolvedBackground = resolveColor(background);
+  const ratio = contrast(resolvedForeground, resolvedBackground);
+  assert.ok(ratio >= minimum, label + ': contraste ' + ratio.toFixed(2) + ':1 abaixo de ' + minimum + ':1 (' + resolvedForeground + ' sobre ' + resolvedBackground + ')');
+  console.log('PASS ' + label + ': ' + ratio.toFixed(2) + ':1');
 }
 
 const dark = blockFor(designCss, ':root');
@@ -62,6 +80,10 @@ for (const [name, palette] of [['escuro', dark], ['claro', light]]) {
   const muted = variable(palette, '--tmx-fg-muted');
   const accent = variable(palette, '--tmx-accent');
   const accentContrast = variable(palette, '--tmx-accent-contrast');
+  const success = variable(palette, '--tmx-state-success');
+  const warning = variable(palette, '--tmx-state-warning');
+  expectContrast(`${name}: estado de sucesso/base`, success, bg);
+  expectContrast(`${name}: estado de aviso/base`, warning, bg);
   expectContrast(`${name}: texto/base`, fg, bg);
   expectContrast(`${name}: texto secundário/base`, muted, bg);
   expectContrast(`${name}: texto/superfície`, fg, surface);

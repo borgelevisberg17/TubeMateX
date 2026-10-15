@@ -37,7 +37,7 @@ A aplicação é servida como ficheiros estáticos pelo Express. As páginas nã
 
 ## Design system
 
-A base compartilhada está em `frontend/css/design-system.css`: cores semânticas, espaçamento, raios, largura de conteúdo, superfícies e sombra. As áreas mantêm aliases (`--h-*`, `--u-*`, `--space-*`) para reduzir risco de regressão; os aliases de cores agora derivam dos mesmos tokens. Temas claro/escuro continuam a usar a preferência `tubematex-theme`.
+A base compartilhada está em `frontend/css/design-system.css`: tokens primitivos `--tmx-color-*`, papéis semânticos `--tmx-*`, escala de espaçamento, dimensões de controlo, foco, superfícies e sombras. As áreas mantêm aliases legados (`--h-*`, `--u-*`, `--space-*`) apenas como adaptadores durante a migração; novos componentes usam tokens semânticos diretamente. Variantes comuns de botões, campos, cartões, badges, estados, progresso, toasts, diálogos e paginação estão documentadas em `DESIGN-SYSTEM-GOVERNANCE.md`. Temas claro/escuro continuam a usar a preferência `tubematex-theme`.
 
 `frontend/js/components.js` e `frontend/css/components.css` oferecem o shell comum de navegação/cabeçalho e o gerador vanilla de cartões de mídia para Música e Social. O Cine mantém seu cartão editorial próprio porque inclui progresso, múltiplas ações e metadados de catálogo; o cabeçalho global é o mesmo e a navegação local de categorias continua separada.
 
@@ -62,7 +62,8 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 ## Qualidade e verificações
 
 - `npm run test:accessibility`: verifica convenções estruturais, navegação partilhada e SVGs acessíveis em todas as páginas principais.
-- `npm run test:contrast`: calcula razões WCAG AA dos tokens por tema, dos acentos do cabeçalho e dos componentes IPTV (inclui placeholders e foco não textual). A inclusão no CI fica pendente de habilitar a permissão GitHub `Workflows` para o conector.
+- `npm run test:contrast`: calcula razões WCAG AA dos tokens por tema, dos acentos do cabeçalho e dos componentes IPTV (inclui placeholders e foco não textual), resolvendo referências semânticas no contexto do tema.
+- `npm run test:design-system`: verifica a presença de camadas de tokens, variantes de componentes, política de aliases e critérios de responsividade/acessibilidade.
 - `npm run test:backend`: executa testes unitários de serviços/componentes e testes de contrato HTTP com o runner nativo `node:test` (sem banco real nem serviços externos).
 - `npm test`: atalho para a suíte unitária e de contrato do backend; os fluxos de navegador continuam disponíveis nos comandos E2E existentes.
 - `npm run test:e2e` e testes de domínio (`test:catalog`, `test:entertainment`, `test:admin`) validam fluxos e contratos existentes.
@@ -72,7 +73,7 @@ A base compartilhada está em `frontend/css/design-system.css`: cores semântica
 
 ## Plano incremental
 
-1. **Fundação (feito):** tokens partilhados, aliases visuais consistentes, foco global, skip link, redução de movimento, estados acessíveis na busca e teste de estrutura.
+1. **Fundação (feito/em evolução):** tokens partilhados, aliases visuais consistentes, foco global, skip link, redução de movimento, estados acessíveis na busca e testes de estrutura/contraste/governança. A política de migração dos aliases está em `DESIGN-SYSTEM-GOVERNANCE.md`.
 2. **Shell e componentes iniciais (feito):** cabeçalho/ações e navegação partilhados nas sete telas principais; cartão reutilizável em Música e Social; categorias locais do Cine preservadas.
 3. **Passo 2 (em curso):** navegação global e ações principais já usam SVGs inline com rótulos textuais/ARIA; Cine recebe ícones SVG nos cartões; contrastes dos tokens, acentos de navegação e componentes IPTV passam verificação automatizada. IPTV agora tem filtros com rótulos visíveis, submissão por Enter, limpeza, busy state, estados de erro anunciáveis, prevenção de respostas fora de ordem, estado acessível das vistas e foco visível. Próximo: estender a substituição aos ícones dos controlos do player e aos estados repetidos quando uma extração oferecer ganho real.
 4. **Backend (base inicial feita):** `node:test` cobre classificação/tradução de erros, cache de metadata e contratos de health, capabilities e media info. Ampliar cobertura nas rotas de downloads/biblioteca e nos limites/autorização antes de extrair persistência para repositórios.
