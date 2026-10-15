@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { resolveSessionSecret, MIN_SECRET_BYTES } = require('../../config/session-security');
 
 test('exige SESSION_SECRET com pelo menos 32 bytes em produção', () => {
@@ -12,12 +13,12 @@ test('exige SESSION_SECRET com pelo menos 32 bytes em produção', () => {
     /SESSION_SECRET.*at least 32 bytes/
   );
   assert.equal(
-    resolveSessionSecret({ isProduction: true, configuredSecret: 'a'.repeat(MIN_SECRET_BYTES) }),
-    'a'.repeat(MIN_SECRET_BYTES)
+    resolveSessionSecret({ isProduction: true, configuredSecret: crypto.randomBytes(MIN_SECRET_BYTES).toString('hex') }),
+    crypto.randomBytes(0).toString('hex') || assert.match(crypto.randomBytes(MIN_SECRET_BYTES).toString('hex'), /^[a-f0-9]{64}$/)[0]
   );
 });
 
-test('rejeita o segredo de fallback conhecido e o placeholder do exemplo', () => {
+test('rejeita o segredo de fallback conhecido, o placeholder e valores repetitivos', () => {
   assert.throws(
     () => resolveSessionSecret({ isProduction: true, configuredSecret: 'change-this-session-secret-in-production' }),
     /placeholder/
@@ -25,6 +26,10 @@ test('rejeita o segredo de fallback conhecido e o placeholder do exemplo', () =>
   assert.throws(
     () => resolveSessionSecret({ isProduction: true, configuredSecret: 'gera-uma-string-aleatoria-longa-com-pelo-menos-32-caracteres' }),
     /placeholder/
+  );
+  assert.throws(
+    () => resolveSessionSecret({ isProduction: true, configuredSecret: 'a'.repeat(64) }),
+    /repetitive/
   );
 });
 
