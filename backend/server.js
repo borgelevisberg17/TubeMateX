@@ -1346,6 +1346,8 @@ app.use(createDownloadRouter({
     downloadLimiter,
     conversionLimiter,
     maxDownloadSize: MAX_DOWNLOAD_SIZE,
+    maxStorageBytes: MAX_STORAGE_BYTES,
+    getStorageUsage: getDownloadDirectoryUsage,
     validateUrl,
     allowedFormats,
     videoQualities,
