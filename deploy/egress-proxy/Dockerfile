@@ -5,6 +5,7 @@ RUN apt-get update \
     && mkdir -p /var/cache/squid /var/log/squid \
     && chown -R proxy:proxy /var/cache/squid /var/log/squid /etc/squid
 COPY squid.conf /etc/squid/squid.conf
+RUN /usr/sbin/squid -k parse -f /etc/squid/squid.conf
 USER proxy
 EXPOSE 3128
 CMD ["/usr/sbin/squid", "-N", "-f", "/etc/squid/squid.conf"]
