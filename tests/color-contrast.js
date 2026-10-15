@@ -49,13 +49,13 @@ function contrast(foreground, background) {
 }
 function resolveColor(value, seen = new Set()) {
   const input = String(value).trim();
-  if (/^#(?:[\\da-f]{3}|[\\da-f]{6})$/i.test(input)) return input;
-  const ref = input.match(/^var\\((--[\\w-]+)(?:,\\s*(.+))?\\)$/);
-  assert.ok(ref, 'cor/token CSS não suportado pelo validador: ' + input);
-  const name = ref[1], fallback = ref[2];
+  if (input.startsWith('#')) return input;
+  if (!input.startsWith('var(')) return input;
+  const name = input.slice(4).split(/[),]/)[0].trim();
+  assert.ok(name.startsWith('--'), 'token CSS inválido: ' + input);
   assert.ok(!seen.has(name), 'referência circular no token ' + name);
-  const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-  const declaration = designCss.match(new RegExp('(?:^|[;\\s])' + escaped + '\\s*:\\s*([^;]+)'));
+  const declaration = designCss.match(new RegExp(name + '\\s*:\\s*([^;]+)'));
+  const fallback = input.includes(',') ? input.slice(input.indexOf(',') + 1, input.lastIndexOf(')')).trim() : null;
   const next = declaration?.[1]?.trim() || fallback;
   assert.ok(next, 'token de cor não resolvido: ' + name);
   seen.add(name);
