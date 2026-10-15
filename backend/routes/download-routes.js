@@ -9,7 +9,7 @@ function createDownloadRouter(deps) {
     distributedQueue, emit, redisClient, jobStateKey, bullmqRetentionSeconds,
     jobEventChannel, jobCancelChannel, eventSubscriber, jobEventClients,
     processQueue, conversionFormats, loadHistory, storedPath, downloadDir,
-    convertMedia, addHistory, clientHistory, pausedOwners
+    convertMedia, addHistory, clientHistory, pausedOwners, getStorageUsage, maxStorageBytes
   } = deps;
   const router = express.Router();
 
@@ -172,6 +172,7 @@ function createDownloadRouter(deps) {
       const outputName = `${path.basename(inputPath, path.extname(inputPath))}.${preset.extension}`;
       const outputPath = path.join(downloadDir, `${conversionId}.${preset.extension}`);
       try {
+          if (typeof getStorageUsage === 'function' && getStorageUsage() + deps.maxDownloadSize > maxStorageBytes) return res.status(507).json({ error: 'O armazenamento de downloads atingiu o limite configurado.' });
           await convertMedia(inputPath, outputPath, preset);
           const convertedSize = fs.statSync(outputPath).size;
           if (convertedSize > deps.maxDownloadSize) throw new Error('O ficheiro convertido excedeu o limite máximo permitido.');
