@@ -61,3 +61,6 @@ jobs:
 
       - name: Verificar contraste dos tokens
         run: npm run test:contrast
+
+      - name: Verificar governança do design system
+        run: npm run test:design-system
