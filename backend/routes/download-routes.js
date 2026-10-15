@@ -4,7 +4,7 @@ const path = require('path');
 
 function createDownloadRouter(deps) {
   const {
-    downloadLimiter, validateUrl, allowedFormats, videoQualities, getVisitorId,
+    downloadLimiter, conversionLimiter, validateUrl, allowedFormats, videoQualities, getVisitorId,
     createJob, publicJob, jobs, loadDistributedJob, cancelledJobIds, queue,
     distributedQueue, emit, redisClient, jobStateKey, bullmqRetentionSeconds,
     jobEventChannel, jobCancelChannel, eventSubscriber, jobEventClients,
@@ -156,7 +156,7 @@ function createDownloadRouter(deps) {
       });
   });
 
-  router.post('/api/downloads/:id/convert', async (req, res) => {
+  router.post('/api/downloads/:id/convert', conversionLimiter, async (req, res) => {
       const ownerId = getVisitorId(req, res);
       const requested = String(req.body?.format || '').toLowerCase();
       const preset = conversionFormats[requested];
@@ -173,7 +173,9 @@ function createDownloadRouter(deps) {
       const outputPath = path.join(downloadDir, `${conversionId}.${preset.extension}`);
       try {
           await convertMedia(inputPath, outputPath, preset);
-          const entry = { id: conversionId, title: `${job?.title || historyItem?.title || 'Ficheiro'} · ${preset.extension.toUpperCase()}`, thumbnail: job?.thumbnail || historyItem?.thumbnail, format: requested, formatLabel: requested.toUpperCase(), quality: historyItem?.quality || job?.quality, qualityLabel: historyItem?.qualityLabel || job?.qualityLabel, site: job?.site || historyItem?.site, size: fs.statSync(outputPath).size, fileName: outputName, storedName: path.basename(outputPath), createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), downloadUrl: `/api/downloads/${conversionId}/file` };
+          const convertedSize = fs.statSync(outputPath).size;
+          if (convertedSize > deps.maxDownloadSize) throw new Error('O ficheiro convertido excedeu o limite máximo permitido.');
+          const entry = { id: conversionId, size: convertedSize, title: `${job?.title || historyItem?.title || 'Ficheiro'} · ${preset.extension.toUpperCase()}`, thumbnail: job?.thumbnail || historyItem?.thumbnail, format: requested, formatLabel: requested.toUpperCase(), quality: historyItem?.quality || job?.quality, qualityLabel: historyItem?.qualityLabel || job?.qualityLabel, site: job?.site || historyItem?.site, size: fs.statSync(outputPath).size, fileName: outputName, storedName: path.basename(outputPath), createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), downloadUrl: `/api/downloads/${conversionId}/file` };
           await addHistory(ownerId, entry);
           res.status(201).json({ ...clientHistory([entry])[0], downloadUrl: `/api/downloads/${conversionId}/file` });
       } catch (error) { if (fs.existsSync(outputPath)) fs.rmSync(outputPath, { force: true }); res.status(422).json({ error: error.message || 'A conversão falhou.' }); }
