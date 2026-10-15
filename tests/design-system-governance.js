@@ -7,6 +7,7 @@ const design = fs.readFileSync(path.join(root, 'frontend/css/design-system.css')
 const components = fs.readFileSync(path.join(root, 'frontend/css/components.css'), 'utf8');
 const js = fs.readFileSync(path.join(root, 'frontend/js/components.js'), 'utf8');
 const spaces = fs.readFileSync(path.join(root, 'frontend/css/spaces.css'), 'utf8');
+const downloads = fs.readFileSync(path.join(root, 'frontend/css/downloads.css'), 'utf8');
 const docs = fs.readFileSync(path.join(root, 'DESIGN-SYSTEM-GOVERNANCE.md'), 'utf8');
 
 for (const token of [
@@ -33,6 +34,9 @@ assert.match(components, /--tmx-header-accent: var\(--tmx-accent/);
 assert.match(components, /color: var\(--tmx-fg, var\(--tmx-text-on-header/, 'shared header text must use on-header foreground tokens in both themes');
 assert.ok(docs.includes('Legacy alias migration policy'), 'document alias policy');
 assert.ok(docs.includes('Responsive and accessibility acceptance checklist'), 'document acceptance criteria');
+assert.ok(downloads.includes('--tmx-accent: var(--tmx-accent-downloads)'), 'downloads workspace should use its semantic accent');
+for (const token of ['var(--tmx-bg)', 'var(--tmx-text-primary)', 'var(--tmx-text-secondary)', 'var(--tmx-surface)', 'var(--tmx-border)', 'prefers-reduced-motion', 'max-width: 480px']) assert.ok(downloads.includes(token), 'downloads workspace missing semantic/responsive rule: ' + token);
+assert.ok(!/#09090b|#f4edf0|#e50914/.test(downloads), 'downloads workspace should not reintroduce hard-coded page palette colors');
 assert.ok(/320 px/.test(docs) && /200%/.test(docs), 'include small-screen and zoom checks');
 
 console.log('DESIGN_SYSTEM_GOVERNANCE_OK — tokens, component variants, alias policy and acceptance criteria');
