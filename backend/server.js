@@ -34,6 +34,7 @@ const YT_DLP_PLUGIN_DIR = resolveBackendPath(process.env.YT_DLP_PLUGIN_DIR);
 const YT_DLP_COMMON_OPTIONS = {};
 const FFMPEG_LOCATION = resolveBackendPath(process.env.FFMPEG_PATH);
 if (FFMPEG_LOCATION) YT_DLP_COMMON_OPTIONS.ffmpegLocation = FFMPEG_LOCATION;
+if (process.env.YTDLP_PROXY_URL) YT_DLP_COMMON_OPTIONS.proxy = process.env.YTDLP_PROXY_URL;
 if (process.env.YTDLP_COOKIES_FILE) { const cookiesFile = resolveBackendPath(process.env.YTDLP_COOKIES_FILE); if (fs.existsSync(cookiesFile)) YT_DLP_COMMON_OPTIONS.cookies = cookiesFile; else console.warn(`[yt-dlp] YTDLP_COOKIES_FILE não encontrado: ${cookiesFile}`); }
 if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
@@ -1105,12 +1106,17 @@ function processQueue() {
 }
 
 async function createJob(ownerId, url, format, quality = 'auto', requestId = null) {
-    const activeForOwner = [...jobs.values()].filter(job => job.ownerId === ownerId && ['queued', 'fetching', 'downloading', 'paused'].includes(job.status)).length;
-    if (activeForOwner >= MAX_ACTIVE_JOBS_PER_OWNER) { const error = new Error('Atingiste o limite de downloads ativos. Termina ou cancela um download antes de iniciar outro.'); error.statusCode = 429; throw error; }
+    let activeForOwner;
     if (distributedQueue) {
+        const existing = await distributedQueue.getJobs(['waiting', 'active', 'delayed', 'paused'], 0, MAX_PENDING_DOWNLOADS + MAX_ACTIVE_JOBS_PER_OWNER + 10);
+        activeForOwner = existing.filter(item => item.data?.ownerId === ownerId).length;
         const counts = await distributedQueue.getJobCounts('waiting', 'delayed', 'paused');
         if ((counts.waiting || 0) + (counts.delayed || 0) + (counts.paused || 0) >= MAX_PENDING_DOWNLOADS) { const error = new Error('A fila de downloads está cheia. Tenta novamente mais tarde.'); error.statusCode = 503; throw error; }
-    } else if (queue.length >= MAX_PENDING_DOWNLOADS) { const error = new Error('A fila de downloads está cheia. Tenta novamente mais tarde.'); error.statusCode = 503; throw error; }
+    } else {
+        activeForOwner = [...jobs.values()].filter(job => job.ownerId === ownerId && ['queued', 'fetching', 'downloading', 'paused'].includes(job.status)).length;
+        if (queue.length >= MAX_PENDING_DOWNLOADS) { const error = new Error('A fila de downloads está cheia. Tenta novamente mais tarde.'); error.statusCode = 503; throw error; }
+    }
+    if (activeForOwner >= MAX_ACTIVE_JOBS_PER_OWNER) { const error = new Error('Atingiste o limite de downloads ativos. Termina ou cancela um download antes de iniciar outro.'); error.statusCode = 429; throw error; }
     const job = {
         id: crypto.randomBytes(12).toString('hex'),
         ownerId,
@@ -1134,7 +1140,7 @@ async function createJob(ownerId, url, format, quality = 'auto', requestId = nul
     jobs.set(job.id, job);
     emit(job);
     if (distributedQueue) {
-        await distributedQueue.add('download', { id: job.id, ownerId: job.ownerId, url: job.url, format: job.format, quality: job.quality, createdAt: job.createdAt }, { jobId: job.id });
+        await distributedQueue.add('download', { id: job.id, ownerId: job.ownerId, requestId: job.requestId, url: job.url, format: job.format, quality: job.quality, createdAt: job.createdAt }, { jobId: job.id });
     } else {
         queue.push(job);
         processQueue();
