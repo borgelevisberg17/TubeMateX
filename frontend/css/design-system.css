@@ -46,8 +46,10 @@
   --tmx-info: var(--tmx-color-cyan-300);
   --tmx-danger: var(--tmx-color-rose-300);
   --tmx-focus: var(--tmx-color-yellow-300);
-  --tmx-text-primary: var(--tmx-fg);
-  --tmx-text-secondary: var(--tmx-fg-muted);
+  --tmx-text-primary: var(--tmx-color-white);
+  --tmx-text-secondary: var(--tmx-color-slate-300);
+  --tmx-fg: var(--tmx-text-primary);
+  --tmx-fg-muted: var(--tmx-text-secondary);
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-success: #7fe3ba;
@@ -77,8 +79,10 @@ html[data-theme="light"] {
   --tmx-info: var(--tmx-color-teal-800);
   --tmx-danger: var(--tmx-color-rose-800);
   --tmx-focus: var(--tmx-color-brown-800);
-  --tmx-text-primary: var(--tmx-fg);
-  --tmx-text-secondary: var(--tmx-fg-muted);
+  --tmx-text-primary: var(--tmx-color-ink-900);
+  --tmx-text-secondary: var(--tmx-color-slate-700);
+  --tmx-fg: var(--tmx-text-primary);
+  --tmx-fg-muted: var(--tmx-text-secondary);
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-error: var(--tmx-danger);
