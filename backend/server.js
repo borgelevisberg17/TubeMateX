@@ -81,6 +81,7 @@ const HISTORY_DIR = resolveConfiguredPath(process.env.HISTORY_DIR, path.join(DAT
 const MAX_HISTORY = Number(process.env.MAX_HISTORY || 50);
 const MAX_CONCURRENT_DOWNLOADS = Math.max(1, Number(process.env.MAX_CONCURRENT_DOWNLOADS || 2));
 const MAX_DOWNLOAD_SIZE = Math.max(1024 * 1024, Number(process.env.MAX_DOWNLOAD_SIZE || 2 * 1024 * 1024 * 1024));
+const MAX_STORAGE_BYTES = Math.max(MAX_DOWNLOAD_SIZE, Number(process.env.MAX_STORAGE_BYTES || 20 * 1024 * 1024 * 1024));
 const MAX_ACTIVE_JOBS_PER_OWNER = Math.max(1, Number(process.env.MAX_ACTIVE_JOBS_PER_OWNER || 3));
 const MAX_PENDING_DOWNLOADS = Math.max(1, Number(process.env.MAX_PENDING_DOWNLOADS || 100));
 const DOWNLOAD_TIMEOUT_MS = Math.max(60_000, Number(process.env.DOWNLOAD_TIMEOUT_MS || 30 * 60 * 1000));
@@ -684,6 +685,13 @@ function safeFileName(title, format) {
     return `${clean}.${format}`;
 }
 
+function getDownloadDirectoryUsage() {
+    return fs.readdirSync(DOWNLOAD_DIR, { withFileTypes: true }).reduce((total, entry) => {
+        if (!entry.isFile()) return total;
+        try { return total + fs.statSync(path.join(DOWNLOAD_DIR, entry.name)).size; } catch { return total; }
+    }, 0);
+}
+
 function findOutputFile(job) {
     const candidates = fs.readdirSync(DOWNLOAD_DIR)
         .filter(file => file.startsWith(`${job.id}.`))
@@ -1008,6 +1016,8 @@ async function runJob(job) {
     emit(job, { status: 'fetching', progress: { percent: 0, label: 'A analisar o conteúdo…' } });
     let info;
     try {
+        const storageUsage = getDownloadDirectoryUsage();
+        if (storageUsage + activeJobs * MAX_DOWNLOAD_SIZE > MAX_STORAGE_BYTES) throw new Error('O armazenamento de downloads atingiu o limite configurado. Tenta novamente mais tarde.');
         info = await fetchInfo(job.url);
         if (job.cancelled || cancelledJobIds.has(job.id)) throw new Error('Download cancelado pelo utilizador.');
         Object.assign(job, info);
@@ -1071,6 +1081,10 @@ async function runJob(job) {
             emit(job, { status: 'failed', error: translateError(error), errorCode: errorCode(error), progress: { percent: 0, label: 'O download falhou' } });
         }
         if (job.filePath && fs.existsSync(job.filePath)) fs.rmSync(job.filePath, { force: true });
+        for (const name of fs.readdirSync(DOWNLOAD_DIR).filter(name => name.startsWith(`${job.id}.`) || name.startsWith(`${job.id}-`))) {
+            const artifact = path.join(DOWNLOAD_DIR, name);
+            try { if (fs.statSync(artifact).isFile()) fs.rmSync(artifact, { force: true }); } catch {}
+        }
     } finally {
         activeJobs -= 1;
         job.process = null;
@@ -1423,7 +1437,7 @@ app.get('/internal/metrics', async (req, res) => {
     const queueCounts = distributedQueue ? await distributedQueue.getJobCounts('waiting', 'delayed', 'paused').catch(() => ({})) : {};
     const pendingDownloads = distributedQueue ? (queueCounts.waiting || 0) + (queueCounts.delayed || 0) + (queueCounts.paused || 0) : queue.length;
     const errorRate5xx = requestMetrics.total ? requestMetrics.errors5xx / requestMetrics.total : 0;
-    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, pendingDownloads, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, pendingQueueNearCapacity: pendingDownloads >= Math.ceil(MAX_PENDING_DOWNLOADS * 0.9) } });
+    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, pendingDownloads, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, maxStorageBytes: MAX_STORAGE_BYTES, storageUsageBytes: getDownloadDirectoryUsage(), downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, pendingQueueNearCapacity: pendingDownloads >= Math.ceil(MAX_PENDING_DOWNLOADS * 0.9) } });
 });
 
 app.use(express.static(FRONTEND_DIR, { maxAge: IS_PRODUCTION ? '1d' : 0 }));
