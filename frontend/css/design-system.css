@@ -53,6 +53,12 @@
   --tmx-state-success: #7fe3ba;
   --tmx-state-warning: #efc870;
   --tmx-state-error: var(--tmx-danger);
+  --tmx-accent-entertainment: #ff4c68;
+  --tmx-accent-social: #59d9e8;
+  --tmx-accent-downloads: #ff5268;
+  --tmx-surface-header: #081521;
+  --tmx-surface-header-entertainment: #16090e;
+  --tmx-surface-header-downloads: #0b0b0e;
   --tmx-control-height: 44px;
   --tmx-control-radius: var(--tmx-radius-sm);
   --tmx-content-gutter: clamp(16px, 4vw, 56px);
@@ -76,6 +82,9 @@ html[data-theme="light"] {
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-error: var(--tmx-danger);
+  --tmx-surface-header: #ffffff;
+  --tmx-surface-header-entertainment: #ffffff;
+  --tmx-surface-header-downloads: #ffffff;
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
