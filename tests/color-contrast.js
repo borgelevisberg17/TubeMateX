@@ -80,6 +80,10 @@ for (const [name, palette] of [['escuro', dark], ['claro', light]]) {
   const muted = variable(palette, '--tmx-fg-muted');
   const accent = variable(palette, '--tmx-accent');
   const accentContrast = variable(palette, '--tmx-accent-contrast');
+  const success = variable(palette, '--tmx-state-success');
+  const warning = variable(palette, '--tmx-state-warning');
+  expectContrast(`${name}: estado de sucesso/base`, success, bg);
+  expectContrast(`${name}: estado de aviso/base`, warning, bg);
   expectContrast(`${name}: texto/base`, fg, bg);
   expectContrast(`${name}: texto secundário/base`, muted, bg);
   expectContrast(`${name}: texto/superfície`, fg, surface);
