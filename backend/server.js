@@ -1309,6 +1309,8 @@ app.use(createMediaRouter({
 
 app.use(createDownloadRouter({
     downloadLimiter,
+    conversionLimiter,
+    maxDownloadSize: MAX_DOWNLOAD_SIZE,
     validateUrl,
     allowedFormats,
     videoQualities,
