@@ -23,7 +23,8 @@
     "test:backend:contract": "node --test backend/test/contracts/*.test.js",
     "test:backend": "npm run test:backend:unit && npm run test:backend:contract",
     "test:specialized": "node tests/specialized-flows-e2e.js",
-    "test:settings-accessibility": "node tests/settings-switch-accessibility.js"
+    "test:settings-accessibility": "node tests/settings-switch-accessibility.js",
+    "test:catalog-ui-tokens": "node tests/catalog-ui-tokens.js"
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
