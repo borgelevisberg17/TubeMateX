@@ -21,6 +21,10 @@ function resolveSessionSecret({ isProduction, configuredSecret } = {}) {
     throw new Error('SESSION_SECRET must not use a documented placeholder value.');
   }
 
+  if (new Set(secret).size < 8) {
+    throw new Error('SESSION_SECRET is too repetitive; use a randomly generated value.');
+  }
+
   return secret;
 }
 
