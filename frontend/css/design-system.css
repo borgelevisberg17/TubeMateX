@@ -55,6 +55,8 @@
   --tmx-focus: var(--tmx-color-yellow-300);
   --tmx-text-primary: var(--tmx-color-white);
   --tmx-text-secondary: var(--tmx-color-slate-300);
+  --tmx-text-on-header: var(--tmx-color-white);
+  --tmx-text-on-header-muted: var(--tmx-color-slate-300);
   --tmx-fg: var(--tmx-text-primary);
   --tmx-fg-muted: var(--tmx-text-secondary);
   --tmx-surface-page: var(--tmx-bg);
@@ -92,9 +94,6 @@ html[data-theme="light"] {
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-error: var(--tmx-danger);
-  --tmx-surface-header: var(--tmx-color-light-surface);
-  --tmx-surface-header-entertainment: var(--tmx-color-light-surface);
-  --tmx-surface-header-downloads: var(--tmx-color-light-surface);
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
