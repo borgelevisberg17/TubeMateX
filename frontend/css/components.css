@@ -1,8 +1,8 @@
 /* Shared application shell and reusable navigation components. */
 tmx-app-header { display: block; }
 .tmx-app-header {
-  --tmx-fg: var(--tmx-text-primary, #eff6ff);
-  --tmx-fg-muted: var(--tmx-text-secondary, #a7b7c8);
+  --tmx-fg: var(--tmx-text-on-header, #eff6ff);
+  --tmx-fg-muted: var(--tmx-text-on-header-muted, #a7b7c8);
   --tmx-header-accent: var(--tmx-accent, #b9f227);
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "brand context actions" "nav nav nav";
