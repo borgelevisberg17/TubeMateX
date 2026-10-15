@@ -3,6 +3,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
+const { resolveSessionSecret } = require('./config/session-security');
 const { spawn } = require('child_process');
 const net = require('net');
 const dns = require('dns').promises;
@@ -47,6 +48,7 @@ function listYtDlpPlugins() {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const SESSION_SECRET = resolveSessionSecret({ isProduction: IS_PRODUCTION, configuredSecret: process.env.SESSION_SECRET });
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const FRONTEND_DIR = path.join(__dirname, '../frontend');
 const resolveConfiguredPath = (value, fallback) => value ? (path.isAbsolute(value) ? value : path.resolve(__dirname, value)) : fallback;
@@ -320,7 +322,7 @@ app.use((req, res, next) => {
 
 app.use(session({
     store: sessionStore,
-    secret: process.env.SESSION_SECRET || 'change-this-session-secret-in-production',
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     proxy: IS_PRODUCTION,
