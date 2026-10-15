@@ -39,8 +39,6 @@
   --tmx-surface: var(--tmx-color-navy-900);
   --tmx-surface-raised: var(--tmx-color-navy-850);
   --tmx-border: var(--tmx-color-navy-800);
-  --tmx-fg: var(--tmx-color-white);
-  --tmx-fg-muted: var(--tmx-color-slate-300);
   --tmx-accent: var(--tmx-color-lime-400);
   --tmx-accent-contrast: var(--tmx-color-navy-950);
   --tmx-info: var(--tmx-color-cyan-300);
@@ -72,8 +70,6 @@ html[data-theme="light"] {
   --tmx-surface: var(--tmx-color-light-surface);
   --tmx-surface-raised: var(--tmx-color-light-raised);
   --tmx-border: var(--tmx-color-light-border);
-  --tmx-fg: var(--tmx-color-ink-900);
-  --tmx-fg-muted: var(--tmx-color-slate-700);
   --tmx-accent: var(--tmx-color-green-800);
   --tmx-accent-contrast: var(--tmx-color-light-surface);
   --tmx-info: var(--tmx-color-teal-800);
