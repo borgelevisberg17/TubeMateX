@@ -18,7 +18,7 @@ COPY backend/package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
 WORKDIR /app
-COPY backend/server.js ./backend/server.js
+COPY backend/ ./backend/
 COPY frontend ./frontend
 
 RUN mkdir -p /var/lib/tubematex/downloads /var/lib/tubematex/history \
