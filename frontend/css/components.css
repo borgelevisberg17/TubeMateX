@@ -28,7 +28,7 @@ tmx-app-header { display: block; }
 .tmx-local-nav .entertainment-nav { position: static !important; display: flex; justify-content: center; gap: 8px; width: min(1440px, 100%); margin: 0 auto; padding: 4px 0; background: transparent !important; }
 .tmx-local-nav .ent-nav-link { min-height: 36px; padding-inline: 10px; white-space: nowrap; }
 .tmx-local-nav .ent-nav-link:focus-visible { outline-offset: 1px; }
-html[data-theme="light"] .tmx-app-header { --tmx-header-accent: var(--tmx-accent); }
+html[data-theme="light"] .tmx-app-header { --tmx-header-accent: var(--tmx-accent-header); }
 body[data-space="entertainment"] .tmx-app-header, body[data-space="entertainment"] .tmx-local-nav { --tmx-header-accent: var(--tmx-accent-entertainment, #ff4c68); --tmx-header-bg: var(--tmx-surface-header-entertainment, #16090e); }
 body[data-space="social"] .tmx-app-header { --tmx-header-accent: var(--tmx-accent-social, #59d9e8); }
 body.downloads-page .tmx-app-header { --tmx-header-accent: var(--tmx-accent-downloads, #ff5268); --tmx-header-bg: var(--tmx-surface-header-downloads, #0b0b0e); }
