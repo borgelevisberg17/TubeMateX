@@ -9,7 +9,7 @@ function createDownloadRouter(deps) {
     distributedQueue, emit, redisClient, jobStateKey, bullmqRetentionSeconds,
     jobEventChannel, jobCancelChannel, eventSubscriber, jobEventClients,
     processQueue, conversionFormats, loadHistory, storedPath, downloadDir,
-    convertMedia, addHistory, clientHistory, pausedOwners
+    convertMedia, addHistory, clientHistory, pausedOwners, getStorageUsage, maxStorageBytes, maxDownloadSize
   } = deps;
   const router = express.Router();
 
@@ -172,9 +172,10 @@ function createDownloadRouter(deps) {
       const outputName = `${path.basename(inputPath, path.extname(inputPath))}.${preset.extension}`;
       const outputPath = path.join(downloadDir, `${conversionId}.${preset.extension}`);
       try {
+          if (typeof getStorageUsage === 'function' && getStorageUsage() + maxDownloadSize > maxStorageBytes) return res.status(507).json({ error: 'O armazenamento de downloads atingiu o limite configurado.' });
           await convertMedia(inputPath, outputPath, preset);
           const convertedSize = fs.statSync(outputPath).size;
-          if (convertedSize > deps.maxDownloadSize) throw new Error('O ficheiro convertido excedeu o limite máximo permitido.');
+          if (convertedSize > maxDownloadSize) throw new Error('O ficheiro convertido excedeu o limite máximo permitido.');
           const entry = { id: conversionId, size: convertedSize, title: `${job?.title || historyItem?.title || 'Ficheiro'} · ${preset.extension.toUpperCase()}`, thumbnail: job?.thumbnail || historyItem?.thumbnail, format: requested, formatLabel: requested.toUpperCase(), quality: historyItem?.quality || job?.quality, qualityLabel: historyItem?.qualityLabel || job?.qualityLabel, site: job?.site || historyItem?.site, fileName: outputName, storedName: path.basename(outputPath), createdAt: new Date().toISOString(), completedAt: new Date().toISOString(), downloadUrl: `/api/downloads/${conversionId}/file` };
           await addHistory(ownerId, entry);
           res.status(201).json({ ...clientHistory([entry])[0], downloadUrl: `/api/downloads/${conversionId}/file` });
