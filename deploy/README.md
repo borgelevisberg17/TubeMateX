@@ -29,7 +29,7 @@ Arranca primeiro a aplicação e o Nginx em HTTP, para o desafio ACME funcionar:
 
 ```bash
 docker compose build app egress-proxy
-docker compose up -d app nginx
+docker compose up -d app worker nginx
 docker compose ps
 ```
 
