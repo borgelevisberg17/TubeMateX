@@ -795,12 +795,18 @@ async function loadPublicIptvCatalog() {
     publicIptvCatalogPromise = (async () => {
         const previous = publicIptvCatalogCache.items;
         try {
-            const urls = ['channels', 'streams', 'feeds', 'blocklist', 'logos'].map(name => `https://iptv-org.github.io/api/${name}.json`);
-            const signal = AbortSignal.timeout(12000);
-            const responses = await Promise.all(urls.map(url => fetch(url, { signal })));
+            const urls = ['channels', 'streams', 'feeds', 'blocklist'].map(name => `https://iptv-org.github.io/api/${name}.json`);
+            const timeoutMs = Math.max(1000, Number(process.env.IPTV_CATALOG_TIMEOUT_MS) || 45000);
+            const [responses, logos] = await Promise.all([
+                Promise.all(urls.map(url => fetch(url, { signal: AbortSignal.timeout(timeoutMs) }))),
+                fetch('https://iptv-org.github.io/api/logos.json', { signal: AbortSignal.timeout(Math.min(timeoutMs, 8000)) })
+                    .then(async response => response.ok ? response.json() : [])
+                    .then(payload => Array.isArray(payload) ? payload : [])
+                    .catch(() => [])
+            ]);
             if (responses.some(response => !response.ok)) throw new Error(`IPTV-org respondeu HTTP ${responses.find(response => !response.ok)?.status || 'inválido'}`);
-            const [channels, streams, feeds, blocklist, logos] = await Promise.all(responses.map(response => response.json()));
-            if (![channels, streams, feeds, blocklist, logos].every(Array.isArray)) throw new Error('IPTV-org devolveu dados com formato inválido.');
+            const [channels, streams, feeds, blocklist] = await Promise.all(responses.map(response => response.json()));
+            if (![channels, streams, feeds, blocklist].every(Array.isArray)) throw new Error('IPTV-org devolveu dados com formato inválido.');
             const blocked = new Set(blocklist.filter(item => item.reason === 'dmca' || item.reason === 'nsfw').map(item => item.channel));
             const logoByKey = new Map(logos.filter(logo => logo?.url && logo.in_use !== false).map(logo => [`${logo.channel}::${logo.feed || ''}`, logo.url]));
             const streamsByChannel = new Map(); for (const stream of streams) { const list = streamsByChannel.get(stream.channel) || []; list.push(stream); streamsByChannel.set(stream.channel, list); }
