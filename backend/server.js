@@ -1061,6 +1061,7 @@ function hydrateJob(data) {
     const job = {
         id: data.id,
         ownerId: data.ownerId,
+        requestId: data.requestId || null,
         url: data.url,
         format: data.format,
         quality: data.quality || 'auto',
