@@ -92,9 +92,9 @@ html[data-theme="light"] {
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-error: var(--tmx-danger);
-  --tmx-surface-header: #ffffff;
-  --tmx-surface-header-entertainment: #ffffff;
-  --tmx-surface-header-downloads: #ffffff;
+  --tmx-surface-header: var(--tmx-color-light-surface);
+  --tmx-surface-header-entertainment: var(--tmx-color-light-surface);
+  --tmx-surface-header-downloads: var(--tmx-color-light-surface);
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
