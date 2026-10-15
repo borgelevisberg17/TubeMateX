@@ -21,6 +21,7 @@
   --tmx-color-green-800: #527800;
   --tmx-color-teal-800: #087d8b;
   --tmx-color-rose-800: #b52d4b;
+  --tmx-color-violet-400: #9a8cff;
   --tmx-color-brown-800: #754900;
   --tmx-radius-sm: 7px;
   --tmx-radius-md: 12px;
@@ -56,6 +57,7 @@
   --tmx-accent-entertainment: #ff4c68;
   --tmx-accent-social: #59d9e8;
   --tmx-accent-downloads: #ff5268;
+  --tmx-accent-creative: var(--tmx-color-violet-400);
   --tmx-surface-header: #081521;
   --tmx-surface-header-entertainment: #16090e;
   --tmx-surface-header-downloads: #0b0b0e;
