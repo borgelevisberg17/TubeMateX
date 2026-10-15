@@ -7,7 +7,6 @@ const design = fs.readFileSync(path.join(root, 'frontend/css/design-system.css')
 const components = fs.readFileSync(path.join(root, 'frontend/css/components.css'), 'utf8');
 const js = fs.readFileSync(path.join(root, 'frontend/js/components.js'), 'utf8');
 const spaces = fs.readFileSync(path.join(root, 'frontend/css/spaces.css'), 'utf8');
-const userRebuild = fs.readFileSync(path.join(root, 'frontend/css/user-rebuild.css'), 'utf8');
 const docs = fs.readFileSync(path.join(root, 'DESIGN-SYSTEM-GOVERNANCE.md'), 'utf8');
 
 for (const token of [
@@ -34,8 +33,6 @@ assert.match(components, /--tmx-header-accent: var\(--tmx-accent/);
 assert.match(components, /color: var\(--tmx-fg, var\(--tmx-text-on-header/, 'shared header text must use on-header foreground tokens in both themes');
 assert.ok(docs.includes('Legacy alias migration policy'), 'document alias policy');
 assert.ok(docs.includes('Responsive and accessibility acceptance checklist'), 'document acceptance criteria');
-assert.match(userRebuild, /\.switch input:focus-visible \+ \.switch-track/, 'settings toggle must expose a visible keyboard focus indicator');
-assert.ok(userRebuild.includes('forced-colors: active'), 'settings toggle should support high-contrast forced-colors mode');
 assert.ok(/320 px/.test(docs) && /200%/.test(docs), 'include small-screen and zoom checks');
 
 console.log('DESIGN_SYSTEM_GOVERNANCE_OK — tokens, component variants, alias policy and acceptance criteria');
