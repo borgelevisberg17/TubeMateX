@@ -30,3 +30,15 @@ html[data-theme=light]{--u-bg:var(--tmx-bg);--u-panel:var(--tmx-surface);--u-pan
 .library-card .convert-control select{height:32px}
 @media(max-width:850px){.library-card .history-item{grid-template-columns:64px minmax(0,1fr) auto auto;gap:10px}.library-card .history-thumb{width:64px;height:50px}.library-card .history-item .history-play,.library-card .history-item>.history-action,.library-card .history-item>.convert-control{grid-row:2}.library-card .history-item>.history-action{grid-column:3}.library-card .history-item>.convert-control{grid-column:4}.library-card .history-item .history-menu{grid-column:4;grid-row:1}.library-card .history-item .favorite-button{grid-column:3;grid-row:1}.library-card .history-meta span+span{padding-left:8px;margin-left:8px}}
 @media(max-width:560px){.library-card .history-item{grid-template-columns:56px minmax(0,1fr) auto;gap:9px;padding:12px 0}.library-card .history-thumb{width:56px;height:48px}.library-card .history-title{font-size:13px}.library-card .history-meta{display:block;font-size:9px}.library-card .history-meta span{display:block}.library-card .history-meta span+span{margin:2px 0 0;padding:0;border:0}.library-card .history-item .favorite-button{grid-column:3;grid-row:1}.library-card .history-item .history-menu{grid-column:3;grid-row:2}.library-card .history-item .history-play,.library-card .history-item>.history-action,.library-card .history-item>.convert-control{grid-row:3}.library-card .history-item .history-play{grid-column:1 / span 2}.library-card .history-item>.history-action{grid-column:3}.library-card .history-item>.convert-control{grid-column:1 / -1}.library-card .convert-control select{width:100%;max-width:none}}
+
+
+/* Visible keyboard state for the visually-hidden settings toggle input. */
+.switch input:focus-visible + .switch-track {
+  outline: var(--tmx-focus-ring, 3px solid var(--tmx-focus));
+  outline-offset: 3px;
+}
+.switch-track { flex: 0 0 auto; }
+@media (forced-colors: active) {
+  .switch input:focus-visible + .switch-track { outline: 2px solid CanvasText; }
+  .switch input:checked + .switch-track { border-color: Highlight; }
+}
