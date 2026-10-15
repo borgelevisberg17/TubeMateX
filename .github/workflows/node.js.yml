@@ -1,106 +1,45 @@
-name: Node.js CI/CD
+name: Node.js CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "hardening/**"]
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tubematex-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  test:
+    name: Tests (Node.js 20)
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
+    timeout-minutes: 15
 
     steps:
-    - name: Checkout do código
-      uses: actions/checkout@v4
+      - name: Checkout do código
+        uses: actions/checkout@v4
 
-    - name: Imprimir diretório atual
-      run: pwd
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
 
-    - name: Listar estrutura de arquivos
-      run: ls -la
+      - name: Instalar dependências de forma reprodutível
+        run: npm ci
 
-    - name: Verificar estrutura do backend
-      run: |
-        if [ -d "./backend" ]; then
-          echo "Backend encontrado."
-          ls -la ./backend
-        else
-          echo "Pasta backend não encontrada." && exit 1
-        fi
+      - name: Verificar sintaxe do backend
+        run: node --check backend/server.js
 
-    - name: Configurar Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Executar testes unitários e de contrato
+        run: npm test
 
-    - name: Instalar dependências se necessário
-      working-directory: './backend'
-      run: |
-        if [ ! -f "package-lock.json" ]; then
-          echo "package-lock.json não encontrado. Gerando com npm install..."
-          npm install
-        fi
+      - name: Verificar estrutura e acessibilidade
+        run: npm run test:accessibility
 
-    - name: Limpar cache do npm
-      run: npm cache clean --force || true
-
-    - name: Instalar dependências (backend)
-      working-directory: './backend'
-      run: |
-        echo "Tentando npm ci..."
-        npm ci || (echo "npm ci falhou, tentando npm install..." && npm install)
-
-    - name: Build do projeto
-      working-directory: './backend'
-      run: |
-        if npm run | grep -q "build"; then
-          echo "Executando build..."
-          npm run build
-        else
-          echo "Script de build não definido. Pulando etapa."
-        fi
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-    - name: Checkout do código
-      uses: actions/checkout@v4
-
-    - name: Imprimir diretório atual
-      run: pwd
-
-    - name: Verificar estrutura do backend
-      run: ls -la ./backend || echo "Backend não encontrado"
-
-    - name: Configurar Node.js (Deploy)
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18.x'
-
-    - name: Limpar cache do npm
-      run: npm cache clean --force || true
-
-    - name: Instalar dependências
-      working-directory: './backend'
-      run: npm ci || npm install
-
-    - name: Iniciar servidor com PM2
-      working-directory: './backend'
-      run: |
-        if ! command -v pm2 &> /dev/null; then
-          echo "PM2 não está instalado. Instalando..."
-          npm install pm2 -g
-        fi
-
-        pm2 start server.js --name "meu-servidor" || pm2 restart "meu-servidor"
-        pm2 save || true
-        pm2 startup || true
+      - name: Verificar contraste dos tokens
+        run: npm run test:contrast
