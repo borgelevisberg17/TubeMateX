@@ -89,7 +89,7 @@ const SESSION_MAX_AGE_MS = Math.max(15 * 60 * 1000, Number(process.env.SESSION_M
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'tubematex.sid';
 const SESSION_COOKIE_SAME_SITE = String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').toLowerCase();
 const JOB_RETENTION_MS = 2 * 60 * 60 * 1000;
-if (IS_PRODUCTION && !process.env.YTDLP_PROXY_URL) throw new Error('YTDLP_PROXY_URL é obrigatório em produção para impor a fronteira de saída SSRF.');
+if (IS_PRODUCTION && !process.env.YTDLP_PROXY_URL) logEvent('error', 'security.egress_proxy_missing', { action: 'user_supplied_url_endpoints_disabled' });
 if (!['lax', 'strict', 'none'].includes(SESSION_COOKIE_SAME_SITE)) throw new Error('SESSION_COOKIE_SAME_SITE deve ser lax, strict ou none.');
 if (SESSION_COOKIE_SAME_SITE === 'none' && !IS_PRODUCTION) throw new Error('SameSite=None só pode ser usado com cookies Secure em produção.');
 
@@ -593,6 +593,9 @@ function libraryQuery(items, params = {}) {
 }
 
 async function validateUrl(value) {
+    // Fail closed on platforms that do not configure the egress proxy.
+    // This keeps the web process available while refusing user-controlled URLs.
+    if (IS_PRODUCTION && !process.env.YTDLP_PROXY_URL) return null;
     return validatePublicHttpUrl(value);
 }
 
