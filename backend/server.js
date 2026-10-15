@@ -5,8 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { resolveSessionSecret } = require('./config/session-security');
 const { spawn } = require('child_process');
-const net = require('net');
-const dns = require('dns').promises;
+const { validatePublicHttpUrl } = require('./services/url-safety');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -533,37 +532,8 @@ function libraryQuery(items, params = {}) {
     return filtered;
 }
 
-function isPrivateAddress(address) {
-    const normalized = String(address || '').toLowerCase();
-    const ipVersion = net.isIP(normalized);
-    if (ipVersion === 4) return /^(0|10|127|169\.254|192\.0\.0|192\.168|172\.(1[6-9]|2\d|3[0-1]))\./.test(normalized);
-    if (ipVersion === 6) return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:') || normalized.startsWith('::ffff:192.168.');
-    return false;
-}
-
 async function validateUrl(value) {
-    if (typeof value !== 'string' || value.length < 8 || value.length > 2048) return null;
-    let parsed;
-    try {
-        parsed = new URL(value.trim());
-    } catch {
-        return null;
-    }
-    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
-    if (parsed.username || parsed.password) return null;
-    const hostname = parsed.hostname.toLowerCase();
-    const blocked = [
-        'localhost', 'localhost.localdomain', '0.0.0.0', '127.0.0.1', '::1',
-        '169.254.169.254', 'metadata.google.internal', 'host.docker.internal'
-    ];
-    if (blocked.includes(hostname) || hostname.endsWith('.local') || hostname.endsWith('.internal') || isPrivateAddress(hostname)) return null;
-    try {
-        const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
-        if (!addresses.length || addresses.some(item => isPrivateAddress(item.address))) return null;
-    } catch {
-        return null;
-    }
-    return parsed.toString();
+    return validatePublicHttpUrl(value);
 }
 
 function publicJob(job) {
