@@ -23,7 +23,7 @@ cp backend/.env.example backend/.env
 chmod 600 .env backend/.env
 ```
 
-Edita `.env` e define `DOMAIN`, `CERTBOT_EMAIL`, `REDIS_PASSWORD` e um `METRICS_TOKEN` forte. Em `backend/.env`, define um `SESSION_SECRET` aleatório longo, `BASE_URL=https://$DOMAIN`, os limites operacionais e, se necessário, os tokens opcionais de Vimeo/Twitch e Google OAuth. O Compose configura `YTDLP_PROXY_URL` para o proxy de saída; o backend em produção recusa arrancar sem esta configuração.
+Edita `.env` e define `DOMAIN`, `CERTBOT_EMAIL`, `REDIS_PASSWORD` e um `METRICS_TOKEN` forte. Em `backend/.env`, define um `SESSION_SECRET` aleatório longo, `BASE_URL=https://$DOMAIN`, os tokens opcionais de Vimeo/Twitch e Google OAuth. Define os limites operacionais no `.env` da raiz (Compose), incluindo `MAX_STORAGE_BYTES`; para execução local direta, esses valores podem ser definidos em `backend/.env`. O Compose configura `YTDLP_PROXY_URL` para o proxy de saída; o backend em produção recusa arrancar sem esta configuração.
 
 Arranca primeiro a aplicação e o Nginx em HTTP, para o desafio ACME funcionar:
 
