@@ -1,7 +1,7 @@
 {
   "name": "youtube-downloader-backend",
   "version": "1.0.0",
-  "description": "Backend para download de vídeos do YouTube usando Express, play-dl e yt-dlp-exec",
+  "description": "Backend para download de v\u00eddeos do YouTube usando Express, play-dl e yt-dlp-exec",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
@@ -20,7 +20,8 @@
     "test:contrast": "node tests/color-contrast.js",
     "test:backend:unit": "node --test backend/test/unit/*.test.js",
     "test:backend:contract": "node --test backend/test/contracts/*.test.js",
-    "test:backend": "npm run test:backend:unit && npm run test:backend:contract"
+    "test:backend": "npm run test:backend:unit && npm run test:backend:contract",
+    "test:specialized": "node tests/specialized-flows-e2e.js"
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
