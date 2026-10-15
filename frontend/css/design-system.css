@@ -97,6 +97,8 @@ html[data-theme="light"] {
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
   --tmx-state-error: var(--tmx-danger);
+  --tmx-state-success: var(--tmx-color-green-900);
+  --tmx-state-warning: var(--tmx-color-amber-900);
 }
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 1rem; }
