@@ -30,6 +30,7 @@ for (const method of ['createButton', 'createState', 'createToast']) {
 assert.ok(js.includes('textContent'), 'component text should be inserted as text, not raw HTML');
 assert.match(spaces, /--space-violet:var\(--tmx-accent-creative\)/, 'legacy space accent should alias a semantic token');
 assert.match(components, /--tmx-header-accent: var\(--tmx-accent/);
+assert.match(components, /color: var\(--tmx-fg, var\(--tmx-text-on-header/, 'shared header text must use on-header foreground tokens in both themes');
 assert.ok(docs.includes('Legacy alias migration policy'), 'document alias policy');
 assert.ok(docs.includes('Responsive and accessibility acceptance checklist'), 'document acceptance criteria');
 assert.ok(/320 px/.test(docs) && /200%/.test(docs), 'include small-screen and zoom checks');
