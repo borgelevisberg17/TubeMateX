@@ -11,6 +11,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      egress-proxy:
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -24,6 +26,14 @@ services:
       HISTORY_DIR: /var/lib/tubematex/history
       SESSION_DB_DIR: /var/lib/tubematex
       DATABASE_PATH: /var/lib/tubematex/tubematex.sqlite
+      YTDLP_PROXY_URL: http://egress-proxy:3128
+      MAX_CONCURRENT_DOWNLOADS: ${MAX_CONCURRENT_DOWNLOADS:-2}
+      MAX_ACTIVE_JOBS_PER_OWNER: ${MAX_ACTIVE_JOBS_PER_OWNER:-3}
+      MAX_PENDING_DOWNLOADS: ${MAX_PENDING_DOWNLOADS:-100}
+      MAX_DOWNLOAD_SIZE: ${MAX_DOWNLOAD_SIZE:-2147483648}
+      DOWNLOAD_TIMEOUT_MS: ${DOWNLOAD_TIMEOUT_MS:-1800000}
+      CONVERSION_TIMEOUT_MS: ${CONVERSION_TIMEOUT_MS:-600000}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     expose:
       - "3000"
     volumes:
@@ -48,6 +58,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      egress-proxy:
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -61,8 +73,29 @@ services:
       HISTORY_DIR: /var/lib/tubematex/history
       SESSION_DB_DIR: /var/lib/tubematex
       DATABASE_PATH: /var/lib/tubematex/tubematex.sqlite
+      YTDLP_PROXY_URL: http://egress-proxy:3128
+      MAX_CONCURRENT_DOWNLOADS: ${MAX_CONCURRENT_DOWNLOADS:-2}
+      MAX_ACTIVE_JOBS_PER_OWNER: ${MAX_ACTIVE_JOBS_PER_OWNER:-3}
+      MAX_PENDING_DOWNLOADS: ${MAX_PENDING_DOWNLOADS:-100}
+      MAX_DOWNLOAD_SIZE: ${MAX_DOWNLOAD_SIZE:-2147483648}
+      DOWNLOAD_TIMEOUT_MS: ${DOWNLOAD_TIMEOUT_MS:-1800000}
+      CONVERSION_TIMEOUT_MS: ${CONVERSION_TIMEOUT_MS:-600000}
     volumes:
       - tubematex_data:/var/lib/tubematex
+    networks:
+      - tubematex_internal
+    security_opt:
+      - no-new-privileges:true
+
+  egress-proxy:
+    build:
+      context: ./deploy/egress-proxy
+      dockerfile: Dockerfile
+    image: tubematex-egress-proxy:local
+    restart: unless-stopped
+    init: true
+    expose:
+      - "3128"
     networks:
       - tubematex_internal
     security_opt:
