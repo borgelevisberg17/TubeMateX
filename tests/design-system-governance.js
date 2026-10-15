@@ -20,7 +20,7 @@ for (const token of [
 for (const selector of [
   '.tmx-btn {', '.tmx-btn--primary', '.tmx-btn--quiet', '.tmx-btn--danger',
   '.tmx-field {', '.tmx-card {', '.tmx-badge--success', '.tmx-badge--warning',
-  '.tmx-badge--danger', '.tmx-state {', '.tmx-progress {', '.tmx-toast {',
+  '.tmx-badge--danger', '.tmx-state {', '.tmx-progress {', '.tmx-toast {', '.tmx-toast--success', '.tmx-toast--warning', '.tmx-toast--error',
   '.tmx-dialog {', '.tmx-pagination {', 'prefers-reduced-motion', 'max-width: 375px'
 ]) assert.ok(design.includes(selector), 'missing shared component/state rule: ' + selector);
 
