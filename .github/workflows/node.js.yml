@@ -67,3 +67,6 @@ jobs:
 
       - name: Verificar acessibilidade dos switches das definições
         run: npm run test:settings-accessibility
+
+      - name: Verificar tokens semânticos do catálogo de entretenimento
+        run: npm run test:catalog-ui-tokens
