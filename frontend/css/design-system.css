@@ -22,6 +22,14 @@
   --tmx-color-teal-800: #087d8b;
   --tmx-color-rose-800: #b52d4b;
   --tmx-color-violet-400: #9a8cff;
+  --tmx-color-coral-400: #ff4c68;
+  --tmx-color-aqua-400: #59d9e8;
+  --tmx-color-rose-400: #ff5268;
+  --tmx-color-slate-950: #081521;
+  --tmx-color-burgundy-950: #16090e;
+  --tmx-color-charcoal-950: #0b0b0e;
+  --tmx-color-mint-300: #7fe3ba;
+  --tmx-color-amber-300: #efc870;
   --tmx-color-brown-800: #754900;
   --tmx-radius-sm: 7px;
   --tmx-radius-md: 12px;
@@ -51,8 +59,8 @@
   --tmx-fg-muted: var(--tmx-text-secondary);
   --tmx-surface-page: var(--tmx-bg);
   --tmx-surface-panel: var(--tmx-surface);
-  --tmx-state-success: #7fe3ba;
-  --tmx-state-warning: #efc870;
+  --tmx-state-success: var(--tmx-color-mint-300);
+  --tmx-state-warning: var(--tmx-color-amber-300);
   --tmx-state-error: var(--tmx-danger);
   --tmx-accent-entertainment: #ff4c68;
   --tmx-accent-social: #59d9e8;
