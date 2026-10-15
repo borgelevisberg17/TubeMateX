@@ -35,6 +35,14 @@ jobs:
       - name: Instalar dependências do backend Docker
         run: npm ci --prefix backend
 
+      - name: Auditar dependências da raiz (informativo)
+        run: npm audit
+        continue-on-error: true
+
+      - name: Auditar dependências do backend Docker (informativo)
+        run: npm audit --prefix backend
+        continue-on-error: true
+
       - name: Verificar sintaxe do backend
         run: node --check backend/server.js
 
