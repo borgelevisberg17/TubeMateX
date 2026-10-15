@@ -32,6 +32,9 @@ jobs:
       - name: Instalar dependências de forma reprodutível
         run: npm ci
 
+      - name: Instalar dependências do backend Docker
+        run: npm ci --prefix backend
+
       - name: Verificar sintaxe do backend
         run: node --check backend/server.js
 
