@@ -21,8 +21,13 @@ function createDownloadRouter(deps) {
       if (!allowedFormats[format]) return res.status(400).json({ error: 'Formato de saída não suportado.' });
       if (allowedFormats[format].type === 'video' && !videoQualities[quality]) return res.status(400).json({ error: 'Qualidade de vídeo não suportada.' });
       const ownerId = getVisitorId(req, res);
-      const job = await createJob(ownerId, url, format, quality);
-      res.status(202).json({ job: publicJob(job), message: 'Download adicionado à fila.' });
+      try {
+          const job = await createJob(ownerId, url, format, quality, req.requestId || null);
+          res.status(202).json({ job: publicJob(job), message: 'Download adicionado à fila.' });
+      } catch (error) {
+          if (error.statusCode) return res.status(error.statusCode).json({ error: error.message, requestId: req.requestId || null });
+          throw error;
+      }
   });
 
   router.get('/api/downloads', async (req, res) => {
