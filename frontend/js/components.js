@@ -161,7 +161,7 @@
 
   function createToast(message, options = {}) {
     const kind = ['success', 'warning', 'error'].includes(options.kind) ? options.kind : 'info';
-    const toast = element('div', `tmx-toast${kind === 'error' ? ' tmx-toast--error' : ''}`, message);
+    const toast = element('div', `tmx-toast tmx-toast--${kind}`, message);
     toast.dataset.kind = kind;
     toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
     toast.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
