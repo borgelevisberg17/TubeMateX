@@ -72,6 +72,7 @@
     let heroItem = null;
     let detailItem = null;
     let activeView = 'home';
+    const iptvPageSize = 12;
     let iptvOffset = 0;
     let iptvTotal = 0;
     let iptvRequestSequence = 0;
@@ -338,40 +339,64 @@
         notify(error.message || 'Catálogo indisponível.', 'error');
       }
     }
-    async function loadIptv(append = false) {
+    async function loadIptv(requestedOffset = 0) {
       const results = $('#iptvResults'); const statusLine = $('#iptvStatus');
       if (!results || !statusLine) return;
       const requestId = ++iptvRequestSequence;
+      const offset = Math.max(0, Math.floor((Number(requestedOffset) || 0) / iptvPageSize) * iptvPageSize);
       const query = $('#iptvQuery')?.value.trim() || ''; const country = $('#iptvCountry')?.value || ''; const selectedLanguage = $('#iptvLanguage')?.value || ''; const language = ['por', 'eng'].includes(selectedLanguage) ? selectedLanguage : ''; const category = $('#iptvCategory')?.value || '';
       const loadButton = $('#loadIptv'); const moreButton = $('#loadMoreIptv');
-      if (!append) { iptvOffset = 0; iptvTotal = 0; results.innerHTML = '<div class="ent-loading-state">Consultando canais públicos…</div>'; }
-      statusLine.textContent = append ? 'Carregando mais canais verificados…' : 'Consultando e validando streams…';
+      iptvOffset = offset;
+      results.innerHTML = '<div class="ent-loading-state">Consultando canais reproduzíveis…</div>';
+      statusLine.textContent = 'A carregar canais verificados…';
       results.setAttribute('aria-busy', 'true');
       if (loadButton) loadButton.disabled = true;
       if (moreButton) moreButton.disabled = true;
       try {
-        const response = await fetch(`/api/iptv/channels?limit=60&offset=${iptvOffset}&q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}`);
+        const response = await fetch(`/api/iptv/channels?limit=${iptvPageSize}&offset=${offset}&q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}`);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Canais indisponíveis.');
         if (requestId !== iptvRequestSequence) return;
         const pending = Number(payload.pendingValidationCount || 0);
         const remaining = Number(payload.remainingValidationCount || 0);
+        const total = Number(payload.total || 0);
+        if (offset > 0 && total > 0 && offset >= total) {
+          return loadIptv(Math.floor((total - 1) / iptvPageSize) * iptvPageSize);
+        }
         const items = (payload.results || []).map(register).filter(isCatalogItemPlayable);
-        if (!append) results.innerHTML = '';
-        if (items.length) results.insertAdjacentHTML('beforeend', items.map(card).join(''));
-        else if (!append && pending > 0) results.innerHTML = `<div class="ent-loading-state">A validar ${pending} fontes. Só serão mostrados canais com stream acessível e compatível.</div>`;
-        else if (!append && remaining > 0) results.innerHTML = `<div class="ent-loading-state">Esta tranche não encontrou streams reproduzíveis. Ainda há ${remaining} canais por validar; usa o botão abaixo para continuar.</div>`;
-        else if (!append) results.innerHTML = empty(Number(payload.candidateCount) ? 'Nenhuma stream passou a validação. Fontes protegidas, inacessíveis ou incompatíveis foram excluídas.' : 'Nenhum canal em português ou inglês corresponde aos filtros.');
-        iptvTotal = Number(payload.total || 0);
-        iptvOffset += items.length;
-        statusLine.textContent = pending || remaining ? `${iptvOffset} reproduzíveis · ${pending} em validação · ${remaining} por validar · ${Number(payload.excludedCount || 0)} excluídos` : `${iptvOffset} de ${iptvTotal} canais validados · português/inglês`;
-        if (moreButton) { moreButton.hidden = pending > 0 || !Boolean(payload.hasMore); moreButton.textContent = remaining > 0 ? `Validar mais fontes (${remaining} por verificar)` : `Carregar mais canais (${Math.max(0, iptvTotal - iptvOffset)} disponíveis)`; }
-        if (!pending && !remaining) notify(`${iptvOffset} canais IPTV reproduzíveis carregados.`, items.length ? 'success' : '');
-        else if (pending > 0 && !items.length) notify(`A verificar ${pending} canais IPTV em segundo plano…`, '');
-        if (pending > 0 && !append) window.setTimeout(() => { if (requestId === iptvRequestSequence) loadIptv(false); }, 1800);
+        results.innerHTML = items.length ? items.map(card).join('') : pending > 0
+          ? '<div class="ent-loading-state">A validação das fontes está em curso. Só canais reproduzíveis serão apresentados.</div>'
+          : remaining > 0
+            ? '<div class="ent-loading-state">Esta página ainda não encontrou canais reproduzíveis. Outras fontes só aparecem depois de passarem pela validação.</div>'
+            : empty(Number(payload.candidateCount) ? 'Nenhuma stream passou a validação. Fontes protegidas, inacessíveis ou incompatíveis foram excluídas.' : 'Nenhum canal em português ou inglês corresponde aos filtros.');
+        iptvTotal = total;
+        const formatCount = value => Number(value || 0).toLocaleString('pt-BR');
+        const rangeStart = items.length ? offset + 1 : 0;
+        const rangeEnd = offset + items.length;
+        const verificationNote = pending || remaining ? ' · Outras fontes só entram após validação' : '';
+        statusLine.textContent = iptvTotal > 0
+          ? `${formatCount(rangeStart)}–${formatCount(rangeEnd)} de ${formatCount(iptvTotal)} canais reproduzíveis confirmados${verificationNote}`
+          : (pending || remaining ? 'A validar fontes; só canais reproduzíveis serão apresentados.' : 'Nenhum canal reproduzível corresponde aos filtros.');
+        const currentPage = Math.floor(offset / iptvPageSize) + 1;
+        const totalPages = Math.max(1, Math.ceil(iptvTotal / iptvPageSize));
+        const pagination = $('#iptvPagination');
+        const previousPage = $('#iptvPreviousPage');
+        const nextPage = $('#iptvNextPage');
+        const pageStatus = $('#iptvPageStatus');
+        if (pagination) pagination.hidden = iptvTotal <= iptvPageSize;
+        if (previousPage) previousPage.disabled = offset <= 0;
+        if (nextPage) nextPage.disabled = offset + iptvPageSize >= iptvTotal;
+        if (pageStatus) pageStatus.textContent = `Página ${formatCount(currentPage)} de ${formatCount(totalPages)}`;
+        if (moreButton) {
+          moreButton.hidden = pending > 0 || remaining <= 0 || offset + items.length < iptvTotal;
+          moreButton.textContent = 'Verificar outras fontes';
+        }
+        if (!pending && !remaining) notify(`${formatCount(items.length)} canais IPTV reproduzíveis nesta página.`, items.length ? 'success' : '');
+        else if (pending > 0 && !items.length) notify('A verificar fontes adicionais em segundo plano…', '');
+        if (pending > 0) window.setTimeout(() => { if (requestId === iptvRequestSequence) loadIptv(offset); }, 1800);
       } catch (error) {
         if (requestId !== iptvRequestSequence) return;
-        if (!append) results.innerHTML = empty(error.message || 'Canais IPTV indisponíveis.');
+        results.innerHTML = empty(error.message || 'Canais IPTV indisponíveis.');
         statusLine.textContent = 'Consulta indisponível';
         notify(error.message || 'Canais IPTV indisponíveis.', 'error');
       } finally {
@@ -457,7 +482,9 @@
     $('#refreshEntertainment')?.addEventListener('click', () => { homePayload = null; loadHome(); });
     $('#iptvFilters')?.addEventListener('submit', event => { event.preventDefault(); updateIptvFilterSummary(); loadIptv(false); });
     $('#clearIptvFilters')?.addEventListener('click', () => { $('#iptvFilters')?.reset(); updateIptvFilterSummary(); loadIptv(false); });
-    $('#loadMoreIptv')?.addEventListener('click', () => loadIptv(true));
+    $('#loadMoreIptv')?.addEventListener('click', () => loadIptv(iptvOffset));
+    $('#iptvPreviousPage')?.addEventListener('click', () => loadIptv(Math.max(0, iptvOffset - iptvPageSize)));
+    $('#iptvNextPage')?.addEventListener('click', () => loadIptv(iptvOffset + iptvPageSize));
     ['iptvQuery', 'iptvCountry', 'iptvLanguage', 'iptvCategory'].forEach(id => { const control = $(`#${id}`); control?.addEventListener('input', updateIptvFilterSummary); control?.addEventListener('change', () => { updateIptvFilterSummary(); if (id !== 'iptvQuery') loadIptv(false); }); });
     $('#toggleIptvFilters')?.addEventListener('click', event => { const panel = $('#iptvAdvancedFilters'); if (!panel) return; const opening = panel.hidden; panel.hidden = !opening; event.currentTarget.setAttribute('aria-expanded', String(opening)); if (opening) $('#iptvCountry')?.focus({ preventScroll: true }); else event.currentTarget.focus({ preventScroll: true }); });
     document.querySelectorAll('.iptv-quick-chip').forEach(button => button.addEventListener('click', () => {

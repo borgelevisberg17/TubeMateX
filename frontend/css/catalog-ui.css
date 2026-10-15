@@ -963,3 +963,191 @@
 .iptv-quick-chip[aria-pressed="true"] { border-color: #e50914; color: #fff; background: #b20710; }
 .iptv-quick-chip:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 @media (max-width: 700px) { .iptv-quick-filters { margin-top: 12px; } }
+
+
+/* IPTV: lista vertical paginada, sem carrossel horizontal. */
+.ent-rail-iptv .iptv-channel-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-rows: auto;
+  gap: 10px;
+  width: 100%;
+  overflow: visible;
+  padding: 3px 0;
+  scroll-snap-type: none;
+}
+.ent-rail-iptv .iptv-channel-list[aria-busy="true"] {
+  min-height: 72px;
+}
+.ent-rail-iptv .iptv-channel-list > .ent-card {
+  display: grid;
+  grid-template-columns: clamp(104px, 14vw, 168px) minmax(0, 1fr);
+  width: 100%;
+  min-height: 128px;
+  overflow: hidden;
+  scroll-snap-align: none;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-art {
+  height: 100%;
+  min-height: 128px;
+  aspect-ratio: auto;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto 1fr;
+  align-items: center;
+  gap: 3px 18px;
+  min-height: 0;
+  padding: 14px 16px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy h4 {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+  margin: 0;
+  font-size: 15px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-copy p {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+  margin: 0;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-facts {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  flex-wrap: wrap;
+  padding-top: 6px;
+}
+.ent-rail-iptv .iptv-channel-list .ent-card-actions {
+  grid-column: 2;
+  grid-row: 1 / 4;
+  grid-template-columns: minmax(112px, 1fr) 36px 36px;
+  align-self: center;
+  min-width: 196px;
+  margin: 0;
+}
+.iptv-results-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  margin: 16px 0 4px;
+}
+.iptv-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.iptv-pagination[hidden],
+.iptv-validate-more[hidden] {
+  display: none !important;
+}
+.iptv-pagination span {
+  min-width: 106px;
+  color: #d5c4c9;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.iptv-pagination .ent-button {
+  min-width: 100px;
+  min-height: 40px;
+}
+.iptv-pagination .ent-button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+.iptv-validate-more {
+  min-height: 40px;
+}
+@media (max-width: 560px) {
+  .ent-rail-iptv .iptv-channel-list > .ent-card {
+    grid-template-columns: 82px minmax(0, 1fr);
+    min-height: 112px;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-art {
+    min-height: 112px;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-copy {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    gap: 4px;
+    padding: 10px;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-copy h4 {
+    font-size: 13px;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-facts {
+    grid-row: 3;
+    padding-top: 2px;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-actions {
+    grid-column: 1;
+    grid-row: 4;
+    grid-template-columns: minmax(0, 1fr) 34px 34px;
+    min-width: 0;
+    margin-top: 5px;
+  }
+  .iptv-results-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    padding: 8px;
+    border: 1px solid #ffffff12;
+    border-radius: 10px;
+    background: #100d11f2;
+    backdrop-filter: blur(12px);
+  }
+  .iptv-pagination {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .iptv-pagination .ent-button {
+    min-width: 88px;
+  }
+  .iptv-pagination span {
+    min-width: 88px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 560px) {
+  .ent-rail-iptv .ent-rail-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .ent-rail-iptv .ent-rail-heading span {
+    display: block;
+    max-width: 100%;
+    line-height: 1.45;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-badge {
+    display: none;
+  }
+  .ent-rail-iptv .iptv-channel-list .ent-card-live {
+    top: 7px;
+    right: 6px;
+    padding: 4px 5px;
+    font-size: 7px;
+  }
+  .iptv-results-footer {
+    position: static;
+    bottom: auto;
+    z-index: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+}
