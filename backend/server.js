@@ -1417,8 +1417,10 @@ app.get('/internal/metrics', async (req, res) => {
     if (!token || req.get('Authorization') !== `Bearer ${token}`) return res.status(404).end();
     const activeJobsCount = [...jobs.values()].filter(job => ['fetching', 'downloading'].includes(job.status)).length;
     const downloadMetrics = await readDownloadMetrics();
+    const queueCounts = distributedQueue ? await distributedQueue.getJobCounts('waiting', 'delayed', 'paused').catch(() => ({})) : {};
+    const pendingDownloads = distributedQueue ? (queueCounts.waiting || 0) + (queueCounts.delayed || 0) + (queueCounts.paused || 0) : queue.length;
     const errorRate5xx = requestMetrics.total ? requestMetrics.errors5xx / requestMetrics.total : 0;
-    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, localQueueLength: queue.length, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, localQueueSaturated: queue.length >= MAX_PENDING_DOWNLOADS } });
+    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, pendingDownloads, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, pendingQueueNearCapacity: pendingDownloads >= Math.ceil(MAX_PENDING_DOWNLOADS * 0.9) } });
 });
 
 app.use(express.static(FRONTEND_DIR, { maxAge: IS_PRODUCTION ? '1d' : 0 }));
