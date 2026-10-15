@@ -321,6 +321,14 @@ const downloadLimiter = rateLimit({
     message: { error: 'Atingiste o limite de downloads por hora. Tenta novamente mais tarde.' }
 });
 
+const conversionLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: Number(process.env.CONVERSION_RATE_LIMIT || 8),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Atingiste o limite de conversões por hora. Tenta novamente mais tarde.' }
+});
+
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
     const supplied = String(req.get('X-Request-Id') || '');
