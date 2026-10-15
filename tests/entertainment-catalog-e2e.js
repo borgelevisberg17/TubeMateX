@@ -16,6 +16,7 @@ const { chromium } = require('playwright');
         description: 'Media pública de demonstração.', duration: 540, kind: 'film',
         publicPlayback: true, streamAvailable: true, metadataOnly: false
       };
+      const protectedFilm = { ...film, id: 'drm-film', title: 'Filme protegido não reproduzível', availabilityLabel: 'DRM protected' };
       const series = { ...film, id: 'series-1', title: 'Série pública com episódios', kind: 'series', playlistUrl: 'https://www.youtube.com/playlist?list=series-1' };
       const live = {
         id: 'iptv-1', title: 'Record News · Direto', channelName: 'Record News',
@@ -30,7 +31,7 @@ const { chromium } = require('playwright');
       const home = {
         hero: film,
         rows: [
-          { id: 'featured', title: 'Em destaque agora', items: [film] },
+          { id: 'featured', title: 'Em destaque agora', items: [film, protectedFilm] },
           { id: 'films', title: 'Filmes públicos e cinema', items: [film] },
           { id: 'series', title: 'Séries e episódios públicos', items: [series] },
           { id: 'anime', title: 'Anime e animação', items: [{ ...film, id: 'anime-1', title: 'Anime public animation' }] },
@@ -43,7 +44,7 @@ const { chromium } = require('playwright');
       await page.route('**/api/entertainment/home', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(home) }));
       await page.route('**/api/entertainment/sources', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sources: [{ id: 'iptv-org', label: 'IPTV-org', mode: 'live', url: 'https://github.com/iptv-org/iptv' }], policy: 'Fontes públicas.' }) }));
       await page.route('**/api/entertainment/sources/health', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sources: [{ id: 'iptv-org', mode: 'live', status: 'online', note: 'API disponível' }] }) }));
-      await page.route('**/api/entertainment/search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ query: 'filme', results: [film] }) }));
+      await page.route('**/api/entertainment/search?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ query: 'filme', results: [film, protectedFilm] }) }));
       await page.route('**/api/iptv/playlists', route => route.fulfill({
         status: 200, contentType: 'application/json',
         body: JSON.stringify({
@@ -59,9 +60,9 @@ const { chromium } = require('playwright');
         const params = new URL(route.request().url()).searchParams;
         iptvRequests.push({ query: params.get('q'), country: params.get('country'), language: params.get('language'), category: params.get('category') });
         const isStaleRequest = params.get('q') === 'corrida' && params.get('country') !== 'BR';
-        await new Promise(resolve => setTimeout(resolve, params.get('q') === 'corrida' ? (isStaleRequest ? 140 : 15) : 45));
+        await new Promise(resolve => setTimeout(resolve, params.get('q') === 'corrida' ? (isStaleRequest ? 140 : 15) : ['Record', 'geoblock'].includes(params.get('q')) ? 160 : 45));
         if (params.get('q') === 'falha') return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Fonte IPTV temporariamente indisponível.' }) });
-        const item = isStaleRequest ? { ...live, id: 'iptv-stale', title: 'Resposta antiga do filtro' } : live;
+        const item = params.get('q') === 'geoblock' ? portugal : isStaleRequest ? { ...live, id: 'iptv-stale', title: 'Resposta antiga do filtro' } : live;
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: [item], total: 1, hasMore: false, source: 'iptv-org' }) });
       });
       await page.route('**/api/iptv/meta', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ countries: [{ code: 'AO', count: 2 }, { code: 'BR', count: 12 }, { code: 'PT', count: 12 }], categories: [{ id: 'sports', count: 18 }, { id: 'news', count: 14 }], source: 'iptv-org' }) }));
@@ -69,31 +70,64 @@ const { chromium } = require('playwright');
       await page.route('**/api/media/stream?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: 'https://example.com/film.mp4', mimeType: 'video/mp4' }) }));
       await page.route('**/api/media/playlist?**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ seasons: [{ seasonNumber: 1, title: 'Temporada 1', episodes: [{ id: 'episode-1', title: 'Episódio 1 · Primeiro capítulo', url: 'https://example.com/episode-1.mp4', duration: 300, kind: 'series' }, { id: 'episode-2', title: 'Episódio 2 · Continuação', url: 'https://example.com/episode-2.mp4', duration: 320, kind: 'series' }] }] }) }));
       await page.route('**/api/downloads', route => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ job: { id: 'cine-download' } }) }));
-      await page.goto(`${base}/entertainment.html`, { waitUntil: 'networkidle' });
+      await page.goto(`${base}/entertainment.html`, { waitUntil: 'domcontentloaded' });
       await page.locator('#heroTitle').waitFor();
       for (const selector of ['.tmx-app-header', '.tmx-local-nav .entertainment-nav', '#entHero', '#vodHeading', '#entertainmentRows', '#iptvSection', '#iptvHeading', '#iptvSourceList', '#entSearchZone']) {
         if (await page.locator(selector).count() !== 1) throw new Error(`sem ${selector}`);
       }
       for (const label of ['Pesquisar canal', 'País', 'Idioma', 'Género']) if (await page.getByLabel(label, { exact: true }).count() !== 1) throw new Error(`filtro sem nome acessível: ${label}`);
       if (await page.locator('#iptvStatus').getAttribute('role') !== 'status' || await page.locator('#iptvStatus').getAttribute('aria-live') !== 'polite') throw new Error('o estado IPTV não é anunciado de forma educada');
-      if (await page.locator('#iptvResults').getAttribute('role') !== 'region' || await page.locator('#iptvResults').getAttribute('aria-busy') !== 'false') throw new Error('a região dos resultados IPTV não tem semântica/busy state inicial');
+      if (await page.locator('#iptvResults').getAttribute('role') !== 'region' || !['true', 'false'].includes(await page.locator('#iptvResults').getAttribute('aria-busy'))) throw new Error('a região dos resultados IPTV não tem semântica/busy state válido');
       if (await page.locator('#toggleIptv').getAttribute('aria-controls') !== 'iptvBody') throw new Error('o controlo de recolher não identifica a região IPTV');
       if (await page.locator('.ent-nav-link[data-view="home"]').getAttribute('aria-pressed') !== 'true') throw new Error('a vista ativa não é anunciada na navegação');
+      if (await page.locator('#iptvAdvancedFilters').isVisible() || await page.locator('#toggleIptvFilters').getAttribute('aria-expanded') !== 'false') throw new Error('os filtros avançados não começam recolhidos');
+      await page.locator('#toggleIptvFilters').click();
+      if (!(await page.locator('#iptvAdvancedFilters').isVisible()) || await page.locator('#toggleIptvFilters').getAttribute('aria-expanded') !== 'true') throw new Error('o botão Filtros não expandiu a região refinada');
       await page.locator('#iptvQuery').focus();
+      await page.keyboard.press('Tab');
+      const toolbarFocus = await page.evaluate(() => ({ id: document.activeElement?.id, outline: getComputedStyle(document.activeElement).outlineWidth }));
+      if (toolbarFocus.id !== 'toggleIptvFilters' || toolbarFocus.outline !== '3px') throw new Error('a pesquisa não segue para o botão de filtros com foco visível');
+      await page.keyboard.press('Tab');
+      if (await page.evaluate(() => document.activeElement?.id) !== 'loadIptv') throw new Error('a sequência de teclado da barra de pesquisa está incorreta');
       await page.keyboard.press('Tab');
       const focusCheck = await page.evaluate(() => ({ id: document.activeElement?.id, outline: getComputedStyle(document.activeElement).outlineWidth }));
       if (focusCheck.id !== 'iptvCountry' || focusCheck.outline !== '3px') throw new Error('a sequência de teclado ou o foco visível dos filtros IPTV falhou');
       if (!(await page.locator('#heroTitle').textContent()).includes('Entretenimento com origem')) throw new Error('hero institucional não foi renderizado');
       if ((await page.locator('.ent-card').count()) < 3) throw new Error('rails cinematográficos não foram renderizados');
+      if (await page.locator('#entertainmentRows [data-item-id="drm-film"]').count() || await page.locator('#entertainmentRows .ent-rail[data-rail-id="live"]').count()) throw new Error('a vista VOD expôs conteúdo protegido ou canais live duplicados');
+      if ((await page.locator('.ent-card-art-fallback').count()) < 3) throw new Error('cartões sem poster fallback resiliente');
+      const posterImage = page.locator('.ent-card .ent-card-art img').first();
+      await posterImage.evaluate(image => image.dispatchEvent(new Event('error')));
+      if (!(await posterImage.isHidden())) throw new Error('poster indisponível não ativou o fallback visual');
       if (!(await page.locator('#iptvCountry option[value="AO"]').count())) throw new Error('país Angola não entrou no filtro dinâmico');
       if (!(await page.locator('#iptvCategory option[value="sports"]').count())) throw new Error('categoria desporto não entrou no filtro dinâmico');
       if ((await page.locator('.ent-card-badge').allTextContents()).some(text => /youtube/i.test(text))) throw new Error('YouTube apareceu nos rails principais do Cine');
       for (const view of ['sports','portugal','brands']) if (await page.locator(`.ent-nav-link[data-view="${view}"]`).count() !== 1) throw new Error(`navegação sem ${view}`);
+      if (await page.locator('.ent-catalog-chip').count() !== 5) throw new Error('atalhos rápidos do catálogo incompletos');
+      await page.locator('.ent-catalog-chip[data-view="movies"]').click();
+      if (await page.locator('.ent-catalog-chip[data-view="movies"]').getAttribute('aria-pressed') !== 'true' || await page.locator('.ent-nav-link[data-view="movies"]').getAttribute('aria-pressed') !== 'true') throw new Error('atalho de filmes não sincronizou o estado ativo');
+      await page.locator('.ent-catalog-chip[data-view="home"]').click();
       await page.locator('.ent-nav-link[data-view="sports"]').click();
       if (await page.locator('.ent-nav-link[data-view="sports"]').getAttribute('aria-pressed') !== 'true' || await page.locator('.ent-nav-link[data-view="home"]').getAttribute('aria-pressed') !== 'false') throw new Error('o estado da navegação não acompanhou a vista selecionada');
       if (!(await page.locator('.ent-rail-heading').allTextContents()).some(text => /Desporto ao vivo/i.test(text))) throw new Error('rail de desporto não abriu');
       if (!(await page.locator('#iptvSourceList').textContent()).includes('bloqueada')) throw new Error('estado da fonte bloqueada não foi exposto');
       if (!(await page.locator('#iptvSourceList').textContent()).includes('API online')) throw new Error('a saúde da API não foi exposta');
+      await page.locator('#toggleIptvFilters').click();
+      if (await page.locator('#iptvAdvancedFilters').isVisible()) throw new Error('os chips rápidos devem funcionar com o painel refinado fechado');
+      if (await page.locator('.iptv-quick-chip').count() !== 7 || await page.locator('.iptv-quick-chip[data-quick-filter="all"]').getAttribute('aria-pressed') !== 'true') throw new Error('atalhos rápidos por país e género incompletos');
+      await page.locator('.iptv-quick-chip[data-quick-country="PT"]').click();
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'true');
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
+      if (iptvRequests.at(-1)?.country !== 'PT' || await page.locator('.iptv-quick-chip[data-quick-country="PT"]').getAttribute('aria-pressed') !== 'true' || await page.locator('#iptvAdvancedFilters').isVisible()) throw new Error('o atalho Portugal não aplicou filtro sem abrir o painel avançado');
+      await page.locator('.iptv-quick-chip[data-quick-category="movies"]').click();
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'true');
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
+      if (iptvRequests.at(-1)?.category !== 'movies' || await page.locator('.iptv-quick-chip[data-quick-category="movies"]').getAttribute('aria-pressed') !== 'true') throw new Error('o atalho Filmes não aplicou a categoria mesmo sem contagem na API');
+      await page.locator('.iptv-quick-chip[data-quick-filter="all"]').click();
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'true');
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
+      if (iptvRequests.at(-1)?.country !== '' || await page.locator('.iptv-quick-chip[data-quick-filter="all"]').getAttribute('aria-pressed') !== 'true') throw new Error('o atalho Todos não limpou o país selecionado');
+      await page.locator('#toggleIptvFilters').click();
       await page.locator('#toggleIptv').click();
       if (await page.locator('#toggleIptv').getAttribute('aria-expanded') !== 'false' || await page.locator('#iptvBody').isVisible()) throw new Error('o painel IPTV não recolheu ou não anunciou o estado fechado');
       await page.locator('#toggleIptv').click();
@@ -145,6 +179,7 @@ const { chromium } = require('playwright');
       await page.locator('#spaceQuery').fill('filme');
       await page.locator('#spaceSearch').evaluate(form => form.requestSubmit());
       await page.locator('#spaceResults .ent-card').first().waitFor();
+      if (await page.locator('#spaceResults .ent-card').count() !== 1 || (await page.locator('#spaceResults').textContent()).includes('Filme protegido não reproduzível')) throw new Error('a pesquisa global mostrou um resultado DRM');
       await page.locator('#loadIptv').click();
       await page.locator('#iptvResults .ent-card').first().waitFor();
       const resultCardWidth = await page.locator('#iptvResults .ent-card').first().evaluate(card => card.getBoundingClientRect().width);
@@ -174,6 +209,11 @@ const { chromium } = require('playwright');
       await page.locator('#iptvCountry').selectOption('BR');
       await page.waitForFunction(() => document.querySelector('#iptvStatus')?.textContent.includes('1 de 1') && document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
       if (iptvRequests.at(-1)?.country !== 'BR') throw new Error('a alteração do país não atualizou os resultados');
+      if (!(await page.locator('#iptvFilterSummary').textContent()).includes('Brasil')) throw new Error('o resumo compacto de filtros ativos não foi atualizado');
+      await page.locator('#iptvQuery').fill('geoblock');
+      await page.locator('#iptvQuery').press('Enter');
+      await page.waitForFunction(() => document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
+      if ((await page.locator('#iptvResults').textContent()).includes('SIC Notícias')) throw new Error('o catálogo IPTV expôs um canal geo-blocked recebido na resposta');
       await page.locator('#clearIptvFilters').click();
       await page.waitForFunction(() => document.querySelector('#iptvStatus')?.textContent.includes('1 de 1') && document.querySelector('#iptvResults')?.getAttribute('aria-busy') === 'false');
       if (await page.locator('#iptvQuery').inputValue() !== '' || await page.locator('#iptvCountry').inputValue() !== '' || iptvRequests.at(-1)?.query !== '') throw new Error('Limpar filtros não restaurou os valores nem os resultados');
@@ -192,6 +232,16 @@ const { chromium } = require('playwright');
       if (!(await page.locator('#iptvResults').textContent()).includes('temporariamente indisponível')) throw new Error('a falha IPTV não foi apresentada com uma recuperação compreensível');
       if (await page.locator('#iptvFilters').evaluate(form => form.scrollWidth > form.clientWidth + 1)) throw new Error(`os filtros IPTV têm overflow em ${width}px`);
       if (await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) throw new Error(`overflow em ${width}px`);
+      await page.locator('.ent-nav-link[data-view="home"]').click();
+      await page.route('**/api/entertainment/home', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hero: null, rows: [] }) }));
+      await page.locator('#refreshEntertainment').click();
+      await page.locator('.ent-catalog-empty').waitFor();
+      if (!(await page.locator('.ent-catalog-empty').textContent()).includes('Sem coleções disponíveis')) throw new Error('estado vazio do catálogo não foi explicado');
+      await page.locator('[data-catalog-retry]').click();
+      await page.locator('.ent-catalog-empty').waitFor();
+      await page.locator('[data-catalog-search]').click();
+      if (!(await page.locator('#entSearchZone').isVisible())) throw new Error('ação pesquisar não abriu a pesquisa global');
+      await page.locator('#closeEntertainmentSearch').click();
       await context.close();
     }
     console.log('ENTERTAINMENT_NETFLIX_E2E_OK');

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/css/spaces.css">
   <link rel="stylesheet" href="/css/spaces-detail.css"><link rel="stylesheet" href="/css/stream-player.css"><link rel="stylesheet" href="/css/space-footer.css">
 <script defer src="/js/design-system.js"></script>
-<link rel="stylesheet" href="/css/design-system.css"><link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/design-system.css"><link rel="stylesheet" href="/css/components.css"><link rel="stylesheet" href="/css/catalog-ui.css">
 </head>
 <body class="space-page entertainment-page" data-space="entertainment" data-autoplay="false">
 <a class="skip-link" href="#main-content">Saltar para o conteúdo principal</a>
@@ -57,21 +57,41 @@
       <section class="ent-content-shell">
         <div class="ent-status-line"><span id="spaceStatus" role="status">A carregar recomendações reais…</span><span class="ent-status-rule"></span><button id="refreshEntertainment" class="ent-refresh" type="button">Atualizar</button></div>
         <section class="ent-catalog-zone ent-vod-zone" aria-labelledby="vodHeading"><div class="ent-section-heading"><div><span class="space-eyebrow">Catálogo Cine</span><h2 id="vodHeading">Filmes, séries e mundos para descobrir</h2><p>Conteúdo VOD e descoberta pública ficam separados da televisão ao vivo. Cada item mantém a origem e só oferece reprodução ou download quando a fonte fornece uma media compatível.</p></div></div>
+        <div class="ent-catalog-toolbar"><div class="ent-catalog-chips" role="group" aria-label="Filtrar catálogo"><button class="ent-catalog-chip" type="button" data-view="home" aria-pressed="true">Tudo</button><button class="ent-catalog-chip" type="button" data-view="movies" aria-pressed="false">Filmes</button><button class="ent-catalog-chip" type="button" data-view="series" aria-pressed="false">Séries</button><button class="ent-catalog-chip" type="button" data-view="anime" aria-pressed="false">Anime &amp; Dorama</button><button class="ent-catalog-chip" type="button" data-view="live" aria-pressed="false">Ao vivo</button></div><button class="ent-catalog-search" id="catalogSearchAction" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>Pesquisar título</button></div>
         <div id="personalRows" class="ent-rows" aria-live="polite"></div>
         <div id="entertainmentRows" class="ent-rows" aria-live="polite"><div class="ent-loading-state">A consultar fontes públicas…</div></div></section>
 
         <section class="ent-live-hub" id="iptvSection" aria-labelledby="iptvHeading">
-          <div class="ent-section-heading"><div><span class="space-eyebrow">TV IPTV live</span><h2 id="iptvHeading">Canais por país e género</h2><p>Filtra canais públicos por nome, país, idioma e género. A ação é sempre reprodução direta; não há download de transmissões em direto.</p></div><button class="ent-collapse-button" id="toggleIptv" type="button" aria-expanded="true" aria-controls="iptvBody">Recolher IPTV</button></div>
+          <div class="ent-section-heading"><div><span class="space-eyebrow">TV ao vivo · fontes públicas</span><h2 id="iptvHeading">Canais para ver agora</h2><p>Explora canais públicos reproduzíveis em português e inglês. Refina por país, idioma ou género quando precisares; fontes offline, DRM, autenticação ou bloqueios geográficos são excluídos, sem contornar limitações de acesso.</p></div><button class="ent-collapse-button" id="toggleIptv" type="button" aria-expanded="true" aria-controls="iptvBody">Recolher canais</button></div>
           <div id="iptvBody" role="region" aria-labelledby="iptvHeading">
-            <form class="entertainment-channel-controls" id="iptvFilters" aria-label="Filtrar canais IPTV públicos">
-              <div class="iptv-filter iptv-filter-search"><label for="iptvQuery">Pesquisar canal</label><input id="iptvQuery" type="search" placeholder="Ex.: Record, AXN, Disney, Nat Geo…" aria-controls="iptvResults"></div>
-              <div class="iptv-filter"><label for="iptvCountry">País</label><select id="iptvCountry" aria-controls="iptvResults"><option value="">Todos os países</option><option value="AO">Angola</option><option value="BR">Brasil</option><option value="PT">Portugal</option><option value="US">Estados Unidos</option><option value="GB">Reino Unido</option><option value="KR">Coreia do Sul</option><option value="JP">Japão</option></select></div>
-              <div class="iptv-filter"><label for="iptvLanguage">Idioma</label><select id="iptvLanguage" aria-controls="iptvResults"><option value="">Todos os idiomas</option><option value="por">Português</option><option value="eng">Inglês</option><option value="spa">Espanhol</option><option value="kor">Coreano</option><option value="jpn">Japonês</option></select></div>
-              <div class="iptv-filter"><label for="iptvCategory">Género</label><select id="iptvCategory" aria-controls="iptvResults"><option value="">Todos os géneros</option><option value="news">Notícias</option><option value="movies">Filmes</option><option value="series">Séries</option><option value="documentary">Documentários</option><option value="cooking">Cozinha</option><option value="music">Música</option><option value="religious">Religioso</option><option value="kids">Infantil</option><option value="animation">Anime/animação</option><option value="sports">Desporto</option><option value="general">Generalista</option></select></div>
-              <div class="iptv-filter-actions"><button class="ent-button ent-button-glass" id="clearIptvFilters" type="button">Limpar filtros</button><button class="ent-button ent-button-red" id="loadIptv" type="submit">Pesquisar canais</button></div>
+            <form class="entertainment-channel-controls" id="iptvFilters" aria-label="Pesquisar e filtrar canais públicos">
+              <div class="iptv-channel-searchbar">
+                <label class="iptv-search-control" for="iptvQuery"><span class="sr-only">Pesquisar canal</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="iptvQuery" type="search" placeholder="Pesquisar canais · ex.: Record, AXN…" aria-controls="iptvResults"></label>
+                <button class="iptv-toggle-filters" id="toggleIptvFilters" type="button" aria-controls="iptvAdvancedFilters" aria-expanded="false" aria-label="Filtros"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10m-7 6h4"/><circle cx="8" cy="6" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg><span>Filtros</span><span class="iptv-filter-count" id="iptvFilterCount" hidden></span></button>
+                <button class="ent-button ent-button-red iptv-search-submit" id="loadIptv" type="submit">Pesquisar</button>
+              </div>
+              <div class="iptv-advanced-filters" id="iptvAdvancedFilters" hidden>
+                <div class="iptv-advanced-heading"><strong>Refinar canais</strong><span>Escolhe uma região, idioma ou categoria.</span></div>
+                <div class="iptv-advanced-grid">
+                  <div class="iptv-filter"><label for="iptvCountry">País</label><select id="iptvCountry" aria-controls="iptvResults"><option value="">Todos os países</option><option value="AO">Angola</option><option value="BR">Brasil</option><option value="PT">Portugal</option><option value="US">Estados Unidos</option><option value="GB">Reino Unido</option><option value="KR">Coreia do Sul</option><option value="JP">Japão</option></select></div>
+                  <div class="iptv-filter"><label for="iptvLanguage">Idioma</label><select id="iptvLanguage" aria-controls="iptvResults"><option value="">Português e inglês</option><option value="por">Português</option><option value="eng">Inglês</option></select></div>
+                  <div class="iptv-filter"><label for="iptvCategory">Género</label><select id="iptvCategory" aria-controls="iptvResults"><option value="">Todas as categorias</option><option value="news">Notícias</option><option value="movies">Filmes</option><option value="series">Séries</option><option value="documentary">Documentários</option><option value="cooking">Cozinha</option><option value="music">Música</option><option value="religious">Religioso</option><option value="kids">Infantil</option><option value="animation">Anime/animação</option><option value="sports">Desporto</option><option value="general">Generalista</option></select></div>
+                  <div class="iptv-filter-actions"><button class="ent-button ent-button-glass" id="clearIptvFilters" type="button">Limpar filtros</button></div>
+                </div>
+              </div>
             </form>
-            <div class="iptv-source-list" id="iptvSourceList" aria-live="polite"></div>
-            <div class="ent-rail ent-rail-iptv"><div class="ent-rail-heading"><h3>Seleção em direto</h3><span id="iptvStatus" role="status" aria-live="polite" aria-atomic="true">Use os filtros para consultar o catálogo.</span></div><div class="ent-card-rail" id="iptvResults" role="region" aria-label="Resultados de canais IPTV" aria-busy="false"><div class="ent-empty-state">Escolhe um filtro ou pesquisa um canal para começar.</div></div><div class="iptv-load-more-wrap"><button class="ent-button ent-button-glass" id="loadMoreIptv" type="button" hidden>Carregar mais canais</button></div></div>
+            <div class="iptv-quick-filters" id="iptvQuickFilters" role="group" aria-label="Exploração rápida de canais por país e género">
+              <button class="iptv-quick-chip" type="button" data-quick-filter="all" aria-pressed="true">Todos</button>
+              <button class="iptv-quick-chip" type="button" data-quick-country="PT" aria-pressed="false">Portugal</button>
+              <button class="iptv-quick-chip" type="button" data-quick-country="BR" aria-pressed="false">Brasil</button>
+              <button class="iptv-quick-chip" type="button" data-quick-category="news" aria-pressed="false">Notícias</button>
+              <button class="iptv-quick-chip" type="button" data-quick-category="movies" aria-pressed="false">Filmes</button>
+              <button class="iptv-quick-chip" type="button" data-quick-category="series" aria-pressed="false">Séries</button>
+              <button class="iptv-quick-chip" type="button" data-quick-category="sports" aria-pressed="false">Desporto</button>
+            </div>
+            <p class="iptv-filter-summary" id="iptvFilterSummary" hidden></p>
+            <details class="iptv-source-details"><summary>Fontes e critérios de validação</summary><div class="iptv-source-list" id="iptvSourceList" aria-live="polite"></div></details>
+            <div class="ent-rail ent-rail-iptv"><div class="ent-rail-heading"><h3>Seleção em direto</h3><span id="iptvStatus" role="status" aria-live="polite" aria-atomic="true">A carregar canais reproduzíveis…</span></div><div class="ent-card-rail" id="iptvResults" role="region" aria-label="Resultados de canais IPTV" aria-busy="false"><div class="ent-empty-state">A consultar canais públicos reproduzíveis em português e inglês…</div></div><div class="iptv-load-more-wrap"><button class="ent-button ent-button-glass" id="loadMoreIptv" type="button" hidden>Carregar mais canais</button></div></div>
           </div>
         </section>
 

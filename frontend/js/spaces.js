@@ -107,11 +107,15 @@
       const facts = [value.country, languageLabel(value), value.quality, value.availabilityLabel, value.feedCount ? `${value.feedCount} feed${value.feedCount === 1 ? '' : 's'}` : '', value.streamCount ? `${value.streamCount} stream${value.streamCount === 1 ? '' : 's'}` : ''].filter(Boolean).slice(0, 4);
       const initials = String(value.channelName || value.title || 'TMX').split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
       const isInList = listItems().some(entry => keyOf(entry) === id);
-      return `<article class="ent-card" data-item-id="${esc(id)}"><div class="ent-card-art">${value.thumbnail ? `<img class="${value.live ? 'ent-channel-logo' : ''}" src="${esc(value.thumbnail)}" alt="" loading="lazy">` : `<div class="ent-card-art-fallback ${value.live ? 'ent-channel-logo-fallback' : ''}" aria-hidden="true">${value.live ? esc(initials) : 'TMX'}</div>`}<span class="ent-card-badge">${esc(value.site)}</span>${value.live ? `<span class="ent-card-live">${value.streamAvailable ? 'AO VIVO' : 'CATÁLOGO'}</span>` : ''}${percent ? `<div class="ent-card-progress"><span style="width:${percent}%"></span></div>` : ''}</div><div class="ent-card-copy"><h4>${esc(value.title)}</h4><p>${esc(value.uploader || (value.live ? 'Canal público' : 'Fonte pública'))}</p>${facts.length ? `<div class="ent-card-facts">${facts.map(fact => `<span>${esc(fact)}</span>`).join('')}</div>` : ''}<div class="ent-card-actions"><button class="primary" type="button" data-action="play" ${value.externalUrl || canPlay ? '' : 'disabled'}>${metadataAction}</button><button type="button" data-action="details" aria-label="Ver detalhes de ${esc(value.title)}"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></svg></button><button type="button" data-action="list" aria-label="${isInList ? 'Remover' : 'Adicionar'} ${esc(value.title)} ${isInList ? 'da' : 'à'} Minha lista"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${isInList ? '<path d="m5 12 4 4L19 6"/>' : '<path d="M12 5v14M5 12h14"/>'}</svg></button>${value.live || value.metadataOnly ? '' : '<button type="button" data-action="download" aria-label="Descarregar ' + esc(value.title) + '"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></button>'}</div></div></article>`;
+      return `<article class="ent-card" data-item-id="${esc(id)}" data-kind="${esc(value.kind)}" data-live="${String(value.live)}"><div class="ent-card-art"><div class="ent-card-art-fallback ${value.live ? 'ent-channel-logo-fallback' : ''}" aria-hidden="true">${esc(initials || 'TMX')}</div>${value.thumbnail ? `<img class="${value.live ? 'ent-channel-logo' : ''}" src="${esc(value.thumbnail)}" alt="" loading="lazy">` : ''}<span class="ent-card-badge">${esc(value.site)}</span>${value.live ? `<span class="ent-card-live">${value.streamAvailable ? 'AO VIVO' : 'CATÁLOGO'}</span>` : ''}${percent ? `<div class="ent-card-progress"><span style="width:${percent}%"></span></div>` : ''}</div><div class="ent-card-copy"><h4>${esc(value.title)}</h4><p>${esc(value.uploader || (value.live ? 'Canal público' : 'Fonte pública'))}</p>${facts.length ? `<div class="ent-card-facts">${facts.map(fact => `<span>${esc(fact)}</span>`).join('')}</div>` : ''}<div class="ent-card-actions"><button class="primary" type="button" data-action="play" ${value.externalUrl || canPlay ? '' : 'disabled'}>${metadataAction}</button><button type="button" data-action="details" aria-label="Ver detalhes de ${esc(value.title)}"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></svg></button><button type="button" data-action="list" aria-label="${isInList ? 'Remover' : 'Adicionar'} ${esc(value.title)} ${isInList ? 'da' : 'à'} Minha lista"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${isInList ? '<path d="m5 12 4 4L19 6"/>' : '<path d="M12 5v14M5 12h14"/>'}</svg></button>${value.live || value.metadataOnly ? '' : '<button type="button" data-action="download" aria-label="Descarregar ' + esc(value.title) + '"><svg class="tmx-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg></button>'}</div></div></article>`;
     }
     function empty(message) { return `<div class="ent-empty-state">${esc(message)}</div>`; }
     function renderRail(row, className = '') { return `<section class="ent-rail ${className}" data-rail-id="${esc(row.id)}"><div class="ent-rail-heading"><h3>${esc(row.title)}</h3><span>${row.items.length} ${row.items.length === 1 ? 'item' : 'itens'} · origem visível</span></div><div class="ent-card-rail">${row.items.map(card).join('')}</div></section>`; }
-    function renderRows(rowList) { if (!rows) return; rows.innerHTML = rowList?.length ? rowList.map(row => renderRail(row)).join('') : empty('Não existem resultados reais disponíveis para esta coleção neste momento.'); }
+    function renderRows(rowList) {
+      if (!rows) return;
+      const availableRows = (Array.isArray(rowList) ? rowList : []).filter(row => Array.isArray(row.items) && row.items.length > 0);
+      rows.innerHTML = availableRows.length ? availableRows.map(row => renderRail(row)).join('') : `<div class="ent-catalog-empty"><div class="ent-catalog-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="m10 9 5 3-5 3zM7 2.5v2M12 2.5v2M17 2.5v2"/></svg></div><div><span class="ent-catalog-empty-kicker">Catálogo público</span><h3>Sem coleções disponíveis nesta secção</h3><p>As fontes públicas não devolveram títulos neste momento. Podes pesquisar outra fonte ou tentar novamente mais tarde. Itens sem uma stream compatível ou com acesso restrito continuam fora do catálogo reproduzível.</p><div class="ent-catalog-empty-actions"><button type="button" data-catalog-retry>Atualizar catálogo</button><button type="button" data-catalog-search>Pesquisar títulos</button></div></div></div>`;
+    }
     function renderPersonal() {
       const progress = progressItems();
       const list = listItems();
@@ -123,7 +127,8 @@
       personalRows.hidden = !chunks.length;
     }
     function setHero(item) {
-      heroItem = item ? register(item) : null;
+      const candidate = item ? register(item) : null;
+      heroItem = candidate && isCatalogItemPlayable(candidate) && !candidate.live ? candidate : null;
       heroEyebrow.textContent = 'TubeMateX Cine';
       heroTitle.textContent = 'Entretenimento com origem.';
       heroMeta.innerHTML = '<span>Filmes</span><span>Séries</span><span>TV ao vivo</span>';
@@ -288,11 +293,50 @@
       }
     }
     function closeVideo() { const wasOpen = Boolean(videoDrawer && !videoDrawer.hidden); const returnFocus = previousVideoFocus?.isConnected ? previousVideoFocus : ($('#iptvQuery') || heroPlay); clearPlayerStartupTimer(); playbackGeneration += 1; playbackAbortController?.abort(); playbackAbortController = null; failedStreamUrls = new Set(); hlsRecoveryAttempts = 0; if (userInactiveTimer) window.clearTimeout(userInactiveTimer); if (video) { rememberProgress(video.currentTime || 0); video.pause(); if (hls) { hls.destroy(); hls = null; } if (dash) { dash.reset(); dash = null; } video.removeAttribute('src'); video.removeAttribute('poster'); video.load(); } if (videoLoading) videoLoading.hidden = true; if (videoError) videoError.hidden = true; ytPlayerStage?.classList.remove('has-error', 'playing', 'user-inactive'); if (videoSeek) videoSeek.value = '0'; if (videoCurrentTime) videoCurrentTime.textContent = '0:00'; if (videoDuration) videoDuration.textContent = '0:00'; currentItem = null; currentStreamUrl = ''; videoDrawer.hidden = true; if (returnFocus && detailDrawer?.contains(returnFocus)) detailDrawer.hidden = false; document.body.classList.remove('tmx-player-open'); previousVideoFocus = null; if (wasOpen) window.requestAnimationFrame(() => returnFocus?.focus({ preventScroll: true })); }
-    function rowForView(view) { if (!homePayload) return []; const map = { home: homePayload.rows, movies: homePayload.rows.filter(row => row.id === 'films' || row.id === 'featured' || row.id === 'documentary'), series: homePayload.rows.filter(row => row.id === 'series'), anime: homePayload.rows.filter(row => row.id === 'anime' || row.id === 'dorama'), sports: homePayload.rows.filter(row => row.id === 'sports'), portugal: homePayload.rows.filter(row => row.id === 'portugal'), brands: homePayload.rows.filter(row => row.id === 'brands'), live: homePayload.rows.filter(row => row.id === 'live' || row.id === 'news') }; return map[view] || []; }
-    function activateView(view) { activeView = view; root.dataset.entView = view; const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; document.querySelectorAll('.ent-nav-link').forEach(button => { const selected = button.dataset.view === view; button.classList.toggle('active', selected); button.setAttribute('aria-pressed', String(selected)); }); if (view === 'live') { renderRows(rowForView(view)); renderPersonal(); $('#iptvSection')?.scrollIntoView({ behavior, block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); if (view === 'my-list' && !listItems().length) { if (rows) rows.innerHTML = empty('A tua lista está vazia. Explora o catálogo e clica em ＋ para guardar filmes, séries e canais.'); } window.scrollTo({ top: 0, behavior }); } }
+    function isCatalogItemPlayable(item) {
+      if (!item?.url || item.metadataOnly || item.streamAvailable === false) return false;
+      const status = `${item.availabilityLabel || ''} ${item.validationStatus || ''}`;
+      return !/(?:\bdrm\b|\bauth(?:entication)?\b|autentica(?:ção|cao)|geo[-\s]?block|\bblocked\b|\brestricted\b|\bprotected\b|unverified|insecure|offline|unsupported|timeout|bloquead|restrit|proteg|insegur|indispon[ií]vel|não verificada|nao verificada|não autorizad|nao autorizad)/i.test(status);
+    }
+    function rowForView(view) {
+      if (!homePayload) return [];
+      const sourceRows = Array.isArray(homePayload.rows) ? homePayload.rows : [];
+      const vodRowIds = new Set(['live', 'news', 'sports', 'portugal', 'brands']);
+      const map = {
+        home: sourceRows.filter(row => !vodRowIds.has(row.id)),
+        movies: sourceRows.filter(row => row.id === 'films' || row.id === 'featured' || row.id === 'documentary'),
+        series: sourceRows.filter(row => row.id === 'series'),
+        anime: sourceRows.filter(row => row.id === 'anime' || row.id === 'dorama'),
+        sports: sourceRows.filter(row => row.id === 'sports'),
+        portugal: sourceRows.filter(row => row.id === 'portugal'),
+        brands: sourceRows.filter(row => row.id === 'brands'),
+        live: sourceRows.filter(row => row.id === 'live' || row.id === 'news')
+      };
+      const liveView = ['sports', 'portugal', 'brands', 'live'].includes(view);
+      return (map[view] || []).map(row => ({ ...row, items: (Array.isArray(row.items) ? row.items : []).filter(item => {
+        const isLive = Boolean(item.live || item.kind === 'live');
+        return isCatalogItemPlayable(item) && isLive === liveView;
+      }) })).filter(row => row.items.length);
+    }
+    function activateView(view) { activeView = view; root.dataset.entView = view; const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; document.querySelectorAll('.ent-nav-link, .ent-catalog-chip').forEach(button => { const selected = button.dataset.view === view; button.classList.toggle('active', selected); button.setAttribute('aria-pressed', String(selected)); }); if (view === 'live') { renderRows(rowForView(view)); renderPersonal(); $('#iptvSection')?.scrollIntoView({ behavior, block: 'start' }); loadIptv(); } else { renderRows(rowForView(view)); renderPersonal(); if (view === 'my-list' && !listItems().length) { if (rows) rows.innerHTML = empty('A tua lista está vazia. Explora o catálogo e clica em ＋ para guardar filmes, séries e canais.'); } window.scrollTo({ top: 0, behavior }); } }
     async function loadHome() {
-      try { const response = await fetch('/api/entertainment/home'); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o catálogo.'); homePayload = payload; setHero(payload.hero); renderRows(payload.rows || []); renderPersonal(); notify(`${payload.rows?.length || 0} coleções reais carregadas.`, 'success'); }
-      catch (error) { homePayload = { rows: [] }; setHero(null); renderRows([]); renderPersonal(); notify(error.message || 'Catálogo indisponível.', 'error'); }
+      try {
+        const response = await fetch('/api/entertainment/home');
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar o catálogo.');
+        homePayload = payload;
+        setHero(payload.hero);
+        const availableRows = rowForView(activeView).filter(row => Array.isArray(row.items) && row.items.length > 0);
+        renderRows(rowForView(activeView));
+        renderPersonal();
+        notify(availableRows.length ? `${availableRows.length} coleções públicas disponíveis.` : 'Sem coleções públicas neste momento. Pesquisa uma fonte ou tenta novamente mais tarde.', availableRows.length ? 'success' : '');
+      } catch (error) {
+        homePayload = { rows: [] };
+        setHero(null);
+        renderRows(rowForView(activeView));
+        renderPersonal();
+        notify(error.message || 'Catálogo indisponível.', 'error');
+      }
     }
     async function loadIptv(append = false) {
       const results = $('#iptvResults'); const statusLine = $('#iptvStatus');
@@ -312,7 +356,7 @@
         if (requestId !== iptvRequestSequence) return;
         const pending = Number(payload.pendingValidationCount || 0);
         const remaining = Number(payload.remainingValidationCount || 0);
-        const items = (payload.results || []).map(register);
+        const items = (payload.results || []).map(register).filter(isCatalogItemPlayable);
         if (!append) results.innerHTML = '';
         if (items.length) results.insertAdjacentHTML('beforeend', items.map(card).join(''));
         else if (!append && pending > 0) results.innerHTML = `<div class="ent-loading-state">A validar ${pending} fontes. Só serão mostrados canais com stream acessível e compatível.</div>`;
@@ -355,6 +399,33 @@
         box.innerHTML = `<div class="iptv-source-heading"><strong>Fontes auditadas</strong><span>${esc(catalog.policy || playlists.policy || '')} A reachability da API não garante playback; fontes metadata-only não fornecem streams.</span></div>${playlistTags}${catalogTags}`;
       } catch { box.textContent = 'Estado das fontes indisponível; nenhuma lista externa foi importada.'; }
     }
+    function updateIptvFilterSummary() {
+      const summary = $('#iptvFilterSummary');
+      const badge = $('#iptvFilterCount');
+      const toggle = $('#toggleIptvFilters');
+      const query = $('#iptvQuery')?.value.trim();
+      const fields = [
+        ['País', $('#iptvCountry')],
+        ['Idioma', $('#iptvLanguage')],
+        ['Género', $('#iptvCategory')]
+      ];
+      const active = fields.filter(([, control]) => control?.value).map(([label, control]) => `${label}: ${control.selectedOptions[0]?.textContent.split(' · ')[0] || control.value}`);
+      const count = active.length;
+      if (query) active.unshift(`Pesquisa: ${query}`);
+      if (summary) { summary.textContent = active.length ? `A mostrar canais · ${active.join(' · ')}` : ''; summary.hidden = active.length === 0; }
+      if (badge) { badge.textContent = count ? String(count) : ''; badge.hidden = count === 0; }
+      toggle?.setAttribute('aria-label', count ? `Filtros, ${count} ativos` : 'Filtros');
+      const countryValue = $('#iptvCountry')?.value || '';
+      const languageValue = $('#iptvLanguage')?.value || '';
+      const categoryValue = $('#iptvCategory')?.value || '';
+      document.querySelectorAll('.iptv-quick-chip').forEach(button => {
+        const all = button.dataset.quickFilter === 'all';
+        const quickCountry = button.dataset.quickCountry || '';
+        const quickCategory = button.dataset.quickCategory || '';
+        const pressed = all ? !countryValue && !languageValue && !categoryValue : quickCountry ? countryValue === quickCountry && !categoryValue : quickCategory ? categoryValue === quickCategory && !countryValue : false;
+        button.setAttribute('aria-pressed', String(pressed));
+      });
+    }
     async function loadIptvMeta() {
       try {
         const response = await fetch('/api/iptv/meta'); if (!response.ok) return;
@@ -362,27 +433,46 @@
         const countryNames = { AO: 'Angola', BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', GB: 'Reino Unido', KR: 'Coreia do Sul', JP: 'Japão', ES: 'Espanha', FR: 'França', DE: 'Alemanha', MZ: 'Moçambique', CV: 'Cabo Verde' };
         const categoryNames = { news: 'Notícias', movies: 'Filmes', series: 'Séries', documentary: 'Documentários', cooking: 'Cozinha', music: 'Música', religious: 'Religioso', kids: 'Infantil', animation: 'Anime/animação', sports: 'Desporto', general: 'Generalista', entertainment: 'Entretenimento', culture: 'Cultura', education: 'Educação' };
         if (language) { const selected = language.value; language.innerHTML = '<option value="">Português e inglês</option><option value="por">Português</option><option value="eng">Inglês</option>'; language.value = ['por', 'eng'].includes(selected) ? selected : ''; }
-        if (country) country.innerHTML = '<option value="">Todos os países</option>' + (payload.countries || []).map(item => `<option value="${esc(item.code)}">${esc(countryNames[item.code] || item.code)} · ${item.count}</option>`).join('');
-        if (category) category.innerHTML = '<option value="">Todas as categorias</option>' + (payload.categories || []).map(item => `<option value="${esc(item.id)}">${esc(categoryNames[item.id] || item.id)} · ${item.count}</option>`).join('');
+        const countryCounts = new Map((payload.countries || []).map(item => [item.code, Number(item.count) || 0]));
+        const countryCodes = [...new Set(['AO', 'BR', 'PT', 'US', 'GB', 'KR', 'JP', ...(payload.countries || []).map(item => item.code)])];
+        if (country) { const selected = country.value; country.innerHTML = '<option value="">Todos os países</option>' + countryCodes.map(code => { const count = countryCounts.get(code); return `<option value="${esc(code)}">${esc(countryNames[code] || code)}${count ? ` · ${count}` : ''}</option>`; }).join(''); country.value = countryCodes.includes(selected) ? selected : ''; }
+        const categoryCounts = new Map((payload.categories || []).map(item => [item.id, Number(item.count) || 0]));
+        const categoryIds = [...new Set([...Object.keys(categoryNames), ...(payload.categories || []).map(item => item.id)])];
+        if (category) { const selected = category.value; category.innerHTML = '<option value="">Todas as categorias</option>' + categoryIds.map(id => { const count = categoryCounts.get(id); return `<option value="${esc(id)}">${esc(categoryNames[id] || id)}${count ? ` · ${count}` : ''}</option>`; }).join(''); category.value = categoryIds.includes(selected) ? selected : ''; }
+        updateIptvFilterSummary();
       } catch {}
     }
     async function search(event) {
       event?.preventDefault(); const term = $('#spaceQuery').value.trim(); if (term.length < 2) return notify('Escreve pelo menos 2 caracteres para pesquisar.', 'error'); searchZone.hidden = false; searchResults.innerHTML = '<div class="ent-loading-state">A consultar fontes reais…</div>'; notify('A pesquisar no catálogo…');
-      try { let payload; if (/^https?:\/\//i.test(term)) { const response = await fetch(`/api/media/info?url=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível resolver este URL.'); payload = { results: [{ ...payload, url: term, kind: 'film' }] }; } else { const response = await fetch(`/api/entertainment/search?q=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A pesquisa falhou.'); } const items = (payload.results || []).map(register); searchResults.innerHTML = items.length ? items.map(card).join('') : empty('Nenhum resultado real para esta pesquisa.'); notify(`${items.length} resultados encontrados.`, items.length ? 'success' : ''); searchZone.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      try { let payload; if (/^https?:\/\//i.test(term)) { const response = await fetch(`/api/media/info?url=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível resolver este URL.'); payload = { results: [{ ...payload, url: term, kind: 'film' }] }; } else { const response = await fetch(`/api/entertainment/search?q=${encodeURIComponent(term)}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A pesquisa falhou.'); } const items = (payload.results || []).map(register).filter(isCatalogItemPlayable); searchResults.innerHTML = items.length ? items.map(card).join('') : empty('Nenhum resultado reproduzível para esta pesquisa.'); notify(`${items.length} resultados encontrados.`, items.length ? 'success' : ''); searchZone.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       catch (error) { searchResults.innerHTML = empty(error.message || 'A pesquisa falhou.'); notify(error.message || 'A pesquisa falhou.', 'error'); }
     }
-    document.querySelectorAll('.ent-nav-link').forEach(button => button.addEventListener('click', () => activateView(button.dataset.view)));
+    document.querySelectorAll('.ent-nav-link, .ent-catalog-chip').forEach(button => button.addEventListener('click', () => activateView(button.dataset.view)));
+    $('#catalogSearchAction')?.addEventListener('click', () => $('#openEntertainmentSearch')?.click());
+    rows?.addEventListener('click', event => { if (event.target.closest('[data-catalog-retry]')) { homePayload = null; loadHome(); } else if (event.target.closest('[data-catalog-search]')) $('#openEntertainmentSearch')?.click(); });
+    document.addEventListener('error', event => { const image = event.target; if (image instanceof HTMLImageElement && image.matches('.ent-card-art img')) image.hidden = true; }, true);
     $('#openEntertainmentSearch')?.addEventListener('click', () => { searchZone.hidden = false; $('#spaceQuery')?.focus(); searchZone.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     $('#closeEntertainmentSearch')?.addEventListener('click', () => { searchZone.hidden = true; });
     $('#spaceSearch')?.addEventListener('submit', search);
     $('#refreshEntertainment')?.addEventListener('click', () => { homePayload = null; loadHome(); });
-    $('#iptvFilters')?.addEventListener('submit', event => { event.preventDefault(); loadIptv(false); });
-    $('#clearIptvFilters')?.addEventListener('click', () => { $('#iptvFilters')?.reset(); loadIptv(false); });
+    $('#iptvFilters')?.addEventListener('submit', event => { event.preventDefault(); updateIptvFilterSummary(); loadIptv(false); });
+    $('#clearIptvFilters')?.addEventListener('click', () => { $('#iptvFilters')?.reset(); updateIptvFilterSummary(); loadIptv(false); });
     $('#loadMoreIptv')?.addEventListener('click', () => loadIptv(true));
-    ['iptvQuery', 'iptvCountry', 'iptvLanguage', 'iptvCategory'].forEach(id => { const control = $(`#${id}`); control?.addEventListener('change', () => { if (id !== 'iptvQuery') loadIptv(false); }); });
-    $('#toggleIptv')?.addEventListener('click', event => { const body = $('#iptvBody'); const collapsed = body.hidden; body.hidden = !collapsed; event.currentTarget.textContent = collapsed ? 'Recolher IPTV' : 'Expandir IPTV'; event.currentTarget.setAttribute('aria-expanded', String(collapsed)); });
+    ['iptvQuery', 'iptvCountry', 'iptvLanguage', 'iptvCategory'].forEach(id => { const control = $(`#${id}`); control?.addEventListener('input', updateIptvFilterSummary); control?.addEventListener('change', () => { updateIptvFilterSummary(); if (id !== 'iptvQuery') loadIptv(false); }); });
+    $('#toggleIptvFilters')?.addEventListener('click', event => { const panel = $('#iptvAdvancedFilters'); if (!panel) return; const opening = panel.hidden; panel.hidden = !opening; event.currentTarget.setAttribute('aria-expanded', String(opening)); if (opening) $('#iptvCountry')?.focus({ preventScroll: true }); else event.currentTarget.focus({ preventScroll: true }); });
+    document.querySelectorAll('.iptv-quick-chip').forEach(button => button.addEventListener('click', () => {
+      const isAll = button.dataset.quickFilter === 'all';
+      const query = $('#iptvQuery'); const country = $('#iptvCountry'); const language = $('#iptvLanguage'); const category = $('#iptvCategory');
+      if (query && isAll) query.value = '';
+      if (country) country.value = isAll ? '' : button.dataset.quickCountry || '';
+      if (language && isAll) language.value = '';
+      if (category) category.value = isAll ? '' : button.dataset.quickCategory || '';
+      updateIptvFilterSummary();
+      loadIptv(false);
+    }));
+    $('#toggleIptv')?.addEventListener('click', event => { const body = $('#iptvBody'); const collapsed = body.hidden; body.hidden = !collapsed; event.currentTarget.textContent = collapsed ? 'Recolher canais' : 'Expandir canais'; event.currentTarget.setAttribute('aria-expanded', String(collapsed)); });
     document.addEventListener('click', event => { const cardEl = event.target.closest('.ent-card'); if (cardEl) { const item = itemMap.get(cardEl.dataset.itemId); if (item && event.target.closest('[data-action="play"]')) playItem(item); if (item && event.target.closest('[data-action="details"]')) showDetail(item); if (item && event.target.closest('[data-action="list"]')) toggleList(item); if (item && event.target.closest('[data-action="download"]')) downloadItem(item); } });
-    heroPlay?.addEventListener('click', () => $('#entertainmentRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroMore?.addEventListener('click', () => $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroList?.addEventListener('click', () => $('#iptvSourceList')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    heroPlay?.addEventListener('click', () => $('#entertainmentRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroMore?.addEventListener('click', () => $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroList?.addEventListener('click', () => { const details = $('.iptv-source-details'); if (details) details.open = true; details?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
     $('#closeDetail')?.addEventListener('click', () => { detailDrawer.hidden = true; }); detailDrawer?.addEventListener('click', event => { if (event.target.matches('[data-close-detail]')) detailDrawer.hidden = true; }); detailPlay?.addEventListener('click', () => { if (detailItem) { detailDrawer.hidden = true; playItem(detailItem); } }); detailList?.addEventListener('click', () => detailItem && toggleList(detailItem));
     async function openExternalPlayer(protocol) { if (!detailItem) return; try { let url = detailItem.url; if (!detailItem.directStream && !detailItem.live) { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(detailItem.url)}&type=video`); const payload = await response.json().catch(() => ({})); if (!response.ok || !payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream externa.'); url = payload.url; } notify(`A abrir no ${protocol.toUpperCase()}…`, 'success'); window.location.assign(`${protocol}://${url}`); } catch (error) { notify(`${protocol.toUpperCase()} indisponível: ${error.message || 'abre a fonte oficial.'}`, 'error'); } }
     detailDownload?.addEventListener('click', () => detailItem && downloadItem(detailItem));
