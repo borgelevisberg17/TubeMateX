@@ -64,3 +64,6 @@ jobs:
 
       - name: Verificar governança do design system
         run: npm run test:design-system
+
+      - name: Verificar acessibilidade dos switches das definições
+        run: npm run test:settings-accessibility
