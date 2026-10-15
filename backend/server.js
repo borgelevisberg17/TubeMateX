@@ -34,6 +34,7 @@ const YT_DLP_PLUGIN_DIR = resolveBackendPath(process.env.YT_DLP_PLUGIN_DIR);
 const YT_DLP_COMMON_OPTIONS = {};
 const FFMPEG_LOCATION = resolveBackendPath(process.env.FFMPEG_PATH);
 if (FFMPEG_LOCATION) YT_DLP_COMMON_OPTIONS.ffmpegLocation = FFMPEG_LOCATION;
+if (process.env.YTDLP_PROXY_URL) YT_DLP_COMMON_OPTIONS.proxy = process.env.YTDLP_PROXY_URL;
 if (process.env.YTDLP_COOKIES_FILE) { const cookiesFile = resolveBackendPath(process.env.YTDLP_COOKIES_FILE); if (fs.existsSync(cookiesFile)) YT_DLP_COMMON_OPTIONS.cookies = cookiesFile; else console.warn(`[yt-dlp] YTDLP_COOKIES_FILE não encontrado: ${cookiesFile}`); }
 if (process.env.YTDLP_COOKIES_FROM_BROWSER) YT_DLP_COMMON_OPTIONS.cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
 if (YT_DLP_PLUGIN_DIR) process.env.PYTHONPATH = [YT_DLP_PLUGIN_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
@@ -46,6 +47,29 @@ function listYtDlpPlugins() {
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+const requestMetrics = { total: 0, errors4xx: 0, errors5xx: 0, durationTotalMs: 0, durationMaxMs: 0, downloadsCompleted: 0, downloadsFailed: 0, downloadsTimedOut: 0, bytesDownloaded: 0 };
+function logEvent(level, event, fields = {}) {
+    const record = { timestamp: new Date().toISOString(), level, service: 'tubematex', event, ...fields };
+    const writer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    writer(JSON.stringify(record));
+}
+async function incrementDownloadMetric(key, amount = 1) {
+    if (redisClient?.isReady) {
+        try { await redisClient.incrBy(`tubematex:metrics:v1:${key}`, amount); return; }
+        catch (error) { logEvent('warn', 'metrics.redis_write_failed', { metric: key, message: error.message }); }
+    }
+    requestMetrics[key] = (requestMetrics[key] || 0) + amount;
+}
+async function readDownloadMetrics() {
+    const keys = ['downloadsCompleted', 'downloadsFailed', 'downloadsTimedOut', 'bytesDownloaded'];
+    if (redisClient?.isReady) {
+        try {
+            const values = await redisClient.mGet(keys.map(key => `tubematex:metrics:v1:${key}`));
+            return Object.fromEntries(keys.map((key, index) => [key, Number(values[index] || 0)]));
+        } catch (error) { logEvent('warn', 'metrics.redis_read_failed', { message: error.message }); }
+    }
+    return Object.fromEntries(keys.map(key => [key, Number(requestMetrics[key] || 0)]));
+}
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const SESSION_SECRET = resolveSessionSecret({ isProduction: IS_PRODUCTION, configuredSecret: process.env.SESSION_SECRET });
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -55,9 +79,20 @@ const DATA_DIR = resolveConfiguredPath(process.env.DATA_DIR, path.join(__dirname
 const DOWNLOAD_DIR = resolveConfiguredPath(process.env.DOWNLOAD_DIR, path.join(DATA_DIR, 'downloads'));
 const HISTORY_DIR = resolveConfiguredPath(process.env.HISTORY_DIR, path.join(DATA_DIR, 'history'));
 const MAX_HISTORY = Number(process.env.MAX_HISTORY || 50);
-const MAX_CONCURRENT_DOWNLOADS = Number(process.env.MAX_CONCURRENT_DOWNLOADS || 2);
-const MAX_DOWNLOAD_SIZE = Number(process.env.MAX_DOWNLOAD_SIZE || 2 * 1024 * 1024 * 1024);
+const MAX_CONCURRENT_DOWNLOADS = Math.max(1, Number(process.env.MAX_CONCURRENT_DOWNLOADS || 2));
+const MAX_DOWNLOAD_SIZE = Math.max(1024 * 1024, Number(process.env.MAX_DOWNLOAD_SIZE || 2 * 1024 * 1024 * 1024));
+const MAX_STORAGE_BYTES = Math.max(MAX_DOWNLOAD_SIZE, Number(process.env.MAX_STORAGE_BYTES || 20 * 1024 * 1024 * 1024));
+const MAX_ACTIVE_JOBS_PER_OWNER = Math.max(1, Number(process.env.MAX_ACTIVE_JOBS_PER_OWNER || 3));
+const MAX_PENDING_DOWNLOADS = Math.max(1, Number(process.env.MAX_PENDING_DOWNLOADS || 100));
+const DOWNLOAD_TIMEOUT_MS = Math.max(60_000, Number(process.env.DOWNLOAD_TIMEOUT_MS || 30 * 60 * 1000));
+const CONVERSION_TIMEOUT_MS = Math.max(60_000, Number(process.env.CONVERSION_TIMEOUT_MS || 10 * 60 * 1000));
+const SESSION_MAX_AGE_MS = Math.max(15 * 60 * 1000, Number(process.env.SESSION_MAX_AGE_MS || 8 * 60 * 60 * 1000));
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'tubematex.sid';
+const SESSION_COOKIE_SAME_SITE = String(process.env.SESSION_COOKIE_SAME_SITE || 'lax').toLowerCase();
 const JOB_RETENTION_MS = 2 * 60 * 60 * 1000;
+if (IS_PRODUCTION && !process.env.YTDLP_PROXY_URL) logEvent('error', 'security.egress_proxy_missing', { action: 'user_supplied_url_endpoints_disabled' });
+if (!['lax', 'strict', 'none'].includes(SESSION_COOKIE_SAME_SITE)) throw new Error('SESSION_COOKIE_SAME_SITE deve ser lax, strict ou none.');
+if (SESSION_COOKIE_SAME_SITE === 'none' && !IS_PRODUCTION) throw new Error('SameSite=None só pode ser usado com cookies Secure em produção.');
 
 for (const directory of [DATA_DIR, DOWNLOAD_DIR, HISTORY_DIR]) {
     fs.mkdirSync(directory, { recursive: true });
@@ -304,7 +339,31 @@ const downloadLimiter = rateLimit({
     message: { error: 'Atingiste o limite de downloads por hora. Tenta novamente mais tarde.' }
 });
 
+const conversionLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: Number(process.env.CONVERSION_RATE_LIMIT || 8),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Atingiste o limite de conversões por hora. Tenta novamente mais tarde.' }
+});
+
 app.set('trust proxy', 1);
+app.use((req, res, next) => {
+    const supplied = String(req.get('X-Request-Id') || '');
+    req.requestId = /^[a-zA-Z0-9._:-]{8,100}$/.test(supplied) ? supplied : crypto.randomUUID();
+    res.setHeader('X-Request-Id', req.requestId);
+    const startedAt = process.hrtime.bigint();
+    requestMetrics.total += 1;
+    res.once('finish', () => {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+        requestMetrics.durationTotalMs += durationMs;
+        requestMetrics.durationMaxMs = Math.max(requestMetrics.durationMaxMs, durationMs);
+        if (res.statusCode >= 400 && res.statusCode < 500) requestMetrics.errors4xx += 1;
+        if (res.statusCode >= 500) requestMetrics.errors5xx += 1;
+        logEvent(res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info', 'http.request', { requestId: req.requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Math.round(durationMs * 100) / 100, ip: req.ip });
+    });
+    next();
+});
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use((req, res, next) => {
@@ -320,23 +379,20 @@ app.use((req, res, next) => {
 });
 
 app.use(session({
+    name: SESSION_COOKIE_NAME,
     store: sessionStore,
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     proxy: IS_PRODUCTION,
-    cookie: {
-        httpOnly: true,
-        secure: IS_PRODUCTION,
-        sameSite: IS_PRODUCTION ? 'none' : 'lax',
-        maxAge: 30 * 24 * 60 * 60 * 1000
-    }
+    cookie: { path: '/', httpOnly: true, secure: IS_PRODUCTION, sameSite: SESSION_COOKIE_SAME_SITE, maxAge: SESSION_MAX_AGE_MS }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 app.use((req, res, next) => {
     res.cookie = (name, value, options = {}) => {
         const attributes = [`${name}=${encodeURIComponent(value)}`];
+        attributes.push(`Path=${options.path || '/'}`);
         if (options.maxAge) attributes.push(`Max-Age=${Math.floor(options.maxAge / 1000)}`);
         if (options.httpOnly) attributes.push('HttpOnly');
         if (options.secure) attributes.push('Secure');
@@ -399,10 +455,11 @@ function getVisitorId(req, res) {
     if (cookies.tubematex_visitor && /^[a-f0-9]{32}$/.test(cookies.tubematex_visitor)) return cookies.tubematex_visitor;
     const visitorId = crypto.randomBytes(16).toString('hex');
     res.cookie('tubematex_visitor', visitorId, {
+        path: '/',
         maxAge: 365 * 24 * 60 * 60 * 1000,
         httpOnly: true,
         secure: IS_PRODUCTION,
-        sameSite: IS_PRODUCTION ? 'None' : 'Lax'
+        sameSite: 'Lax'
     });
     return visitorId;
 }
@@ -465,9 +522,13 @@ const conversionFormats = {
 
 function convertMedia(inputPath, outputPath, preset) {
     return new Promise((resolve, reject) => {
-        const process = spawn(FFMPEG_LOCATION ? path.join(FFMPEG_LOCATION, 'ffmpeg.exe') : 'ffmpeg', ['-y', '-i', inputPath, ...preset.args, outputPath], { stdio: ['ignore', 'ignore', 'pipe'] });
-        let stderr = ''; process.stderr.on('data', chunk => { stderr += chunk.toString(); });
-        process.on('error', reject); process.on('close', code => code === 0 ? resolve() : reject(new Error(stderr.slice(-500) || 'A conversão falhou.')));
+        const child = spawn(FFMPEG_LOCATION ? path.join(FFMPEG_LOCATION, 'ffmpeg.exe') : 'ffmpeg', ['-y', '-i', inputPath, ...preset.args, '-fs', String(MAX_DOWNLOAD_SIZE), outputPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = ''; let settled = false;
+        const timer = setTimeout(() => { child.kill('SIGTERM'); setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 5000).unref(); }, CONVERSION_TIMEOUT_MS);
+        const finish = error => { if (settled) return; settled = true; clearTimeout(timer); error ? reject(error) : resolve(); };
+        child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-4000); });
+        child.on('error', finish);
+        child.on('close', code => code === 0 ? finish() : finish(new Error(stderr.slice(-500) || (code === null ? 'Tempo limite de conversão excedido.' : 'A conversão falhou.'))));
     });
 }
 
@@ -533,6 +594,9 @@ function libraryQuery(items, params = {}) {
 }
 
 async function validateUrl(value) {
+    // Fail closed on platforms that do not configure the egress proxy.
+    // This keeps the web process available while refusing user-controlled URLs.
+    if (IS_PRODUCTION && !process.env.YTDLP_PROXY_URL) return null;
     return validatePublicHttpUrl(value);
 }
 
@@ -621,6 +685,13 @@ function safeFileName(title, format) {
     return `${clean}.${format}`;
 }
 
+function getDownloadDirectoryUsage() {
+    return fs.readdirSync(DOWNLOAD_DIR, { withFileTypes: true }).reduce((total, entry) => {
+        if (!entry.isFile()) return total;
+        try { return total + fs.statSync(path.join(DOWNLOAD_DIR, entry.name)).size; } catch { return total; }
+    }, 0);
+}
+
 function findOutputFile(job) {
     const candidates = fs.readdirSync(DOWNLOAD_DIR)
         .filter(file => file.startsWith(`${job.id}.`))
@@ -646,7 +717,8 @@ function optionsFor(job) {
         retries: 3,
         fragmentRetries: 3,
         extractorRetries: 2,
-        socketTimeout: 20
+        socketTimeout: 20,
+        ...(process.env.YTDLP_PROXY_URL ? { proxy: process.env.YTDLP_PROXY_URL } : {})
     };
     if (format.type === 'audio') {
         return { ...options, format: 'ba/b', extractAudio: true, audioFormat: job.format, audioQuality: '0' };
@@ -944,6 +1016,8 @@ async function runJob(job) {
     emit(job, { status: 'fetching', progress: { percent: 0, label: 'A analisar o conteúdo…' } });
     let info;
     try {
+        const storageUsage = getDownloadDirectoryUsage();
+        if (storageUsage + activeJobs * MAX_DOWNLOAD_SIZE > MAX_STORAGE_BYTES) throw new Error('O armazenamento de downloads atingiu o limite configurado. Tenta novamente mais tarde.');
         info = await fetchInfo(job.url);
         if (job.cancelled || cancelledJobIds.has(job.id)) throw new Error('Download cancelado pelo utilizador.');
         Object.assign(job, info);
@@ -952,6 +1026,13 @@ async function runJob(job) {
 
         const child = ytdlp.exec(job.url, optionsFor(job));
         job.process = child;
+        const downloadTimer = setTimeout(() => {
+            job.timedOut = true;
+            logEvent('warn', 'download.timeout', { requestId: job.requestId || null, jobId: job.id, ownerId: job.ownerId, timeoutMs: DOWNLOAD_TIMEOUT_MS });
+            incrementDownloadMetric('downloadsTimedOut').catch(() => {});
+            child.kill('SIGTERM');
+            setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 5000).unref();
+        }, DOWNLOAD_TIMEOUT_MS);
         const onLine = line => {
             const text = String(line || '').trim();
             const progress = parseProgress(text);
@@ -959,7 +1040,7 @@ async function runJob(job) {
         };
         child.stdout?.on('data', data => String(data).split(/\r?\n/).forEach(onLine));
         child.stderr?.on('data', data => String(data).split(/\r?\n/).forEach(onLine));
-        await child;
+        try { await child; } finally { clearTimeout(downloadTimer); }
 
         const output = findOutputFile(job);
         if (!output) throw new Error('O motor terminou sem criar um ficheiro.');
@@ -969,6 +1050,8 @@ async function runJob(job) {
         job.filePath = finalPath;
         job.fileName = finalName;
         job.size = fs.statSync(finalPath).size;
+        if (job.size > MAX_DOWNLOAD_SIZE) { fs.rmSync(finalPath, { force: true }); job.filePath = null; throw new Error('O ficheiro excedeu o limite máximo permitido.'); }
+        await incrementDownloadMetric('bytesDownloaded', job.size);
         job.completedAt = new Date().toISOString();
         await addHistory(job.ownerId, {
             id: job.id,
@@ -986,15 +1069,22 @@ async function runJob(job) {
             completedAt: job.completedAt,
             downloadUrl: `/api/downloads/${job.id}/file`
         });
+        await incrementDownloadMetric('downloadsCompleted');
         emit(job, { status: 'completed', progress: { percent: 100, label: 'Download concluído' } });
     } catch (error) {
-        console.error(`[download:${job.id}]`, error?.stderr || error?.message || error);
+        logEvent('error', 'download.failed', { requestId: job.requestId || null, jobId: job.id, ownerId: job.ownerId, timedOut: Boolean(job.timedOut), message: String(error?.stderr || error?.message || error).slice(0, 500) });
+        if (job.timedOut) { /* timeout counter is recorded when the timer fires */ }
         if (job.cancelled) {
             emit(job, { status: 'cancelled', error: 'Download cancelado.', progress: { percent: 0, label: 'Download cancelado' } });
         } else {
+            await incrementDownloadMetric('downloadsFailed');
             emit(job, { status: 'failed', error: translateError(error), errorCode: errorCode(error), progress: { percent: 0, label: 'O download falhou' } });
         }
         if (job.filePath && fs.existsSync(job.filePath)) fs.rmSync(job.filePath, { force: true });
+        for (const name of fs.readdirSync(DOWNLOAD_DIR).filter(name => name.startsWith(`${job.id}.`) || name.startsWith(`${job.id}-`))) {
+            const artifact = path.join(DOWNLOAD_DIR, name);
+            try { if (fs.statSync(artifact).isFile()) fs.rmSync(artifact, { force: true }); } catch {}
+        }
     } finally {
         activeJobs -= 1;
         job.process = null;
@@ -1014,6 +1104,7 @@ function hydrateJob(data) {
     const job = {
         id: data.id,
         ownerId: data.ownerId,
+        requestId: data.requestId || null,
         url: data.url,
         format: data.format,
         quality: data.quality || 'auto',
@@ -1058,10 +1149,22 @@ function processQueue() {
     }
 }
 
-async function createJob(ownerId, url, format, quality = 'auto') {
+async function createJob(ownerId, url, format, quality = 'auto', requestId = null) {
+    let activeForOwner;
+    if (distributedQueue) {
+        const existing = await distributedQueue.getJobs(['waiting', 'active', 'delayed', 'paused'], 0, MAX_PENDING_DOWNLOADS + MAX_ACTIVE_JOBS_PER_OWNER + 10);
+        activeForOwner = existing.filter(item => item.data?.ownerId === ownerId).length;
+        const counts = await distributedQueue.getJobCounts('waiting', 'delayed', 'paused');
+        if ((counts.waiting || 0) + (counts.delayed || 0) + (counts.paused || 0) >= MAX_PENDING_DOWNLOADS) { const error = new Error('A fila de downloads está cheia. Tenta novamente mais tarde.'); error.statusCode = 503; throw error; }
+    } else {
+        activeForOwner = [...jobs.values()].filter(job => job.ownerId === ownerId && ['queued', 'fetching', 'downloading', 'paused'].includes(job.status)).length;
+        if (queue.length >= MAX_PENDING_DOWNLOADS) { const error = new Error('A fila de downloads está cheia. Tenta novamente mais tarde.'); error.statusCode = 503; throw error; }
+    }
+    if (activeForOwner >= MAX_ACTIVE_JOBS_PER_OWNER) { const error = new Error('Atingiste o limite de downloads ativos. Termina ou cancela um download antes de iniciar outro.'); error.statusCode = 429; throw error; }
     const job = {
         id: crypto.randomBytes(12).toString('hex'),
         ownerId,
+        requestId,
         url,
         format,
         quality,
@@ -1081,7 +1184,7 @@ async function createJob(ownerId, url, format, quality = 'auto') {
     jobs.set(job.id, job);
     emit(job);
     if (distributedQueue) {
-        await distributedQueue.add('download', { id: job.id, ownerId: job.ownerId, url: job.url, format: job.format, quality: job.quality, createdAt: job.createdAt }, { jobId: job.id });
+        await distributedQueue.add('download', { id: job.id, ownerId: job.ownerId, requestId: job.requestId, url: job.url, format: job.format, quality: job.quality, createdAt: job.createdAt }, { jobId: job.id });
     } else {
         queue.push(job);
         processQueue();
@@ -1241,6 +1344,8 @@ app.use(createMediaRouter({
 
 app.use(createDownloadRouter({
     downloadLimiter,
+    conversionLimiter,
+    maxDownloadSize: MAX_DOWNLOAD_SIZE,
     validateUrl,
     allowedFormats,
     videoQualities,
@@ -1306,7 +1411,13 @@ app.get('/auth/google/callback', (req, res, next) => {
 });
 app.post('/auth/logout', (req, res, next) => req.logout(error => {
     if (error) return next(error);
-    res.json({ message: 'Sessão terminada.' });
+    const clearCookie = () => res.setHeader('Set-Cookie', `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly${IS_PRODUCTION ? '; Secure' : ''}; SameSite=${SESSION_COOKIE_SAME_SITE}; Max-Age=0`);
+    if (!req.session) { clearCookie(); return res.json({ message: 'Sessão terminada.' }); }
+    req.session.destroy(destroyError => {
+        if (destroyError) return next(destroyError);
+        clearCookie();
+        res.json({ message: 'Sessão terminada.' });
+    });
 }));
 app.get('/api/user', (req, res) => {
     if (!req.isAuthenticated || !req.isAuthenticated()) return res.status(401).json({ message: 'Não autenticado' });
@@ -1316,6 +1427,17 @@ app.get('/api/user', (req, res) => {
         email: req.user.emails?.[0]?.value || null,
         avatar: req.user.photos?.[0]?.value || null
     });
+});
+
+app.get('/internal/metrics', async (req, res) => {
+    const token = String(process.env.METRICS_TOKEN || '');
+    if (!token || req.get('Authorization') !== `Bearer ${token}`) return res.status(404).end();
+    const activeJobsCount = [...jobs.values()].filter(job => ['fetching', 'downloading'].includes(job.status)).length;
+    const downloadMetrics = await readDownloadMetrics();
+    const queueCounts = distributedQueue ? await distributedQueue.getJobCounts('waiting', 'delayed', 'paused').catch(() => ({})) : {};
+    const pendingDownloads = distributedQueue ? (queueCounts.waiting || 0) + (queueCounts.delayed || 0) + (queueCounts.paused || 0) : queue.length;
+    const errorRate5xx = requestMetrics.total ? requestMetrics.errors5xx / requestMetrics.total : 0;
+    res.json({ ...requestMetrics, ...downloadMetrics, durationAverageMs: requestMetrics.total ? Math.round(requestMetrics.durationTotalMs / requestMetrics.total * 100) / 100 : 0, activeJobs: activeJobsCount, pendingDownloads, maxConcurrentDownloads: MAX_CONCURRENT_DOWNLOADS, maxActiveJobsPerOwner: MAX_ACTIVE_JOBS_PER_OWNER, maxPendingDownloads: MAX_PENDING_DOWNLOADS, maxDownloadSizeBytes: MAX_DOWNLOAD_SIZE, maxStorageBytes: MAX_STORAGE_BYTES, storageUsageBytes: getDownloadDirectoryUsage(), downloadTimeoutMs: DOWNLOAD_TIMEOUT_MS, uptimeSeconds: Math.floor(process.uptime()), alerts: { elevatedHttp5xxRate: requestMetrics.total >= 20 && errorRate5xx >= 0.05, repeatedDownloadTimeouts: downloadMetrics.downloadsTimedOut >= 3, pendingQueueNearCapacity: pendingDownloads >= Math.ceil(MAX_PENDING_DOWNLOADS * 0.9) } });
 });
 
 app.use(express.static(FRONTEND_DIR, { maxAge: IS_PRODUCTION ? '1d' : 0 }));
@@ -1338,7 +1460,7 @@ setInterval(() => {
 }, 15 * 60 * 1000).unref();
 
 app.use((error, req, res, next) => {
-    console.error('[http]', error);
+    logEvent('error', 'http.error', { requestId: req.requestId || null, method: req.method, path: req.path, message: String(error?.message || error).slice(0, 500) });
     if (res.headersSent) return next(error);
     res.status(500).json({ error: 'Erro interno do servidor.' });
 });

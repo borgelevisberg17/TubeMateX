@@ -23,13 +23,13 @@ cp backend/.env.example backend/.env
 chmod 600 .env backend/.env
 ```
 
-Edita `.env` e define `DOMAIN` e `CERTBOT_EMAIL`. Em `backend/.env`, define um `SESSION_SECRET` aleatório longo, `BASE_URL=https://$DOMAIN`, os limites operacionais e, se necessário, os tokens opcionais de Vimeo/Twitch e Google OAuth.
+Edita `.env` e define `DOMAIN`, `CERTBOT_EMAIL`, `REDIS_PASSWORD` e um `METRICS_TOKEN` forte. Em `backend/.env`, define um `SESSION_SECRET` aleatório longo, `BASE_URL=https://$DOMAIN`, os tokens opcionais de Vimeo/Twitch e Google OAuth. Define os limites operacionais no `.env` da raiz (Compose), incluindo `MAX_STORAGE_BYTES`; para execução local direta, esses valores podem ser definidos em `backend/.env`. O Compose configura `YTDLP_PROXY_URL` para o proxy de saída; o backend em produção recusa arrancar sem esta configuração.
 
 Arranca primeiro a aplicação e o Nginx em HTTP, para o desafio ACME funcionar:
 
 ```bash
-docker compose build app
-docker compose up -d app nginx
+docker compose build app egress-proxy
+docker compose up -d app worker nginx
 docker compose ps
 ```
 
@@ -63,6 +63,8 @@ docker compose up -d --build --scale app=3 --scale worker=2
 
 Não publiques a porta 3000. Todas as réplicas devem usar o mesmo volume `tubematex_data` para o SQLite e os ficheiros. Para uma carga elevada ou vários VPS, troca SQLite por PostgreSQL e move downloads para object storage partilhado; SQLite num volume local é adequado apenas para réplicas no mesmo host e com concorrência moderada.
 
+O proxy Squid dedicado é utilizado pelo yt-dlp para todas as operações de análise e download. A configuração bloqueia endereços privados, link-local e intervalos reservados, inclusive quando a resolução é feita pelo proxy; mantém o proxy apenas na rede Docker e não publiques a porta 3128. A validação DNS da aplicação é uma defesa adicional, não substitui esta fronteira.
+
 O Redis partilha sessões, jobs BullMQ, estados temporários e eventos SSE. Os workers são consumidores concorrentes da fila `tubematex-downloads`; podes escalar a API e os workers de forma independente. O SQLite e o volume de ficheiros continuam partilhados no mesmo VPS. Para vários hosts, usa PostgreSQL e object storage partilhado, e não um volume Docker local.
 
 ## Operação
@@ -75,6 +77,8 @@ docker compose restart app nginx
 docker compose up -d --scale app=3 --scale worker=2
 docker compose down
 ```
+
+Os pedidos geram logs JSON com `requestId`, método, caminho sem query string, estado HTTP e duração. O endpoint `/internal/metrics` devolve métricas de processo e downloads apenas quando recebe `Authorization: Bearer $METRICS_TOKEN`; sem token configurado, responde 404. Encaminha logs `warn`/`error` e os sinais de métricas para a plataforma de monitorização do VPS para alertas. Não exponhas este endpoint publicamente.
 
 Os dados persistem nos volumes Docker `tubematex_data` e `tubematex_redis_data`. O primeiro contém `tubematex.sqlite`, históricos migrados e ficheiros temporários; o segundo contém o AOF do Redis com as sessões partilhadas. O Nginx e o Certbot usam os diretórios versionados vazios `deploy/certbot/www` e `deploy/certbot/conf`; os certificados reais nunca devem ser comitados.
 

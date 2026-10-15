@@ -23,6 +23,13 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
+      - name: Validar configuração Docker Compose e construir proxy SSRF
+        run: |
+          cp backend/.env.example backend/.env
+          export REDIS_PASSWORD=test-only
+          docker compose config -q
+          docker compose build egress-proxy
+
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
