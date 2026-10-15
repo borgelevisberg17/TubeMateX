@@ -73,7 +73,7 @@ async function validatePublicHttpUrl(value, { lookup = dns.lookup } = {}) {
   const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (!hostname || BLOCKED_HOSTNAMES.has(hostname) ||
       hostname.endsWith('.local') || hostname.endsWith('.internal') ||
-      hostname.endsWith('.localhost') || isUnsafeAddress(hostname)) {
+      hostname.endsWith('.localhost') || (net.isIP(hostname) !== 0 && isUnsafeAddress(hostname))) {
     return null;
   }
 
