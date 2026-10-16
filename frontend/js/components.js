@@ -124,8 +124,9 @@
     const mediaMeta = isVideo
       ? `<span class="catalog-meta">${item.kind === 'film' ? 'Filme ou série' : 'Vídeo longo'} · ${escape(formatTime(item.duration))}</span>`
       : `<span class="track-meta">${escape(item.site || 'Fonte')} · ${escape(formatTime(item.duration))}</span>`;
+    const musicPlayOverlay = !isVideo ? `<div class="track-play-overlay"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></div><div class="track-playing-indicator" aria-hidden="true"><span></span><span></span><span></span></div>` : '';
     return `<article class="${cardClass}" data-url="${escape(item.url)}" data-live="${isLive}" data-direct-stream="${Boolean(item.directStream || isLive)}" data-metadata-only="${Boolean(item.metadataOnly)}" data-mime-type="${escape(item.mimeType || '')}">
-      <div class="${thumbClass}">${thumbnail}${isVideo ? source : ''}${duration}</div>
+      <div class="${thumbClass}">${thumbnail}${isVideo ? source : musicPlayOverlay}${duration}</div>
       <div class="${bodyClass}"><h3>${escape(title)}</h3><p>${escape(item.uploader || item.site || 'Fonte pública')}${item.live ? ' · Ao vivo' : ''}</p>${mediaMeta}<div class="${actionClass}">${sourceAction}</div></div>
     </article>`;
   }

@@ -630,6 +630,17 @@
   const playButton = $('#spacePlay');
   const fullscreenButton = $('#musicFullscreen');
   let fullscreenPreviousFocus = null;
+  const svgIcons = {
+    play: '<svg class="music-control-svg play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
+    pause: '<svg class="music-control-svg pause-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5h4v14H6zm8 0h4v14h-4z" fill="currentColor"/></svg>',
+    sound: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    mute: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6m0-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    repeat: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    repeatOne: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="14.5" font-size="6.5" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Inter, system-ui, sans-serif">1</text></svg>',
+    fullscreen: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3m18-5h-3a2 2 0 0 0-2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-2h-3a2 2 0 0 1-2-2v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    close: '<svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+
   function setMusicFullscreen(enabled) {
     if (area !== 'music') return;
     root.classList.toggle('music-fullscreen-active', enabled);
@@ -637,7 +648,7 @@
       fullscreenButton.setAttribute('aria-pressed', String(enabled));
       fullscreenButton.setAttribute('aria-label', enabled ? 'Sair do ecrã completo' : 'Abrir leitor em ecrã completo');
       fullscreenButton.title = enabled ? 'Sair do ecrã completo (Esc)' : 'Abrir leitor em ecrã completo';
-      fullscreenButton.textContent = enabled ? '×' : '⛶';
+      fullscreenButton.innerHTML = enabled ? svgIcons.close : svgIcons.fullscreen;
     }
     if (enabled) {
       fullscreenPreviousFocus = document.activeElement;
@@ -651,6 +662,26 @@
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && root.classList.contains('music-fullscreen-active')) setMusicFullscreen(false);
   });
+  if (area === 'music') {
+    document.addEventListener('keydown', event => {
+      if (/input|select|textarea/i.test(event.target?.tagName || '') || event.target?.isContentEditable) return;
+      if (event.key === ' ' || event.key.toLowerCase() === 'k') {
+        if (event.target?.tagName === 'BUTTON' && event.target !== playButton) return;
+        event.preventDefault();
+        if (audio?.src) { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); }
+      } else if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'j') {
+        if (audio && Number.isFinite(audio.duration)) { event.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
+      } else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'l') {
+        if (audio && Number.isFinite(audio.duration)) { event.preventDefault(); audio.currentTime = Math.min(audio.duration, audio.currentTime + 10); }
+      } else if (event.key.toLowerCase() === 'm') {
+        event.preventDefault();
+        muteButton?.click();
+      } else if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        fullscreenButton?.click();
+      }
+    });
+  }
   function syncAudioProgress() { if (!audio) return; const duration = Number.isFinite(audio.duration) ? audio.duration : 0; const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; if (playerCurrent) playerCurrent.textContent = time(position); if (playerDuration) playerDuration.textContent = time(duration); if (playerSeek) { playerSeek.value = duration ? String(Math.round(position / duration * 100)) : '0'; playerSeek.setAttribute('aria-valuetext', `${time(position)} de ${time(duration)}`); } }
   audio?.addEventListener('loadedmetadata', syncAudioProgress); audio?.addEventListener('durationchange', syncAudioProgress); audio?.addEventListener('timeupdate', syncAudioProgress);
   audio?.addEventListener('waiting', () => {
@@ -665,14 +696,14 @@
     $('.music-player')?.setAttribute('data-playback-state', 'playing');
     if (area === 'music') notify('A reproduzir pré-visualização.', 'success');
   });
-  audio?.addEventListener('play', () => { if (playButton) { playButton.textContent = 'Ⅱ'; playButton.setAttribute('aria-label', 'Pausar'); playButton.setAttribute('aria-pressed', 'true'); playButton.title = 'Pausar'; } if (playerState) playerState.textContent = 'A REPRODUZIR'; $('.music-player')?.classList.add('is-playing'); });
+  audio?.addEventListener('play', () => { if (playButton) { playButton.innerHTML = svgIcons.pause; playButton.setAttribute('aria-label', 'Pausar'); playButton.setAttribute('aria-pressed', 'true'); playButton.title = 'Pausar'; } if (playerState) playerState.textContent = 'A REPRODUZIR'; $('.music-player')?.classList.add('is-playing'); });
   audio?.addEventListener('pause', () => {
-    if (playButton) { playButton.textContent = '▶'; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; }
+    if (playButton) { playButton.innerHTML = svgIcons.play; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; }
     if (playerState && audio?.src && !audio.ended) playerState.textContent = 'PAUSADO';
     $('.music-player')?.classList.remove('is-playing');
     if (audio?.src && !audio.ended && area === 'music') $('.music-player')?.setAttribute('data-playback-state', 'paused');
   });
-  audio?.addEventListener('ended', () => { if (playerState) playerState.textContent = 'TERMINOU'; if (playButton) { playButton.textContent = '▶'; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; } $('.music-player')?.classList.remove('is-playing'); playAdjacentTrack(1, true); });
+  audio?.addEventListener('ended', () => { if (playerState) playerState.textContent = 'TERMINOU'; if (playButton) { playButton.innerHTML = svgIcons.play; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; } $('.music-player')?.classList.remove('is-playing'); playAdjacentTrack(1, true); });
   audio?.addEventListener('error', () => {
     if (current && audio?.src) {
       if (playerState) playerState.textContent = 'INDISPONÍVEL';
@@ -686,12 +717,12 @@
   $('#musicBack10')?.addEventListener('click', () => { if (audio && Number.isFinite(audio.duration)) audio.currentTime = Math.max(0, audio.currentTime - 10); });
   $('#musicForward10')?.addEventListener('click', () => { if (audio && Number.isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, audio.currentTime + 10); });
   function syncTrackNavigation() { const visible = resultItems.filter(matchesFilter); const index = current ? visible.findIndex(item => item.url === current.url) : -1; if (previousTrackButton) previousTrackButton.disabled = index < 0 || (index === 0 && repeatMode !== 'all'); if (nextTrackButton) nextTrackButton.disabled = index < 0 || !visible.length || (visible.length === 1 && repeatMode !== 'all') || (!shuffleEnabled && repeatMode === 'off' && index >= visible.length - 1); }
-  function syncPlaybackModes() { if (shuffleButton) { shuffleButton.setAttribute('aria-pressed', String(shuffleEnabled)); shuffleButton.setAttribute('aria-label', shuffleEnabled ? 'Desativar reprodução aleatória' : 'Ativar reprodução aleatória'); shuffleButton.title = shuffleEnabled ? 'Desativar reprodução aleatória' : 'Ativar reprodução aleatória'; } if (repeatButton) { const label = repeatMode === 'one' ? 'Repetir faixa atual' : repeatMode === 'all' ? 'Repetir fila' : 'Ativar repetição'; repeatButton.setAttribute('aria-pressed', String(repeatMode !== 'off')); repeatButton.setAttribute('aria-label', label); repeatButton.title = label; repeatButton.textContent = repeatMode === 'one' ? '↻¹' : '↻'; } }
+  function syncPlaybackModes() { if (shuffleButton) { shuffleButton.setAttribute('aria-pressed', String(shuffleEnabled)); shuffleButton.setAttribute('aria-label', shuffleEnabled ? 'Desativar reprodução aleatória' : 'Ativar reprodução aleatória'); shuffleButton.title = shuffleEnabled ? 'Desativar reprodução aleatória' : 'Ativar reprodução aleatória'; } if (repeatButton) { const label = repeatMode === 'one' ? 'Repetir faixa atual' : repeatMode === 'all' ? 'Repetir fila' : 'Ativar repetição'; repeatButton.setAttribute('aria-pressed', String(repeatMode !== 'off')); repeatButton.setAttribute('aria-label', label); repeatButton.title = label; repeatButton.innerHTML = repeatMode === 'one' ? svgIcons.repeatOne : svgIcons.repeat; } }
   function playAdjacentTrack(direction, automatic = false) { const visible = resultItems.filter(matchesFilter); const index = current ? visible.findIndex(item => item.url === current.url) : -1; if (!visible.length || index < 0) return; if (automatic && repeatMode === 'one') { audio.currentTime = 0; audio.play().catch(() => notify('Não foi possível repetir esta pré-visualização.', 'error')); return; } let target; if (direction > 0 && shuffleEnabled && visible.length > 1) { const choices = visible.filter((item, itemIndex) => itemIndex !== index); target = choices[Math.floor(Math.random() * choices.length)]; } else target = visible[index + direction]; if (!target && repeatMode === 'all') target = direction > 0 ? visible[0] : visible[visible.length - 1]; if (target) stream(target); }
   previousTrackButton?.addEventListener('click', () => playAdjacentTrack(-1)); nextTrackButton?.addEventListener('click', () => playAdjacentTrack(1));
   shuffleButton?.addEventListener('click', () => { shuffleEnabled = !shuffleEnabled; syncPlaybackModes(); syncTrackNavigation(); });
   repeatButton?.addEventListener('click', () => { repeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off'; syncPlaybackModes(); syncTrackNavigation(); });
   syncPlaybackModes();
   if (audio && volumeRange) { audio.volume = Number(volumeRange.value) / 100; previousVolume = audio.volume || 1; volumeRange.setAttribute('aria-valuetext', `${volumeRange.value}%`); volumeRange.addEventListener('input', () => { audio.volume = Number(volumeRange.value) / 100; if (audio.volume > 0) { previousVolume = audio.volume; audio.muted = false; } if (volumeValue) volumeValue.value = `${volumeRange.value}%`; volumeRange.setAttribute('aria-valuetext', `${volumeRange.value}%`); if (muteButton) { muteButton.setAttribute('aria-pressed', String(audio.muted || audio.volume === 0)); muteButton.setAttribute('aria-label', audio.muted || audio.volume === 0 ? 'Ativar som' : 'Silenciar'); } }); }
-  muteButton?.addEventListener('click', () => { if (!audio) return; const silence = !audio.muted && audio.volume > 0; if (silence) { previousVolume = audio.volume; audio.muted = true; } else { audio.muted = false; if (audio.volume === 0) { audio.volume = previousVolume || 1; if (volumeRange) { volumeRange.value = String(Math.round(audio.volume * 100)); volumeRange.setAttribute('aria-valuetext', `${volumeRange.value}%`); } if (volumeValue) volumeValue.value = `${Math.round(audio.volume * 100)}%`; } } const isMuted = audio.muted || audio.volume === 0; muteButton.setAttribute('aria-pressed', String(isMuted)); muteButton.setAttribute('aria-label', isMuted ? 'Ativar som' : 'Silenciar'); muteButton.title = isMuted ? 'Ativar som' : 'Silenciar'; muteButton.textContent = isMuted ? '×' : '♪'; });
+  muteButton?.addEventListener('click', () => { if (!audio) return; const silence = !audio.muted && audio.volume > 0; if (silence) { previousVolume = audio.volume; audio.muted = true; } else { audio.muted = false; if (audio.volume === 0) { audio.volume = previousVolume || 1; if (volumeRange) { volumeRange.value = String(Math.round(audio.volume * 100)); volumeRange.setAttribute('aria-valuetext', `${volumeRange.value}%`); } if (volumeValue) volumeValue.value = `${Math.round(audio.volume * 100)}%`; } } const isMuted = audio.muted || audio.volume === 0; muteButton.setAttribute('aria-pressed', String(isMuted)); muteButton.setAttribute('aria-label', isMuted ? 'Ativar som' : 'Silenciar'); muteButton.title = isMuted ? 'Ativar som' : 'Silenciar'; muteButton.innerHTML = isMuted ? svgIcons.mute : svgIcons.sound; });
 })();
