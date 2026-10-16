@@ -29,7 +29,8 @@
     "test:admin-ui-tokens": "node tests/admin-ui-tokens.js",
     "test:player-ui-tokens": "node tests/player-ui-tokens.js",
     "test:social-ui-tokens": "node tests/social-ui-tokens.js",
-    "test:music-ui-layout": "node --check frontend/js/spaces.js && node tests/music-ui-layout.js"
+    "test:music-ui-layout": "node --check frontend/js/spaces.js && node tests/music-ui-layout.js",
+    "test:vercel-music-routing": "node tests/vercel-music-html-routing.js"
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
