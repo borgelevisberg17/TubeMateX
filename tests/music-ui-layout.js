@@ -13,7 +13,7 @@ for (const id of [
   'spaceSearch', 'spaceQuery', 'spaceSources', 'spaceResults', 'spaceStatus',
   'spacePlayerCover', 'spacePlayerEmpty', 'spacePlayerBody', 'spacePlayerTitle',
   'spacePlayerArtist', 'spacePlayerSeek', 'spacePlayerCurrent', 'spacePlayerDuration',
-  'spacePlay', 'musicPrevious', 'musicNext', 'musicBack10', 'musicForward10',
+  'spacePlay', 'musicPrevious', 'musicNext', 'musicBack10', 'musicForward10', 'musicShuffle', 'musicRepeat',
   'musicMute', 'musicVolume', 'musicVolumeValue', 'spaceAudio'
 ]) {
   assert.match(html, new RegExp('id="' + id + '"'), 'music markup must preserve #' + id);
@@ -33,6 +33,8 @@ for (const endpoint of ['/api/search?', '/api/platforms', '/api/media/stream?', 
 }
 assert.match(js, /musicNavSearch/, 'desktop search navigation should focus the existing search');
 assert.match(js, /musicMobileSearch/, 'mobile search navigation should focus the existing search');
+assert.match(js, /shuffleEnabled/, 'shuffle should operate on the real search results');
+assert.match(js, /repeatMode/, 'repeat should operate on the real search results');
 assert.match(js, /A fonte não permitiu iniciar a reprodução automaticamente/, 'failed autoplay must not be reported as successful playback');
 
 console.log('MUSIC_UI_LAYOUT_OK — real endpoints, existing player IDs, responsive shell and accessibility hooks');
