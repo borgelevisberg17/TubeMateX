@@ -1586,3 +1586,56 @@ body[data-space="music"].music-fullscreen-active #musicVolumeValue {
     max-width: 58px;
   }
 }
+
+
+/* Final compact-card guard: prevent long metadata or action labels from
+   pushing card contents outside the grid at phone widths. */
+@media (max-width: 520px) {
+  body[data-space="music"] .music-results-grid .track-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  body[data-space="music"] .music-results-grid .track-cover-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+  body[data-space="music"] .music-results-grid .track-copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  body[data-space="music"] .music-results-grid .track-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    gap: 6px;
+  }
+  body[data-space="music"] .music-results-grid .track-actions .space-button {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+  }
+}
+@media (max-width: 380px) {
+  body[data-space="music"] .music-results-grid .track-actions {
+    display: flex;
+    flex-direction: column;
+  }
+  body[data-space="music"] .music-results-grid .track-actions .space-button {
+    flex: 0 0 auto;
+  }
+}
