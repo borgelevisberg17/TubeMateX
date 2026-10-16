@@ -818,3 +818,22 @@ body[data-space="music"] .skip-link { z-index: 50; }
 @media (forced-colors: active) {
   body[data-space="music"] :is(a, button, input):focus-visible { outline: 2px solid Highlight; }
 }
+
+/* Empty and unavailable states remain readable when the API has no results. */
+body[data-space="music"] .music-results-grid > .space-state {
+  grid-column: 1 / -1;
+  min-height: 180px;
+  padding: 28px;
+  border: 1px solid #ffffff10;
+  border-radius: 7px;
+  color: var(--music-muted);
+  background: var(--music-surface);
+  line-height: 1.6;
+}
+body[data-space="music"] .music-source-error {
+  display: block;
+  padding: 8px 12px;
+  color: var(--music-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
