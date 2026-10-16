@@ -64,6 +64,20 @@
         <section class="ent-live-hub" id="iptvSection" aria-labelledby="iptvHeading">
           <div class="ent-section-heading"><div><span class="space-eyebrow">TV ao vivo · fontes públicas</span><h2 id="iptvHeading">Canais para ver agora</h2><p>Explora canais públicos reproduzíveis em português e inglês. Refina por país, idioma ou género quando precisares; fontes offline, DRM, autenticação ou bloqueios geográficos são excluídos, sem contornar limitações de acesso.</p></div><button class="ent-collapse-button" id="toggleIptv" type="button" aria-expanded="true" aria-controls="iptvBody">Recolher canais</button></div>
           <div id="iptvBody" role="region" aria-labelledby="iptvHeading">
+            <section class="iptv-featured" id="iptvFeatured" aria-label="Canal em destaque" hidden>
+              <div class="iptv-featured-art">
+                <img id="iptvFeaturedLogo" alt="" hidden>
+                <span id="iptvFeaturedFallback" aria-hidden="true">TV</span>
+              </div>
+              <div class="iptv-featured-shade"></div>
+              <div class="iptv-featured-copy">
+                <span class="iptv-featured-kicker"><span class="iptv-live-dot" aria-hidden="true"></span> Canal disponível no catálogo</span>
+                <p class="iptv-featured-country" id="iptvFeaturedCountry"></p>
+                <h3 id="iptvFeaturedTitle">Canal em destaque</h3>
+                <p class="iptv-featured-description">Abre o canal no player TubeMateX. A disponibilidade real pode variar conforme a origem e a região.</p>
+                <div class="iptv-featured-actions"><button class="iptv-featured-play" id="iptvFeaturedPlay" type="button"><span aria-hidden="true">▶</span> Assistir canal</button><button class="iptv-featured-browse" id="iptvFeaturedBrowse" type="button">Explorar canais</button></div>
+              </div>
+            </section>
             <form class="entertainment-channel-controls" id="iptvFilters" aria-label="Pesquisar e filtrar canais públicos">
               <div class="iptv-channel-searchbar">
                 <label class="iptv-search-control" for="iptvQuery"><span class="sr-only">Pesquisar canal</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="iptvQuery" type="search" placeholder="Pesquisar canais · ex.: Record, AXN…" aria-controls="iptvResults"></label>
