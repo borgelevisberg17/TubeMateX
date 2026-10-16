@@ -73,3 +73,6 @@ jobs:
 
       - name: Verificar tokens semânticos da interface de música
         run: npm run test:music-ui-tokens
+
+      - name: Verificar tokens semânticos da consola administrativa
+        run: npm run test:admin-ui-tokens

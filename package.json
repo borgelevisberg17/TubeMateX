@@ -25,7 +25,8 @@
     "test:specialized": "node tests/specialized-flows-e2e.js",
     "test:settings-accessibility": "node tests/settings-switch-accessibility.js",
     "test:catalog-ui-tokens": "node tests/catalog-ui-tokens.js",
-    "test:music-ui-tokens": "node tests/music-ui-tokens.js"
+    "test:music-ui-tokens": "node tests/music-ui-tokens.js",
+    "test:admin-ui-tokens": "node tests/admin-ui-tokens.js"
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
