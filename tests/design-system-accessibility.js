@@ -16,8 +16,8 @@ for (const page of pages) {
     check(/class="music-sidebar"/.test(html), page, 'deve declarar a navegação lateral própria da área de música');
     check(/class="music-player"/.test(html), page, 'deve declarar o player persistente da área de música');
     check(/class="music-bottom-nav"/.test(html), page, 'deve declarar navegação móvel própria da área de música');
-    check(/components\\.css/.test(html), page, 'deve carregar os estilos de componentes partilhados');
-    check(/components\\.js/.test(html), page, 'deve carregar os componentes partilhados');
+    check(/components\.css/.test(html), page, 'deve carregar os estilos de componentes partilhados');
+    check(/components\.js/.test(html), page, 'deve carregar os componentes partilhados');
   }
   check(/class="skip-link"[^>]*href="#main-content"|href="#main-content"[^>]*class="skip-link"/i.test(html), page, 'deve oferecer link para saltar ao conteúdo');
   check(/<main\b[^>]*\bid="main-content"/i.test(html), page, 'deve declarar um landmark main com id main-content');
