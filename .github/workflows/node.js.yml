@@ -70,3 +70,6 @@ jobs:
 
       - name: Verificar tokens semânticos do catálogo de entretenimento
         run: npm run test:catalog-ui-tokens
+
+      - name: Verificar tokens semânticos da interface de música
+        run: npm run test:music-ui-tokens
