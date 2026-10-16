@@ -595,7 +595,7 @@
       }
       playItem(iptvFeaturedItem, iptvFeaturedPlay);
     });
-    iptvFeaturedBrowse?.addEventListener('click', () => $('#iptvQuery')?.focus({ preventScroll: true }));
+    iptvFeaturedBrowse?.addEventListener('click', () => $('#iptvQuery')?.focus());
     $('#closeVideo')?.addEventListener('click', closeVideo); video?.addEventListener('ended', () => { const current = progressItems().filter(item => keyOf(item) !== keyOf(currentItem)); saveJson(PROGRESS_KEY, current); renderPersonal(); });
     loadSources(); loadHome(); loadIptvMeta().then(() => loadIptv());
   }
