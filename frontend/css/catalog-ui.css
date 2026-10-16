@@ -1326,3 +1326,513 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+
+/* TubeMateX IPTV streaming layout: editorial hero, calm controls and aligned channel cards. */
+.entertainment-page {
+  --iptv-bg: #080b14;
+  --iptv-surface: #101827;
+  --iptv-surface-hover: #18253a;
+  --iptv-text: #f7f9fc;
+  --iptv-muted: #aab6c9;
+  --iptv-accent: #3978e8;
+  --iptv-line: rgba(255, 255, 255, .1);
+  --iptv-card-radius: 12px;
+  --iptv-ease: 180ms ease;
+}
+.entertainment-page .ent-live-hub {
+  margin-top: clamp(36px, 5vw, 68px);
+  padding: clamp(22px, 3vw, 38px);
+  border: 1px solid var(--iptv-line);
+  border-top: 2px solid var(--iptv-accent);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #101827 0%, #0a101c 65%, #090e18 100%);
+  box-shadow: 0 24px 70px #0004;
+  scroll-margin-top: 20px;
+}
+.entertainment-page .ent-live-hub > .ent-section-heading {
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.entertainment-page .ent-live-hub > .ent-section-heading .space-eyebrow {
+  color: #8eaff2;
+}
+.entertainment-page .ent-live-hub > .ent-section-heading h2 {
+  margin-top: 6px;
+  color: var(--iptv-text);
+  font-size: clamp(25px, 3vw, 38px);
+  letter-spacing: -.045em;
+}
+.entertainment-page .ent-live-hub > .ent-section-heading p {
+  max-width: 66ch;
+  margin-top: 9px;
+  color: var(--iptv-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.entertainment-page .ent-live-hub .ent-collapse-button {
+  border-color: var(--iptv-line);
+  color: var(--iptv-text);
+  background: #ffffff08;
+  transition: background var(--iptv-ease), border-color var(--iptv-ease);
+}
+.entertainment-page .ent-live-hub .ent-collapse-button:hover {
+  border-color: #6e9cf1;
+  background: #3978e81a;
+}
+.iptv-featured[hidden] { display: none !important; }
+.iptv-featured {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(170px, 28%) minmax(0, 1fr);
+  align-items: stretch;
+  min-height: clamp(235px, 27vw, 340px);
+  margin: 0 0 24px;
+  overflow: hidden;
+  border: 1px solid #ffffff18;
+  border-radius: 15px;
+  background: #0a101b;
+}
+.iptv-featured-art {
+  position: relative;
+  z-index: -2;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse at 50% 45%, #3978e82b, transparent 65%),
+    linear-gradient(145deg, #18253a, #0a101b);
+}
+.iptv-featured-art img {
+  display: block;
+  width: min(100%, 210px);
+  max-height: 200px;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 10px;
+  filter: drop-shadow(0 14px 28px #0008);
+}
+.iptv-featured-art img[hidden],
+.iptv-featured-art [hidden] { display: none !important; }
+.iptv-featured-art > span {
+  display: grid;
+  place-items: center;
+  width: min(100%, 170px);
+  aspect-ratio: 1;
+  border: 1px solid #ffffff20;
+  border-radius: 14px;
+  color: #eaf1ff;
+  background: #ffffff09;
+  font: 700 40px "Space Grotesk", sans-serif;
+}
+.iptv-featured-shade {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, #080b14a8 31%, #080b14 62%), linear-gradient(0deg, #080b1499, transparent 65%);
+}
+.iptv-featured-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  padding: clamp(22px, 3.5vw, 42px);
+}
+.iptv-featured-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #b8c8e3;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.iptv-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3978e8;
+  box-shadow: 0 0 0 4px #3978e826;
+}
+.iptv-featured-country {
+  margin-top: 15px;
+  color: #8eaff2;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .035em;
+  overflow-wrap: anywhere;
+}
+.iptv-featured-copy h3 {
+  max-width: 19ch;
+  margin: 5px 0 0;
+  color: var(--iptv-text);
+  font: 700 clamp(25px, 3.4vw, 43px)/1.08 "Space Grotesk", sans-serif;
+  letter-spacing: -.045em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.iptv-featured-description {
+  max-width: 54ch;
+  margin: 12px 0 0;
+  color: var(--iptv-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.iptv-featured-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.iptv-featured-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 700 12px "DM Sans", sans-serif;
+  cursor: pointer;
+  transition: transform var(--iptv-ease), background var(--iptv-ease), border-color var(--iptv-ease);
+}
+.iptv-featured-play {
+  color: #fff;
+  background: var(--iptv-accent);
+}
+.iptv-featured-play:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #4d88f4;
+}
+.iptv-featured-play:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.iptv-featured-browse {
+  border-color: #ffffff28 !important;
+  color: var(--iptv-text);
+  background: #ffffff0a;
+}
+.iptv-featured-browse:hover {
+  border-color: #7ba4f1 !important;
+  background: #ffffff12;
+}
+.iptv-featured-actions button:focus-visible,
+.entertainment-page .ent-live-hub button:focus-visible,
+.entertainment-page .ent-live-hub select:focus-visible,
+.entertainment-page .ent-live-hub input:focus-visible {
+  outline: 3px solid #9dbdff;
+  outline-offset: 3px;
+}
+.entertainment-page .entertainment-channel-controls {
+  margin-top: 18px;
+}
+.entertainment-page .iptv-channel-searchbar {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  max-width: 920px;
+  gap: 10px;
+}
+.entertainment-page .iptv-search-control {
+  min-height: 48px;
+  border-color: var(--iptv-line);
+  border-radius: 9px;
+  background: #080e19;
+}
+.entertainment-page .iptv-search-control:focus-within {
+  border-color: #6f9cf0;
+  box-shadow: 0 0 0 3px #3978e82b;
+}
+.entertainment-page .iptv-search-control input {
+  color: var(--iptv-text);
+}
+.entertainment-page .iptv-search-control input::placeholder {
+  color: #8492a8;
+}
+.entertainment-page .iptv-toggle-filters {
+  border-color: var(--iptv-line);
+  border-radius: 9px;
+  color: #dce5f5;
+  background: #ffffff07;
+}
+.entertainment-page .iptv-toggle-filters:hover,
+.entertainment-page .iptv-toggle-filters[aria-expanded="true"] {
+  border-color: #3978e8a6;
+  background: #3978e81a;
+}
+.entertainment-page .iptv-search-submit {
+  border-radius: 9px;
+  background: var(--iptv-accent);
+}
+.entertainment-page .iptv-advanced-filters {
+  border-color: var(--iptv-line);
+}
+.entertainment-page .iptv-advanced-heading strong,
+.entertainment-page .iptv-advanced-grid .iptv-filter label {
+  color: #dce5f5;
+}
+.entertainment-page .iptv-advanced-heading span {
+  color: #91a0b6;
+}
+.entertainment-page .iptv-advanced-grid select {
+  border-color: var(--iptv-line);
+  border-radius: 9px;
+  color: var(--iptv-text);
+  background: #0b1321;
+}
+.entertainment-page .iptv-quick-chip {
+  min-height: 36px;
+  border-color: var(--iptv-line);
+  color: #bac7dc;
+  background: #ffffff05;
+}
+.entertainment-page .iptv-quick-chip:hover {
+  border-color: #6d98ec;
+  color: #fff;
+}
+.entertainment-page .iptv-quick-chip[aria-pressed="true"] {
+  border-color: #3978e8;
+  background: #3978e8;
+  color: #fff;
+}
+.entertainment-page .iptv-source-details {
+  margin-top: 16px;
+  border-color: var(--iptv-line);
+}
+.entertainment-page .iptv-source-details > summary {
+  color: #9facc0;
+}
+.entertainment-page .iptv-source-details > summary::before {
+  color: #83a9f3;
+}
+.entertainment-page .iptv-source-heading {
+  color: var(--iptv-muted);
+}
+.entertainment-page .iptv-source-tag {
+  border-color: var(--iptv-line);
+  border-radius: 7px;
+  color: #c3cfe2;
+  background: #ffffff06;
+}
+.entertainment-page .ent-rail-iptv {
+  margin-top: 20px;
+}
+.entertainment-page .ent-rail-iptv .ent-rail-heading {
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--iptv-line);
+}
+.entertainment-page .ent-rail-iptv .ent-rail-heading h3 {
+  color: var(--iptv-text);
+  font-size: clamp(19px, 2vw, 24px);
+  letter-spacing: -.035em;
+}
+.entertainment-page .ent-rail-iptv #iptvStatus {
+  max-width: 50%;
+  color: #91a0b6;
+  font-variant-numeric: tabular-nums;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 218px), 1fr));
+  gap: 14px;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list > .ent-card {
+  min-width: 0;
+  border-color: #ffffff12;
+  border-radius: var(--iptv-card-radius);
+  background: linear-gradient(160deg, #141f31, #0d1421 76%);
+  box-shadow: 0 6px 18px #0002;
+  transition: transform var(--iptv-ease), border-color var(--iptv-ease), background var(--iptv-ease);
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list > .ent-card:hover,
+.entertainment-page .ent-rail-iptv .iptv-channel-list > .ent-card:focus-within {
+  transform: translateY(-2px);
+  border-color: #3978e8a8;
+  background: linear-gradient(160deg, #1a2a42, #0e1726 76%);
+  box-shadow: 0 12px 28px #0005;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-art {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(145deg, #18253a, #0a101b);
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-art img.ent-channel-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 18px;
+  background: #0a101b;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-art:after {
+  background: linear-gradient(0deg, #080b1488 0%, transparent 65%);
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-art-fallback {
+  color: #dbe7ff;
+  background: linear-gradient(145deg, #18253a, #0a101b);
+  text-shadow: none;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-copy {
+  min-width: 0;
+  min-height: 178px;
+  padding: 13px;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-copy h4 {
+  min-height: 2.5em;
+  color: #f5f7fb;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-copy p {
+  color: #91a0b6;
+  font-size: 10px;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-facts span {
+  border-color: #ffffff13;
+  color: #aab8cd;
+  background: #ffffff05;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions {
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  gap: 6px;
+  padding-top: 14px;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions button {
+  min-height: 40px;
+  border-color: #ffffff1b;
+  border-radius: 8px;
+  color: #dce5f5;
+  background: #ffffff06;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions button.primary {
+  border-color: transparent;
+  color: #fff;
+  background: var(--iptv-accent);
+  font-size: 10px;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions button.primary:hover {
+  background: #4d88f4;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+.entertainment-page .iptv-results-footer {
+  border-color: var(--iptv-line);
+  background: #0a101b;
+}
+.entertainment-page .iptv-pagination span {
+  color: #c5d2e6;
+}
+.entertainment-page .iptv-skeleton-card {
+  border-color: var(--iptv-line);
+  border-radius: var(--iptv-card-radius);
+  background: #101827;
+}
+.entertainment-page .iptv-skeleton-art,
+.entertainment-page .iptv-skeleton-line {
+  background: linear-gradient(100deg, #101827 15%, #1b2a40 35%, #101827 55%);
+  background-size: 220% 100%;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-live {
+  border-color: #ffffff20;
+  background: #3978e8e8;
+}
+.entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-badge {
+  border-color: #ffffff20;
+  color: #e4ecfa;
+  background: #080b14d9;
+}
+.entertainment-page #iptvStatus[aria-live] {
+  min-height: 1.4em;
+}
+@media (max-width: 700px) {
+  .entertainment-page .ent-live-hub {
+    padding: 20px 14px;
+    border-radius: 13px;
+  }
+  .iptv-featured {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+  .iptv-featured-art {
+    min-height: 130px;
+    max-height: 160px;
+    padding: 14px;
+  }
+  .iptv-featured-art img {
+    width: 92px;
+    max-height: 100px;
+  }
+  .iptv-featured-art > span {
+    width: 88px;
+    font-size: 28px;
+  }
+  .iptv-featured-shade {
+    background: linear-gradient(0deg, #080b14 0%, #080b1450 55%, transparent 100%);
+  }
+  .iptv-featured-copy {
+    padding: 18px;
+  }
+  .iptv-featured-country {
+    margin-top: 10px;
+  }
+  .iptv-featured-copy h3 {
+    font-size: clamp(24px, 7vw, 32px);
+  }
+  .iptv-featured-actions {
+    width: 100%;
+    margin-top: 17px;
+  }
+  .iptv-featured-actions button {
+    flex: 1 1 auto;
+  }
+  .entertainment-page .iptv-channel-searchbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .entertainment-page .iptv-search-submit {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .entertainment-page .ent-rail-iptv .iptv-channel-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-copy {
+    min-height: 174px;
+    padding: 10px;
+  }
+  .entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions {
+    grid-template-columns: minmax(0, 1fr) 32px 32px;
+    gap: 4px;
+  }
+  .entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-actions button:not(.primary) {
+    width: 32px;
+  }
+  .entertainment-page .ent-rail-iptv #iptvStatus {
+    max-width: 100%;
+    text-align: left;
+  }
+}
+@media (max-width: 380px) {
+  .entertainment-page .ent-rail-iptv .iptv-channel-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .entertainment-page .ent-rail-iptv .iptv-channel-list .ent-card-copy {
+    min-height: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iptv-featured-actions button,
+  .entertainment-page .ent-rail-iptv .iptv-channel-list > .ent-card {
+    transition: none;
+  }
+}
