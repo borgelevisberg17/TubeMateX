@@ -145,13 +145,13 @@
     <div class="music-player-center">
       <div class="music-player-live"><i aria-hidden="true"></i><span id="musicPlayerState" role="status" aria-live="polite">PRONTO</span></div>
       <div class="player-controls" aria-label="Controlos de reprodução">
-        <button id="musicShuffle" type="button" aria-label="Ativar reprodução aleatória" aria-pressed="false" title="Ativar reprodução aleatória">⤨</button>
-        <button id="musicPrevious" type="button" disabled aria-label="Faixa anterior" title="Faixa anterior">|◀</button>
-        <button id="musicBack10" type="button" aria-label="Voltar 10 segundos" title="Voltar 10 segundos">−10</button>
-        <button class="player-play" id="spacePlay" type="button" aria-pressed="false" aria-label="Reproduzir" title="Reproduzir">▶</button>
-        <button id="musicForward10" type="button" aria-label="Avançar 10 segundos" title="Avançar 10 segundos">+10</button>
-        <button id="musicNext" type="button" disabled aria-label="Próxima faixa" title="Próxima faixa">▶|</button>
-        <button id="musicRepeat" type="button" aria-label="Ativar repetição" aria-pressed="false" title="Ativar repetição">↻</button>
+        <button id="musicShuffle" type="button" aria-label="Ativar reprodução aleatória" aria-pressed="false" title="Ativar reprodução aleatória"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 3h5v5M4 20l5-5M21 3l-7.5 7.5M16 21h5v-5M4 4l17 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="musicPrevious" type="button" disabled aria-label="Faixa anterior" title="Faixa anterior"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5v14M18 5l-10 7 10 7V5z" fill="currentColor"/></svg></button>
+        <button id="musicBack10" type="button" aria-label="Voltar 10 segundos" title="Voltar 10 segundos"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" font-size="7.5" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Inter, system-ui, sans-serif">10</text></svg></button>
+        <button class="player-play" id="spacePlay" type="button" aria-pressed="false" aria-label="Reproduzir" title="Reproduzir"><svg class="music-control-svg play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></button>
+        <button id="musicForward10" type="button" aria-label="Avançar 10 segundos" title="Avançar 10 segundos"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" font-size="7.5" font-weight="800" text-anchor="middle" fill="currentColor" font-family="Inter, system-ui, sans-serif">10</text></svg></button>
+        <button id="musicNext" type="button" disabled aria-label="Próxima faixa" title="Próxima faixa"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 5v14M6 5l10 7-10 7V5z" fill="currentColor"/></svg></button>
+        <button id="musicRepeat" type="button" aria-label="Ativar repetição" aria-pressed="false" title="Ativar repetição"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
       <div class="music-player-progress">
         <span id="spacePlayerCurrent">0:00</span>
@@ -161,8 +161,8 @@
     </div>
 
     <div class="music-player-extra">
-      <button id="musicFullscreen" type="button" aria-label="Abrir leitor em ecrã completo" aria-pressed="false" title="Abrir leitor em ecrã completo">⛶</button>
-      <button id="musicMute" type="button" aria-label="Silenciar" aria-pressed="false" title="Silenciar">♪</button>
+      <button id="musicFullscreen" type="button" aria-label="Abrir leitor em ecrã completo" aria-pressed="false" title="Abrir leitor em ecrã completo"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3m18-5h-3a2 2 0 0 0-2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-2h-3a2 2 0 0 1-2-2v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button id="musicMute" type="button" aria-label="Silenciar" aria-pressed="false" title="Silenciar"><svg class="music-control-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <label class="sr-only" for="musicVolume">Volume</label>
       <input id="musicVolume" type="range" min="0" max="100" value="100" aria-label="Volume">
       <output id="musicVolumeValue" for="musicVolume">100%</output>

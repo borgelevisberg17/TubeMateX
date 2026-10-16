@@ -430,16 +430,23 @@ body[data-space="music"] .music-results-grid .track-meta {
 }
 body[data-space="music"] .music-results-grid .track-actions {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   margin-top: 12px;
+  width: 100%;
 }
 body[data-space="music"] .music-results-grid .track-actions .space-button {
-  min-height: 36px;
-  padding: 8px 10px;
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 body[data-space="music"] .music-results-grid .track-actions .preview-action {
   border-color: var(--music-accent);
@@ -1640,6 +1647,94 @@ body[data-space="music"].music-fullscreen-active #musicVolumeValue {
   }
 }
 
+
+/* Canvas-style vector control icons and card micro-interactions. */
+body[data-space="music"] .music-control-svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+body[data-space="music"] .player-controls .player-play .music-control-svg {
+  width: 19px;
+  height: 19px;
+}
+body[data-space="music"] .track-cover-wrap {
+  position: relative;
+}
+body[data-space="music"] .track-play-overlay {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #000000;
+  background: var(--music-accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(8px) scale(0.9);
+  transition: opacity 200ms cubic-bezier(0.2, 0, 0, 1), transform 200ms cubic-bezier(0.2, 0, 0, 1), background-color 150ms ease;
+  pointer-events: none;
+  z-index: 2;
+}
+body[data-space="music"] .track-play-overlay svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  fill: currentColor;
+}
+body[data-space="music"] .track-row:hover .track-play-overlay,
+body[data-space="music"] .track-row:focus-within .track-play-overlay {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+body[data-space="music"] .track-playing-indicator {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: none;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 16px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  z-index: 2;
+}
+body[data-space="music"] .track-playing-indicator span {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--music-accent);
+  animation: music-equalizer-bounce 1s ease-in-out infinite alternate;
+}
+body[data-space="music"] .track-playing-indicator span:nth-child(1) { animation-delay: 0s; }
+body[data-space="music"] .track-playing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+body[data-space="music"] .track-playing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+body[data-space="music"] .track-row.is-current .track-playing-indicator {
+  display: flex;
+}
+@keyframes music-equalizer-bounce {
+  0% { height: 20%; }
+  100% { height: 100%; }
+}
+body[data-space="music"] button:active:not(:disabled),
+body[data-space="music"] .track-row:active {
+  transform: scale(0.98);
+}
+body[data-space="music"] .player-controls button[aria-pressed="true"] {
+  color: var(--music-accent);
+}
+
+/* Range slider enhancements */
+body[data-space="music"] input[type="range"].player-range {
+  accent-color: var(--music-accent);
+}
 
 /* Clear, consistent search and playback feedback states. */
 body[data-space="music"] #spaceStatus[data-kind="loading"] { color: #d8d8d8; }
