@@ -837,3 +837,5 @@ body[data-space="music"] .music-source-error {
   font-size: 11px;
   line-height: 1.5;
 }
+
+body[data-space="music"] .player-controls button[aria-pressed="true"] { color: var(--music-accent); }
