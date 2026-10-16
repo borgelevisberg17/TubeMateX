@@ -77,6 +77,9 @@ jobs:
       - name: Verificar layout e integração da área de música
         run: npm run test:music-ui-layout
 
+      - name: Verificar encaminhamento das páginas HTML no Vercel
+        run: npm run test:vercel-music-routing
+
       - name: Verificar tokens semânticos da consola administrativa
         run: npm run test:admin-ui-tokens
 
