@@ -363,7 +363,7 @@
         iptvFeaturedLogo.src = channel.thumbnail;
         iptvFeaturedLogo.alt = `Logótipo de ${channel.title || 'canal'}`;
         iptvFeaturedLogo.hidden = false;
-        iptvFeaturedLogo.onerror = () => { iptvFeaturedLogo.hidden = true; };
+        iptvFeaturedLogo.onerror = () => { iptvFeaturedLogo.hidden = true; iptvFeaturedFallback.hidden = false; };
         iptvFeaturedFallback.hidden = true;
       } else {
         iptvFeaturedLogo.removeAttribute('src');
