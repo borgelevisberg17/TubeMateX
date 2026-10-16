@@ -3,7 +3,8 @@ const path = require('node:path');
 
 const frontend = path.join(__dirname, '..', 'frontend');
 const pages = fs.readdirSync(frontend).filter(file => file.endsWith('.html')).sort();
-const sharedShellPages = new Set(['index.html', 'music.html', 'social.html', 'entertainment.html', 'profile.html', 'downloads.html', 'settings.html']);
+const sharedShellPages = new Set(['index.html', 'social.html', 'entertainment.html', 'profile.html', 'downloads.html', 'settings.html']);
+const customShellPages = new Set(['music.html']);
 const failures = [];
 const check = (condition, page, message) => { if (!condition) failures.push(`${page}: ${message}`); };
 
@@ -11,6 +12,13 @@ for (const page of pages) {
   const html = fs.readFileSync(path.join(frontend, page), 'utf8');
   check(/<html\b[^>]*\blang="(?:pt-BR|pt-PT)"/i.test(html), page, 'deve declarar o idioma do documento');
   check(/design-system\.css/.test(html), page, 'deve carregar a folha de fundamentos do design system');
+  if (customShellPages.has(page)) {
+    check(/class="music-sidebar"/.test(html), page, 'deve declarar a navegação lateral própria da área de música');
+    check(/class="music-player"/.test(html), page, 'deve declarar o player persistente da área de música');
+    check(/class="music-bottom-nav"/.test(html), page, 'deve declarar navegação móvel própria da área de música');
+    check(/components\.css/.test(html), page, 'deve carregar os estilos de componentes partilhados');
+    check(/components\.js/.test(html), page, 'deve carregar os componentes partilhados');
+  }
   check(/class="skip-link"[^>]*href="#main-content"|href="#main-content"[^>]*class="skip-link"/i.test(html), page, 'deve oferecer link para saltar ao conteúdo');
   check(/<main\b[^>]*\bid="main-content"/i.test(html), page, 'deve declarar um landmark main com id main-content');
   check(/design-system\.js/.test(html), page, 'deve carregar os aprimoramentos globais do frontend');
