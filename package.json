@@ -10,7 +10,7 @@
     "test:e2e": "node tests/e2e.js && node tests/profile-e2e.js && node tests/settings-e2e.js && node tests/downloads-e2e.js",
     "test:catalog": "node tests/catalog-metadata.js",
     "validate:iptv": "node scripts/validate-iptv.js",
-    "test:entertainment": "node tests/entertainment-home-api-smoke.js && node tests/entertainment-integrations-smoke.js && node tests/entertainment-catalog-e2e.js",
+    "test:entertainment": "npm run test:iptv-ui && node tests/entertainment-home-api-smoke.js && node tests/entertainment-integrations-smoke.js && node tests/entertainment-catalog-e2e.js",
     "test:downloads": "node tests/downloads-e2e.js",
     "test:platforms": "node tests/platform-download-smoke.js",
     "admin:hash": "node scripts/admin-password-hash.js",
@@ -30,7 +30,8 @@
     "test:player-ui-tokens": "node tests/player-ui-tokens.js",
     "test:social-ui-tokens": "node tests/social-ui-tokens.js",
     "test:music-ui-layout": "node --check frontend/js/spaces.js && node tests/music-ui-layout.js",
-    "test:vercel-music-routing": "node tests/vercel-music-html-routing.js"
+    "test:vercel-music-routing": "node tests/vercel-music-html-routing.js",
+    "test:iptv-ui": "node --check frontend/js/spaces.js && node tests/iptv-ui-layout.js"
   },
   "dependencies": {
     "@openanime/youtube-dl-exec": "^3.0.10",
