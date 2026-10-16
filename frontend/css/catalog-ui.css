@@ -1332,13 +1332,17 @@
 .entertainment-page {
   --iptv-bg: #080b14;
   --iptv-surface: #101827;
-  --iptv-surface-hover: #18253a;
-  --iptv-text: #f7f9fc;
-  --iptv-muted: #aab6c9;
+  --iptv-surface-hover: #1b2940;
+  --iptv-text: #ffffff;
+  --iptv-muted: #aeb8ca;
   --iptv-accent: #3978e8;
-  --iptv-line: rgba(255, 255, 255, .1);
+  --iptv-border: rgba(255, 255, 255, 0.09);
+  --iptv-line: rgba(255, 255, 255, 0.09);
+  --iptv-header-height: 72px;
   --iptv-card-radius: 12px;
-  --iptv-ease: 180ms ease;
+  --iptv-radius-card: 10px;
+  --iptv-transition: 200ms ease;
+  --iptv-ease: 200ms ease;
 }
 .entertainment-page .ent-live-hub {
   margin-top: clamp(36px, 5vw, 68px);
@@ -1346,7 +1350,7 @@
   border: 1px solid var(--iptv-line);
   border-top: 2px solid var(--iptv-accent);
   border-radius: 18px;
-  background: linear-gradient(145deg, #101827 0%, #0a101c 65%, #090e18 100%);
+  background: linear-gradient(145deg, var(--iptv-surface) 0%, #0a101c 65%, #090e18 100%);
   box-shadow: 0 24px 70px #0004;
   scroll-margin-top: 20px;
 }
