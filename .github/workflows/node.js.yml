@@ -76,3 +76,6 @@ jobs:
 
       - name: Verificar tokens semânticos da consola administrativa
         run: npm run test:admin-ui-tokens
+
+      - name: Verificar token semântico do leitor de vídeo
+        run: npm run test:player-ui-tokens
