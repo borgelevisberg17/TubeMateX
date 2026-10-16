@@ -42,3 +42,10 @@ assert.match(js, /repeatMode/, 'repeat should operate on the real search results
 assert.match(js, /A fonte não permitiu iniciar a reprodução automaticamente/, 'failed autoplay must not be reported as successful playback');
 
 console.log('MUSIC_UI_LAYOUT_OK — real endpoints, existing player IDs, responsive shell and accessibility hooks');
+
+assert.match(js, /searchSequence/, 'stale search responses must not overwrite newer results');
+assert.match(js, /data-search-retry/, 'search errors must offer a retry action');
+assert.match(js, /data-state="loading"/, 'search should expose a dedicated loading state');
+assert.match(js, /data-playback-state', 'error'/, 'playback failures must expose a player error state');
+assert.match(css, /music-feedback-spinner/, 'loading feedback must have a visible indicator');
+assert.match(css, /music-feedback-retry/, 'error retry action must be styled');

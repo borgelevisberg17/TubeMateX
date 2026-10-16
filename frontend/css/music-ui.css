@@ -1639,3 +1639,73 @@ body[data-space="music"].music-fullscreen-active #musicVolumeValue {
     flex: 0 0 auto;
   }
 }
+
+
+/* Clear, consistent search and playback feedback states. */
+body[data-space="music"] #spaceStatus[data-kind="loading"] { color: #d8d8d8; }
+body[data-space="music"] #spaceStatus[data-kind="error"] { color: #ff7777; }
+body[data-space="music"] .music-search[data-state="loading"] button[type="submit"] {
+  opacity: .55;
+  cursor: progress;
+}
+body[data-space="music"] .music-search button[type="submit"]:disabled {
+  pointer-events: none;
+}
+body[data-space="music"] .music-feedback-state {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 190px;
+  padding: 28px 20px;
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  color: var(--music-muted);
+  text-align: center;
+}
+body[data-space="music"] .music-feedback-state strong {
+  color: var(--music-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+body[data-space="music"] .music-feedback-state > span:not(.music-feedback-spinner) {
+  max-width: 440px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+body[data-space="music"] .music-feedback-state[data-state="error"] {
+  border-color: #ff777733;
+}
+body[data-space="music"] .music-feedback-retry {
+  min-height: 38px;
+  margin-top: 5px;
+  padding: 8px 15px;
+  border: 1px solid #ffffff30;
+  border-radius: 999px;
+  color: var(--music-text);
+  background: #ffffff0a;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+body[data-space="music"] .music-feedback-retry:hover,
+body[data-space="music"] .music-feedback-retry:focus-visible {
+  border-color: var(--music-accent);
+  outline-offset: 3px;
+}
+body[data-space="music"] .music-feedback-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ffffff25;
+  border-top-color: var(--music-accent);
+  border-radius: 50%;
+  animation: music-feedback-spin .8s linear infinite;
+}
+@keyframes music-feedback-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  body[data-space="music"] .music-feedback-spinner { animation: none; border-top-color: var(--music-accent); }
+}

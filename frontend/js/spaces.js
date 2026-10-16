@@ -552,13 +552,75 @@
   let selectedSource = 'all'; let activeFilter = 'all'; let resultItems = []; const audio = $('#spaceAudio'); const video = $('#spaceVideo'); const drawer = $('#videoDrawer'); const results = $('#spaceResults'); const query = $('#spaceQuery'); const status = $('#spaceStatus'); const playerTitle = $('#spacePlayerTitle'); const playerArtist = $('#spacePlayerArtist'); const playerCover = $('#spacePlayerCover'); const playerEmpty = $('#spacePlayerEmpty'); const playerBody = $('#spacePlayerBody'); const playerSeek = $('#spacePlayerSeek'); const playerCurrent = $('#spacePlayerCurrent'); const playerDuration = $('#spacePlayerDuration'); const playerState = $('#musicPlayerState'); const playerSource = $('#musicPlayerSource'); const volumeRange = $('#musicVolume'); const volumeValue = $('#musicVolumeValue'); const muteButton = $('#musicMute'); const previousTrackButton = $('#musicPrevious'); const nextTrackButton = $('#musicNext'); const shuffleButton = $('#musicShuffle'); const repeatButton = $('#musicRepeat'); let current = null; let controller = null; let previousVolume = 1; let shuffleEnabled = false; let repeatMode = 'off';
   function notify(text, kind = '') { if (status) { status.textContent = text; status.dataset.kind = kind; } }
   function stopMedia() { [audio, video].forEach(media => { if (media) { media.pause(); media.removeAttribute('src'); media.load(); } }); if (drawer) drawer.hidden = true; }
-  async function stream(item) { if (item.metadataOnly) return notify('Este item é metadata-only. Abre a fonte oficial para reproduzir.', 'error'); stopMedia(); current = item; if (area === 'music') { if (playerState) playerState.textContent = 'A CARREGAR'; syncTrackNavigation(); results?.querySelectorAll('[data-url]').forEach(row => { const active = row.dataset.url === item.url; row.classList.toggle('is-current', active); if (active) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current'); }); } const type = area === 'music' ? 'audio' : 'video'; notify('A preparar pré-visualização…'); try { let payload; if (item.directStream) payload = { url: item.url, mimeType: item.mimeType || (area === 'music' ? 'audio/mpeg' : 'video/mp4') }; else { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(item.url)}&type=${type}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); } if (!payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); if (area === 'music') { audio.src = payload.url; audio.load(); playerTitle.textContent = item.title; playerArtist.textContent = item.uploader || item.site || 'Fonte pública'; if (playerSource) playerSource.textContent = item.site || 'FONTE PÚBLICA'; playerCover.style.backgroundImage = item.thumbnail ? `url("${item.thumbnail.replace(/"/g, '')}")` : ''; playerCover.classList.toggle('has-art', Boolean(item.thumbnail)); playerEmpty.hidden = true; playerBody.hidden = false; audio.play().catch(() => { if (playerState) playerState.textContent = 'PRONTO'; notify('A fonte não permitiu iniciar a reprodução automaticamente. Pressiona Reproduzir para tentar novamente.', 'error'); }); } else { video.src = payload.url; $('#videoTitle').textContent = item.title; $('#videoMeta').textContent = `${item.site || 'Fonte'}${item.uploader ? ` · ${item.uploader}` : ''}`; drawer.hidden = false; if (root.dataset.autoplay === 'true') await video.play().catch(() => {}); } if (area !== 'music') notify('Pré-visualização pronta.', 'success'); } catch (error) { stopMedia(); if (area === 'music' && playerState) playerState.textContent = 'INDISPONÍVEL'; notify(error.message || 'Não foi possível abrir a pré-visualização.', 'error'); } }
+  async function stream(item) { if (item.metadataOnly) return notify('Este item é metadata-only. Abre a fonte oficial para reproduzir.', 'error'); stopMedia(); current = item; if (area === 'music') { if (playerState) playerState.textContent = 'A CARREGAR'; $('.music-player')?.setAttribute('data-playback-state', 'loading'); syncTrackNavigation(); results?.querySelectorAll('[data-url]').forEach(row => { const active = row.dataset.url === item.url; row.classList.toggle('is-current', active); if (active) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current'); }); } const type = area === 'music' ? 'audio' : 'video'; notify('A preparar pré-visualização…'); try { let payload; if (item.directStream) payload = { url: item.url, mimeType: item.mimeType || (area === 'music' ? 'audio/mpeg' : 'video/mp4') }; else { const response = await fetch(`/api/media/stream?url=${encodeURIComponent(item.url)}&type=${type}`); payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); } if (!payload.url) throw new Error(payload.error || 'A fonte não forneceu uma stream compatível.'); if (area === 'music') { audio.src = payload.url; audio.load(); playerTitle.textContent = item.title; playerArtist.textContent = item.uploader || item.site || 'Fonte pública'; if (playerSource) playerSource.textContent = item.site || 'FONTE PÚBLICA'; playerCover.style.backgroundImage = item.thumbnail ? `url("${item.thumbnail.replace(/"/g, '')}")` : ''; playerCover.classList.toggle('has-art', Boolean(item.thumbnail)); playerEmpty.hidden = true; playerBody.hidden = false; audio.play().catch(() => { if (playerState) playerState.textContent = 'PRONTO'; notify('A fonte não permitiu iniciar a reprodução automaticamente. Pressiona Reproduzir para tentar novamente.', 'error'); }); } else { video.src = payload.url; $('#videoTitle').textContent = item.title; $('#videoMeta').textContent = `${item.site || 'Fonte'}${item.uploader ? ` · ${item.uploader}` : ''}`; drawer.hidden = false; if (root.dataset.autoplay === 'true') await video.play().catch(() => {}); } if (area !== 'music') notify('Pré-visualização pronta.', 'success'); } catch (error) { stopMedia(); if (area === 'music' && playerState) playerState.textContent = 'INDISPONÍVEL'; notify(error.message || 'Não foi possível abrir a pré-visualização.', 'error'); } }
   function card(item) { return window.TMXComponents.mediaCard(item, { area, formatDuration: time, escapeHtml: esc }); }
   function matchesFilter(item) { if (activeFilter === 'all') return true; const haystack = `${item.title || ''} ${item.uploader || ''} ${item.description || ''}`.toLowerCase(); if (activeFilter === 'movies') return item.kind === 'film' || /movie|film|filme|cinema/.test(haystack); if (activeFilter === 'series') return item.kind === 'series' || /series|season|episode|série|episódio/.test(haystack); if (activeFilter === 'anime') return /anime|manga|japan animation/.test(haystack); if (activeFilter === 'dorama') return /dorama|k-drama|korean drama|j-drama/.test(haystack); return true; }
-  function render(items) { resultItems = items || []; const visible = resultItems.filter(matchesFilter); results.innerHTML = visible.length ? visible.map(card).join('') : `<div class="space-state">Não há itens com metadata de ${activeFilter === 'all' ? 'esta fonte' : activeFilter}. Pesquisa outro termo ou remove o filtro.</div>`; if (area === 'music') syncTrackNavigation(); }
+  function render(items) {
+    resultItems = Array.isArray(items) ? items : [];
+    const visible = resultItems.filter(matchesFilter);
+    if (visible.length) {
+      results.innerHTML = visible.map(card).join('');
+    } else {
+      const filtered = resultItems.length > 0;
+      const contentLabel = area === 'music' ? 'faixa' : 'vídeo';
+      const title = filtered ? `Nenhum ${contentLabel} corresponde a este filtro` : 'Não encontrámos resultados';
+      const message = filtered
+        ? 'Remove o filtro ou escolhe outra fonte para veres mais resultados.'
+        : area === 'music'
+          ? 'Experimenta outro artista, título ou termo de pesquisa.'
+          : 'Experimenta outro título ou termo de pesquisa.';
+      results.innerHTML = `<div class="space-state music-feedback-state" data-state="empty"><strong>${title}</strong><span>${message}</span></div>`;
+    }
+    if (area === 'music') syncTrackNavigation();
+  }
+  function renderSearchError(message) {
+    results.innerHTML = `<div class="space-state music-feedback-state" data-state="error"><strong>Não foi possível concluir a pesquisa</strong><span>${esc(message || 'Verifica a ligação e tenta novamente.')}</span><button class="music-feedback-retry" type="button" data-search-retry>Tentar novamente</button></div>`;
+  }
   async function download(item) { notify('A iniciar download…'); try { const response = await fetch('/api/downloads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: item.url, format: area === 'music' ? 'mp3' : 'mp4', quality: 'auto' }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Não foi possível iniciar o download.'); notify('Download adicionado à fila.', 'success'); } catch (error) { notify(error.message || 'Falha ao iniciar download.', 'error'); } }
   results?.addEventListener('click', event => { const cardEl = event.target.closest('[data-url]'); if (!cardEl) return; const item = { url: cardEl.dataset.url, title: $('h3', cardEl)?.textContent || 'Conteúdo', site: area === 'music' ? ($('.track-meta', cardEl)?.textContent.split(' · ')[0] || 'Fonte pública') : ($('p', cardEl)?.textContent || ''), uploader: area === 'music' ? ($('p', cardEl)?.textContent || '') : '', thumbnail: $('img', cardEl)?.src || '', live: cardEl.dataset.live === 'true', directStream: cardEl.dataset.directStream === 'true', metadataOnly: cardEl.dataset.metadataOnly === 'true', mimeType: cardEl.dataset.mimeType || '' }; if (event.target.closest('.preview-action')) stream(item); if (event.target.closest('.download-action')) download(item); });
-  $('#spaceSearch')?.addEventListener('submit', event => { event.preventDefault(); const term = query.value.trim(); if (term.length < 2) return notify('Escreve pelo menos 2 caracteres para pesquisar.', 'error'); if (controller) controller.abort(); controller = new AbortController(); notify('A pesquisar nas fontes configuradas…'); results.innerHTML = '<div class="space-state">A consultar resultados reais…</div>'; fetch(`/api/search?q=${encodeURIComponent(term)}&type=${area === 'music' ? 'music' : 'video'}&source=${encodeURIComponent(selectedSource)}&limit=16`, { signal: controller.signal }).then(async response => { const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'A pesquisa falhou.'); render(payload.results || []); notify(`${payload.results?.length || 0} resultados encontrados.`, 'success'); }).catch(error => { if (error.name !== 'AbortError') { render([]); notify(error.message || 'A pesquisa falhou.', 'error'); } }); });
+  let searchSequence = 0;
+  const searchForm = $('#spaceSearch');
+  const searchSubmit = searchForm?.querySelector('button[type="submit"]');
+  searchForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const term = query.value.trim();
+    if (term.length < 2) {
+      notify('Escreve pelo menos 2 caracteres para pesquisar.', 'error');
+      query?.focus();
+      return;
+    }
+    if (controller) controller.abort();
+    controller = new AbortController();
+    const requestId = ++searchSequence;
+    searchForm.dataset.state = 'loading';
+    searchForm.setAttribute('aria-busy', 'true');
+    if (searchSubmit) searchSubmit.disabled = true;
+    notify('A pesquisar nas fontes configuradas…', 'loading');
+    results.innerHTML = `<div class="space-state music-feedback-state" data-state="loading"><span class="music-feedback-spinner" aria-hidden="true"></span><strong>${area === 'music' ? 'A procurar música' : 'A procurar vídeos'}</strong><span>A consultar as fontes selecionadas…</span></div>`;
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(term)}&type=${area === 'music' ? 'music' : 'video'}&source=${encodeURIComponent(selectedSource)}&limit=16`, { signal: controller.signal });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'A pesquisa falhou.');
+      if (requestId !== searchSequence) return;
+      render(payload.results || []);
+      const count = Array.isArray(payload.results) ? payload.results.length : 0;
+      notify(count ? `${count} resultados encontrados para “${term}”.` : `Nenhum resultado encontrado para “${term}”.`, count ? 'success' : '');
+    } catch (error) {
+      if (error.name !== 'AbortError' && requestId === searchSequence) {
+        renderSearchError(error.message || 'A pesquisa falhou.');
+        notify('A pesquisa falhou. Podes tentar novamente.', 'error');
+      }
+    } finally {
+      if (requestId === searchSequence) {
+        searchForm.dataset.state = 'idle';
+        searchForm.removeAttribute('aria-busy');
+        if (searchSubmit) searchSubmit.disabled = false;
+      }
+    }
+  });
+  results?.addEventListener('click', event => {
+    if (event.target.closest('[data-search-retry]')) searchForm?.requestSubmit();
+  });
   fetch('/api/platforms').then(response => { if (!response.ok) throw new Error('Fontes indisponíveis.'); return response.json(); }).then(payload => { const allowed = selectedSources[area] || []; const box = $('#spaceSources'); const list = (payload.platforms || []).filter(p => allowed.includes(p.id)); if (box) box.innerHTML = `<button class="space-chip active" data-source="all" aria-pressed="true">Todas as fontes</button>` + list.map(p => `<button class="space-chip" data-source="${esc(p.id)}" aria-pressed="false">${esc(p.label)}${p.mode === 'metadata-only' ? ' · catálogo' : ''}</button>`).join(''); }).catch(() => { const box = $('#spaceSources'); if (box) box.innerHTML = '<span class="music-source-error" role="status">Fontes temporariamente indisponíveis.</span>'; });
   $('#spaceSources')?.addEventListener('click', event => { const button = event.target.closest('[data-source]'); if (!button) return; selectedSource = button.dataset.source; document.querySelectorAll('#spaceSources [data-source]').forEach(item => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', String(active)); }); if (query.value.trim().length >= 2) $('#spaceSearch').requestSubmit(); });
   const focusMusicSearch = () => { query?.focus({ preventScroll: true }); query?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
@@ -591,12 +653,34 @@
   });
   function syncAudioProgress() { if (!audio) return; const duration = Number.isFinite(audio.duration) ? audio.duration : 0; const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; if (playerCurrent) playerCurrent.textContent = time(position); if (playerDuration) playerDuration.textContent = time(duration); if (playerSeek) { playerSeek.value = duration ? String(Math.round(position / duration * 100)) : '0'; playerSeek.setAttribute('aria-valuetext', `${time(position)} de ${time(duration)}`); } }
   audio?.addEventListener('loadedmetadata', syncAudioProgress); audio?.addEventListener('durationchange', syncAudioProgress); audio?.addEventListener('timeupdate', syncAudioProgress);
-  audio?.addEventListener('waiting', () => { if (playerState && audio?.src) playerState.textContent = 'A CARREGAR'; });
-  audio?.addEventListener('playing', () => { if (playerState) playerState.textContent = 'A REPRODUZIR'; if (area === 'music') notify('A reproduzir pré-visualização.', 'success'); });
+  audio?.addEventListener('waiting', () => {
+    if (playerState && audio?.src) playerState.textContent = 'A CARREGAR';
+    if (area === 'music' && audio?.src) notify('A ligação está lenta; a tentar carregar o áudio…', 'loading');
+  });
+  audio?.addEventListener('canplay', () => {
+    if (playerState && audio?.src && audio.paused) playerState.textContent = 'PRONTO';
+  });
+  audio?.addEventListener('playing', () => {
+    if (playerState) playerState.textContent = 'A REPRODUZIR';
+    $('.music-player')?.setAttribute('data-playback-state', 'playing');
+    if (area === 'music') notify('A reproduzir pré-visualização.', 'success');
+  });
   audio?.addEventListener('play', () => { if (playButton) { playButton.textContent = 'Ⅱ'; playButton.setAttribute('aria-label', 'Pausar'); playButton.setAttribute('aria-pressed', 'true'); playButton.title = 'Pausar'; } if (playerState) playerState.textContent = 'A REPRODUZIR'; $('.music-player')?.classList.add('is-playing'); });
-  audio?.addEventListener('pause', () => { if (playButton) { playButton.textContent = '▶'; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; } if (playerState && audio?.src && !audio.ended) playerState.textContent = 'PAUSADO'; $('.music-player')?.classList.remove('is-playing'); });
+  audio?.addEventListener('pause', () => {
+    if (playButton) { playButton.textContent = '▶'; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; }
+    if (playerState && audio?.src && !audio.ended) playerState.textContent = 'PAUSADO';
+    $('.music-player')?.classList.remove('is-playing');
+    if (audio?.src && !audio.ended && area === 'music') $('.music-player')?.setAttribute('data-playback-state', 'paused');
+  });
   audio?.addEventListener('ended', () => { if (playerState) playerState.textContent = 'TERMINOU'; if (playButton) { playButton.textContent = '▶'; playButton.setAttribute('aria-label', 'Reproduzir'); playButton.setAttribute('aria-pressed', 'false'); playButton.title = 'Reproduzir'; } $('.music-player')?.classList.remove('is-playing'); playAdjacentTrack(1, true); });
-  audio?.addEventListener('error', () => { if (current && audio?.src) { if (playerState) playerState.textContent = 'INDISPONÍVEL'; $('.music-player')?.classList.remove('is-playing'); notify('Esta fonte não conseguiu iniciar a pré-visualização. Experimenta outra faixa ou fonte.', 'error'); } });
+  audio?.addEventListener('error', () => {
+    if (current && audio?.src) {
+      if (playerState) playerState.textContent = 'INDISPONÍVEL';
+      $('.music-player')?.classList.remove('is-playing');
+      $('.music-player')?.setAttribute('data-playback-state', 'error');
+      notify('Esta fonte não conseguiu iniciar a pré-visualização. Experimenta outra faixa ou fonte.', 'error');
+    }
+  });
   playerSeek?.addEventListener('input', () => { if (audio && Number.isFinite(audio.duration)) { audio.currentTime = Number(playerSeek.value) / 100 * audio.duration; syncAudioProgress(); } });
   playButton?.addEventListener('click', () => { if (!audio?.src) return; if (audio.paused) audio.play().catch(() => notify('Não foi possível iniciar esta pré-visualização.', 'error')); else audio.pause(); });
   $('#musicBack10')?.addEventListener('click', () => { if (audio && Number.isFinite(audio.duration)) audio.currentTime = Math.max(0, audio.currentTime - 10); });
