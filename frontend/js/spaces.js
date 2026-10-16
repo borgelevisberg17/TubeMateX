@@ -566,6 +566,29 @@
   $('#musicMobileSearch')?.addEventListener('click', focusMusicSearch);
   document.querySelectorAll('[data-music-query]').forEach(button => button.addEventListener('click', () => { query.value = button.dataset.musicQuery || ''; $('#spaceSearch')?.requestSubmit(); }));
   const playButton = $('#spacePlay');
+  const fullscreenButton = $('#musicFullscreen');
+  let fullscreenPreviousFocus = null;
+  function setMusicFullscreen(enabled) {
+    if (area !== 'music') return;
+    root.classList.toggle('music-fullscreen-active', enabled);
+    if (fullscreenButton) {
+      fullscreenButton.setAttribute('aria-pressed', String(enabled));
+      fullscreenButton.setAttribute('aria-label', enabled ? 'Sair do ecrã completo' : 'Abrir leitor em ecrã completo');
+      fullscreenButton.title = enabled ? 'Sair do ecrã completo (Esc)' : 'Abrir leitor em ecrã completo';
+      fullscreenButton.textContent = enabled ? '×' : '⛶';
+    }
+    if (enabled) {
+      fullscreenPreviousFocus = document.activeElement;
+      fullscreenButton?.focus({ preventScroll: true });
+    } else if (fullscreenPreviousFocus?.isConnected) {
+      fullscreenPreviousFocus.focus({ preventScroll: true });
+      fullscreenPreviousFocus = null;
+    }
+  }
+  fullscreenButton?.addEventListener('click', () => setMusicFullscreen(!root.classList.contains('music-fullscreen-active')));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && root.classList.contains('music-fullscreen-active')) setMusicFullscreen(false);
+  });
   function syncAudioProgress() { if (!audio) return; const duration = Number.isFinite(audio.duration) ? audio.duration : 0; const position = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; if (playerCurrent) playerCurrent.textContent = time(position); if (playerDuration) playerDuration.textContent = time(duration); if (playerSeek) { playerSeek.value = duration ? String(Math.round(position / duration * 100)) : '0'; playerSeek.setAttribute('aria-valuetext', `${time(position)} de ${time(duration)}`); } }
   audio?.addEventListener('loadedmetadata', syncAudioProgress); audio?.addEventListener('durationchange', syncAudioProgress); audio?.addEventListener('timeupdate', syncAudioProgress);
   audio?.addEventListener('waiting', () => { if (playerState && audio?.src) playerState.textContent = 'A CARREGAR'; });
