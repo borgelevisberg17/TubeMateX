@@ -67,6 +67,14 @@
     const searchResults = $('#spaceResults');
     const iptvResults = $('#iptvResults');
     const iptvStatus = $('#iptvStatus');
+    const iptvFeatured = $('#iptvFeatured');
+    const iptvFeaturedLogo = $('#iptvFeaturedLogo');
+    const iptvFeaturedFallback = $('#iptvFeaturedFallback');
+    const iptvFeaturedCountry = $('#iptvFeaturedCountry');
+    const iptvFeaturedTitle = $('#iptvFeaturedTitle');
+    const iptvFeaturedPlay = $('#iptvFeaturedPlay');
+    const iptvFeaturedBrowse = $('#iptvFeaturedBrowse');
+    let iptvFeaturedItem = null;
     const itemMap = new Map();
     let homePayload = null;
     let heroItem = null;
@@ -339,6 +347,34 @@
         notify(error.message || 'Catálogo indisponível.', 'error');
       }
     }
+    function renderIptvFeatured(item) {
+      const value = item ? register(item) : null;
+      iptvFeaturedItem = value && isCatalogItemPlayable(value) && value.live ? value : null;
+      if (!iptvFeatured || !iptvFeaturedItem) {
+        if (iptvFeatured) iptvFeatured.hidden = true;
+        return;
+      }
+      const channel = iptvFeaturedItem;
+      iptvFeatured.hidden = false;
+      iptvFeaturedTitle.textContent = channel.title || 'Canal ao vivo';
+      iptvFeaturedCountry.textContent = [channel.country, languageLabel(channel), ...(channel.categories || []).slice(0, 1).map(value => value.replace(/[-_]/g, ' '))].filter(Boolean).join(' · ');
+      iptvFeaturedFallback.textContent = String(channel.title || 'TV').split(/\s+/).filter(Boolean).slice(0, 2).map(value => value[0]).join('').toUpperCase();
+      if (channel.thumbnail) {
+        iptvFeaturedLogo.src = channel.thumbnail;
+        iptvFeaturedLogo.alt = `Logótipo de ${channel.title || 'canal'}`;
+        iptvFeaturedLogo.hidden = false;
+        iptvFeaturedLogo.onerror = () => { iptvFeaturedLogo.hidden = true; };
+        iptvFeaturedFallback.hidden = true;
+      } else {
+        iptvFeaturedLogo.removeAttribute('src');
+        iptvFeaturedLogo.alt = '';
+        iptvFeaturedLogo.hidden = true;
+        iptvFeaturedFallback.hidden = false;
+      }
+      iptvFeaturedPlay.disabled = !channel.url || channel.metadataOnly || channel.requiresExternalPlayer;
+      iptvFeaturedPlay.title = iptvFeaturedPlay.disabled ? 'Esta origem exige um player externo ou não está disponível no player interno.' : `Assistir ${channel.title || 'canal'}`;
+    }
+
     function iptvSkeletonMarkup(count = iptvPageSize) {
       return `<div class="iptv-skeleton-grid" aria-hidden="true">${Array.from({ length: count }, () => '<div class="iptv-skeleton-card"><span class="iptv-skeleton-art"></span><span class="iptv-skeleton-line"></span><span class="iptv-skeleton-line short"></span></div>').join('')}</div>`;
     }
@@ -362,6 +398,7 @@
         if (requestId !== iptvRequestSequence) return;
         const total = Number(payload.total || 0);
         const items = (payload.results || []).map(register).filter(isCatalogItemPlayable);
+        renderIptvFeatured(items[0] || null);
         results.innerHTML = items.length ? items.map(card).join('') : empty(offset > 0 && payload.hasMore ? 'A verificar mais canais reproduzíveis…' : 'Não há canais disponíveis com estes filtros. Tenta outra pesquisa ou limpa os filtros.');
         iptvTotal = total;
         const formatCount = value => Number(value || 0).toLocaleString('pt-BR');
@@ -542,6 +579,8 @@
     });
     ytPlayerStage?.addEventListener('keydown', event => { if (!videoDrawer || videoDrawer.hidden || /input|select|button|textarea/i.test(event.target?.tagName || '')) return; if (event.key === ' ') { event.preventDefault(); togglePlay(); } if (event.key === 'ArrowLeft') { event.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); } if (event.key === 'ArrowRight') { event.preventDefault(); if (Number.isFinite(video.duration)) video.currentTime = Math.min(video.duration, video.currentTime + 10); } if (event.key.toLowerCase() === 'm') { video.muted = !video.muted; setPlayerIcon(videoMute, video.muted ? 'muted' : 'sound', video.muted ? 'Ativar som' : 'Silenciar'); } if (event.key.toLowerCase() === 'f') videoFullscreen?.click(); });
     videoOpenSource?.addEventListener('click', () => currentItem && window.open(currentItem.externalUrl || currentItem.url, '_blank', 'noopener'));
+    iptvFeaturedPlay?.addEventListener('click', () => { if (iptvFeaturedItem && !iptvFeaturedPlay.disabled) playItem(iptvFeaturedItem, iptvFeaturedPlay); });
+    iptvFeaturedBrowse?.addEventListener('click', () => $('#iptvQuery')?.focus({ preventScroll: true }));
     $('#closeVideo')?.addEventListener('click', closeVideo); video?.addEventListener('ended', () => { const current = progressItems().filter(item => keyOf(item) !== keyOf(currentItem)); saveJson(PROGRESS_KEY, current); renderPersonal(); });
     loadSources(); loadHome(); loadIptvMeta().then(() => loadIptv());
   }
