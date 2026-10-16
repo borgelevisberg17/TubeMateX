@@ -32,6 +32,8 @@ assert.ok(css.includes('grid-template-columns: repeat(2, minmax(0, 1fr));\n    a
 assert.ok(css.includes('@media (max-width: 380px) {\n  body[data-space="music"] .music-results-grid .track-row {\n    display: grid;\n    grid-template-columns: minmax(84px, 34%) minmax(0, 1fr);'), 'very narrow phone cards must retain a compact horizontal layout');
 assert.ok(css.includes('body[data-space="music"] .music-results-grid .track-actions {\n    display: flex;\n    flex-direction: column;'), 'very narrow phone card actions must stack vertically');
 assert.ok(css.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);'), 'compact player must use shrinkable columns');
+assert.match(css, /@media \(min-width: 1101px\) \{\s*body\[data-space="music"\] \.music-results-grid \{\s*grid-template-columns: minmax\(0, 1fr\)/, 'wide desktop results should use a single scannable column');
+assert.match(css, /\.music-results-grid \.track-copy \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1\.3fr\) minmax\(0, 1fr\) minmax\(0, \.8fr\) auto;/, 'wide desktop track details should align in shrinkable columns');
 
 for (const endpoint of ['/api/search?', '/api/platforms', '/api/media/stream?', '/api/downloads']) {
   assert.ok(js.includes(endpoint), 'existing backend contract must remain: ' + endpoint);

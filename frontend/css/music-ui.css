@@ -1743,6 +1743,52 @@ body[data-space="music"] .track-row.is-current .track-playing-indicator {
   0% { height: 20%; }
   100% { height: 100%; }
 }
+
+@media (min-width: 1101px) {
+  body[data-space="music"] .music-results-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  body[data-space="music"] .music-results-grid .track-row {
+    display: grid;
+    grid-template-columns: 68px minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    height: auto;
+    min-height: 88px;
+    padding: 10px 14px;
+    border-radius: 6px;
+  }
+  body[data-space="music"] .music-results-grid .track-cover-wrap {
+    width: 68px;
+    height: 68px;
+    aspect-ratio: 1;
+  }
+  body[data-space="music"] .music-results-grid .track-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, .8fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 0;
+  }
+  body[data-space="music"] .music-results-grid .track-copy h3,
+  body[data-space="music"] .music-results-grid .track-copy p,
+  body[data-space="music"] .music-results-grid .track-meta {
+    min-width: 0;
+    margin: 0;
+  }
+  body[data-space="music"] .music-results-grid .track-actions {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    gap: 8px;
+  }
+  body[data-space="music"] .music-results-grid .track-actions .space-button {
+    min-width: 86px;
+    min-height: 36px;
+  }
+}
+
 body[data-space="music"] button:active:not(:disabled),
 body[data-space="music"] .track-row:active {
   transform: scale(0.98);

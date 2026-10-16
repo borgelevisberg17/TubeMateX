@@ -47,15 +47,15 @@
     "passport-google-oauth20": "^2.0.0",
     "play-dl": "^1.9.7",
     "playwright": "^1.56.1",
-    "sqlite3": "^5.1.7",
-    "yt-dlp-exec": "^1.0.2",
-    "redis": "^6.2.1"
+    "redis": "^6.2.1",
+    "sqlite3": "^6.0.1",
+    "yt-dlp-exec": "^1.0.2"
   },
   "devDependencies": {
     "@types/express-session": "^1.18.2",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
-    "nodemon": "^3.1.7"
+    "nodemon": "^1.14.10"
   },
   "engines": {
     "node": ">=18.0.0"
