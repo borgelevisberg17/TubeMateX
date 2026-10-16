@@ -562,10 +562,13 @@
       results.innerHTML = visible.map(card).join('');
     } else {
       const filtered = resultItems.length > 0;
-      const title = filtered ? 'Nenhuma faixa corresponde a este filtro' : 'Não encontrámos resultados';
+      const contentLabel = area === 'music' ? 'faixa' : 'vídeo';
+      const title = filtered ? `Nenhum ${contentLabel} corresponde a este filtro` : 'Não encontrámos resultados';
       const message = filtered
         ? 'Remove o filtro ou escolhe outra fonte para veres mais resultados.'
-        : 'Experimenta outro artista, título ou termo de pesquisa.';
+        : area === 'music'
+          ? 'Experimenta outro artista, título ou termo de pesquisa.'
+          : 'Experimenta outro título ou termo de pesquisa.';
       results.innerHTML = `<div class="space-state music-feedback-state" data-state="empty"><strong>${title}</strong><span>${message}</span></div>`;
     }
     if (area === 'music') syncTrackNavigation();
@@ -593,7 +596,7 @@
     searchForm.setAttribute('aria-busy', 'true');
     if (searchSubmit) searchSubmit.disabled = true;
     notify('A pesquisar nas fontes configuradas…', 'loading');
-    results.innerHTML = '<div class="space-state music-feedback-state" data-state="loading"><span class="music-feedback-spinner" aria-hidden="true"></span><strong>A procurar música</strong><span>A consultar as fontes selecionadas…</span></div>';
+    results.innerHTML = `<div class="space-state music-feedback-state" data-state="loading"><span class="music-feedback-spinner" aria-hidden="true"></span><strong>${area === 'music' ? 'A procurar música' : 'A procurar vídeos'}</strong><span>A consultar as fontes selecionadas…</span></div>`;
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(term)}&type=${area === 'music' ? 'music' : 'video'}&source=${encodeURIComponent(selectedSource)}&limit=16`, { signal: controller.signal });
       const payload = await response.json().catch(() => ({}));
