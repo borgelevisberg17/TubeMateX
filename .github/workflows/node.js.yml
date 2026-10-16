@@ -79,3 +79,6 @@ jobs:
 
       - name: Verificar token semântico do leitor de vídeo
         run: npm run test:player-ui-tokens
+
+      - name: Verificar tokens semânticos do espaço social
+        run: npm run test:social-ui-tokens
