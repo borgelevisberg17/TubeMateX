@@ -10,7 +10,7 @@ const musicPage = path.join(root, 'frontend', 'music.html');
 const routes = config.routes || [];
 
 assert.ok(fs.existsSync(musicPage), 'the real music HTML page must exist');
-const musicRouteIndex = routes.findIndex(route => route.src === '/(.*)\\\\.html' && route.dest === 'frontend/$1.html');
+const musicRouteIndex = routes.findIndex(route => route.src === '/(.*)\\.html' && route.dest === 'frontend/$1.html');
 const catchAllIndex = routes.findIndex(route => route.src === '/(.*)' && route.dest === 'frontend/index.html');
 
 assert.notEqual(musicRouteIndex, -1, 'Vercel must route requested HTML paths to their matching frontend files');
