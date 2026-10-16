@@ -485,6 +485,7 @@ body[data-space="music"] .music-empty-state span:last-child { max-width: 470px; 
 
 body[data-space="music"] .music-player {
   position: fixed;
+  top: auto;
   z-index: 30;
   right: 0;
   bottom: 0;
@@ -735,6 +736,7 @@ body[data-space="music"] .skip-link { z-index: 50; }
   body[data-space="music"] .music-results-grid .track-actions { gap: 5px; }
   body[data-space="music"] .music-results-grid .track-actions .space-button { min-height: 34px; padding-inline: 9px; }
   body[data-space="music"] .music-player {
+    top: auto;
     height: calc(var(--music-player-height) + env(safe-area-inset-bottom, 0px));
     min-height: calc(var(--music-player-height) + env(safe-area-inset-bottom, 0px));
     gap: 8px;
