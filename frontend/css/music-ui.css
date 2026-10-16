@@ -1638,6 +1638,26 @@ body[data-space="music"].music-fullscreen-active #musicVolumeValue {
   }
 }
 @media (max-width: 380px) {
+  body[data-space="music"] .music-results-grid .track-row {
+    display: grid;
+    grid-template-columns: minmax(84px, 34%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 10px;
+  }
+  body[data-space="music"] .music-results-grid .track-cover-wrap {
+    width: 100%;
+  }
+  body[data-space="music"] .music-results-grid .track-copy {
+    min-height: 100%;
+    padding: 0;
+  }
+  body[data-space="music"] .music-results-grid .track-copy h3,
+  body[data-space="music"] .music-results-grid .track-copy p,
+  body[data-space="music"] .music-results-grid .track-meta {
+    overflow-wrap: anywhere;
+  }
   body[data-space="music"] .music-results-grid .track-actions {
     display: flex;
     flex-direction: column;

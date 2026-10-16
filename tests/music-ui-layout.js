@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'frontend/music.html'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'frontend/css/music-ui.css'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'frontend/css/music-ui.css'), 'utf8').replace(/\r\n/g, '\n');
 const js = fs.readFileSync(path.join(root, 'frontend/js/spaces.js'), 'utf8');
 
 for (const id of [
@@ -29,7 +29,8 @@ assert.match(css, /prefers-reduced-motion:\s*reduce/, 'reduced-motion preference
 assert.match(css, /forced-colors:\s*active/, 'forced-colors focus treatment should be supported');
 assert.ok(css.includes('/* Final compact-card guard'), 'narrow-screen overflow guard should exist');
 assert.ok(css.includes('grid-template-columns: repeat(2, minmax(0, 1fr));\n    align-items: stretch;\n    width: 100%;'), 'phone card actions must use equal-width columns');
-assert.ok(css.includes('@media (max-width: 380px) {\n  body[data-space="music"] .music-results-grid .track-actions {\n    display: flex;'), 'very narrow phone card actions must stack vertically');
+assert.ok(css.includes('@media (max-width: 380px) {\n  body[data-space="music"] .music-results-grid .track-row {\n    display: grid;\n    grid-template-columns: minmax(84px, 34%) minmax(0, 1fr);'), 'very narrow phone cards must retain a compact horizontal layout');
+assert.ok(css.includes('body[data-space="music"] .music-results-grid .track-actions {\n    display: flex;\n    flex-direction: column;'), 'very narrow phone card actions must stack vertically');
 assert.ok(css.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);'), 'compact player must use shrinkable columns');
 
 for (const endpoint of ['/api/search?', '/api/platforms', '/api/media/stream?', '/api/downloads']) {
