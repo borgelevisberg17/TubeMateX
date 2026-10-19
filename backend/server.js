@@ -25,6 +25,9 @@ const { createDownloadRouter } = require('./routes/download-routes');
 const { createLibraryRouter } = require('./routes/library-routes');
 const { createStreamValidator } = require('./services/stream-validator');
 const { createIptvHealthService } = require('./services/iptv-health-service');
+const { createIptvCatalogService } = require('./services/iptv-catalog-service');
+const { createIptvValidationRepository } = require('./services/iptv-validation-repository');
+const { createIptvRouter } = require('./routes/iptv-routes');
 const { createCatalogSourceHealth } = require('./services/catalog-source-health');
 
 // Plugins oficiais do yt-dlp são opt-in: o administrador aponta para um diretório
@@ -191,6 +194,14 @@ const databaseReady = new Promise((resolve, reject) => database.exec(`
     );
     CREATE INDEX IF NOT EXISTS admin_catalog_public_idx ON admin_catalog_items(approval_status, is_featured, updated_at DESC);
     CREATE INDEX IF NOT EXISTS admin_catalog_source_idx ON admin_catalog_items(source_id);
+    CREATE TABLE IF NOT EXISTS iptv_health_cache (
+        cache_key TEXT PRIMARY KEY,
+        result_json TEXT NOT NULL,
+        checked_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS iptv_health_checked_idx ON iptv_health_cache(checked_at);
+    CREATE INDEX IF NOT EXISTS iptv_health_expires_idx ON iptv_health_cache(expires_at);
 `, error => error ? reject(error) : resolve()));
 const dbRun = (sql, params = []) => new Promise((resolve, reject) => database.run(sql, params, function onRun(error) { if (error) reject(error); else resolve(this); }));
 const dbGet = (sql, params = []) => new Promise((resolve, reject) => database.get(sql, params, (error, row) => error ? reject(error) : resolve(row)));
@@ -808,7 +819,42 @@ const DISCOVERY_TERMS = {
 const discoverCache = new Map();
 let publicIptvCatalogCache = { expiresAt: 0, items: [] }; let publicIptvCatalogPromise = null;
 const streamValidator = createStreamValidator();
-const iptvHealthService = createIptvHealthService({ probeStream: streamValidator.probeStream, concurrency: Number(process.env.IPTV_VALIDATION_CONCURRENCY || 4), ttlMs: Number(process.env.IPTV_VALIDATION_TTL_MS || 30 * 60 * 1000) });
+const IPTV_VALIDATION_TTL_MS = Math.max(60_000, Number(process.env.IPTV_VALIDATION_TTL_MS || 6 * 60 * 60 * 1000));
+const iptvValidationRepository = createIptvValidationRepository({
+    dbAll,
+    dbRun,
+    redisClient,
+    redisReady,
+    log: logEvent
+});
+const iptvHealthService = createIptvHealthService({
+    probeStream: streamValidator.probeStream,
+    concurrency: Number(process.env.IPTV_VALIDATION_CONCURRENCY || 4),
+    ttlMs: IPTV_VALIDATION_TTL_MS,
+    persistEntry: async (key, entry, item) => {
+        await iptvValidationRepository.save(key, entry, IPTV_VALIDATION_TTL_MS);
+        const channelHash = crypto.createHash('sha256').update(String(item?.channelId || key)).digest('hex').slice(0, 12);
+        logEvent(entry.status === 'online' ? 'info' : 'warn', 'iptv.stream.validation_completed', {
+            channelHash,
+            status: entry.status,
+            code: entry.code ?? null,
+            latencyMs: entry.latencyMs ?? null,
+            checkedAt: new Date(entry.checkedAt).toISOString(),
+            expiresAt: new Date(entry.checkedAt + IPTV_VALIDATION_TTL_MS).toISOString()
+        });
+    },
+    onExpire: key => logEvent('info', 'iptv.health_cache.entry_expired', { cacheKey: String(key).slice(0, 12) }),
+    onPersistenceError: (key, error) => logEvent('error', 'iptv.health_cache.persist_failed', { cacheKey: String(key).slice(0, 12), errorName: String(error?.name || 'Error').slice(0, 80) })
+});
+const iptvHealthCacheReady = databaseReady.then(async () => {
+    const restored = await iptvValidationRepository.load(IPTV_VALIDATION_TTL_MS);
+    const count = iptvHealthService.restore(restored);
+    logEvent('info', 'iptv.health_cache_restored', { count });
+    return count;
+}).catch(error => {
+    logEvent('warn', 'iptv.health_cache_restore_failed', { errorName: String(error?.name || 'Error').slice(0, 80) });
+    return 0;
+});
 const archiveHealthService = createIptvHealthService({ probeStream: streamValidator.probeStream, concurrency: 3, ttlMs: 30 * 60 * 1000 });
 const catalogSourceHealth = createCatalogSourceHealth({ env: process.env });
 function normalizedLanguage(value) {
@@ -880,31 +926,10 @@ async function loadPublicIptvCatalog() {
     })();
     try { return await publicIptvCatalogPromise; } finally { publicIptvCatalogPromise = null; }
 }
-function filterPublicIptvCatalog(items, filters = {}) {
-    const query = String(filters.query || '').trim().toLowerCase();
-    const language = normalizedLanguage(filters.language);
-    return items.filter(item => (!filters.country || item.country === String(filters.country).toUpperCase()) && (!language || item.languages.includes(language)) && (!filters.category || item.categories.includes(String(filters.category).toLowerCase())) && (!query || `${item.channelName} ${item.title} ${(item.altNames || []).join(' ')} ${(item.categories || []).join(' ')}`.toLowerCase().includes(query))).sort((a, b) => `${a.channelName} ${a.title}`.localeCompare(`${b.channelName} ${b.title}`, 'pt'));
-}
+const iptvCatalogService = createIptvCatalogService({ loadCatalog: loadPublicIptvCatalog, healthService: iptvHealthService });
 async function getValidatedPublicIptvPage(limit, filters = {}) {
-    const candidates = filterPublicIptvCatalog(await loadPublicIptvCatalog(), filters);
-    const offset = Math.max(0, Number(filters.offset) || 0);
-    const pageLimit = Math.max(1, Math.min(60, Number(limit) || 12));
-    let snapshot = iptvHealthService.snapshot(candidates, { scheduleValidation: false });
-    if (filters.scheduleValidation !== false) {
-        if (snapshot.pendingCount === 0) {
-            const batchSize = Math.max(1, Math.min(pageLimit, Number(filters.batchSize) || Number(process.env.IPTV_VALIDATION_BATCH_SIZE || 12)));
-            const unverified = candidates.filter(item => !iptvHealthService.statusOf(item) && !iptvHealthService.isPending(item)).slice(0, batchSize);
-            iptvHealthService.schedule(unverified);
-            snapshot = iptvHealthService.snapshot(candidates, { scheduleValidation: false });
-        }
-    }
-    const results = snapshot.items.slice(offset, offset + pageLimit);
-    const validation = candidates.slice(offset, offset + pageLimit).map(item => {
-        const status = iptvHealthService.statusOf(item);
-        const state = status?.status || (iptvHealthService.isPending(item) ? 'checking' : 'unverified');
-        return { channelId: item.channelId, channelName: item.channelName, language: item.language, categories: item.categories, status: state, label: status?.label || (state === 'checking' ? 'Verificação em curso' : 'A aguardar validação'), checkedAt: status?.checkedAt ? new Date(status.checkedAt).toISOString() : null, latencyMs: status?.latencyMs ?? null };
-    });
-    return { results, validation, total: snapshot.items.length, candidateCount: snapshot.totalCandidates, pendingValidationCount: snapshot.pendingCount, remainingValidationCount: snapshot.unknownCount, excludedCount: snapshot.failedCount, offset, limit: pageLimit, hasMore: offset + results.length < snapshot.items.length || snapshot.pendingCount > 0 || snapshot.unknownCount > 0 };
+    await iptvHealthCacheReady;
+    return iptvCatalogService.getPage(limit, filters);
 }
 async function fetchPublicIptvDiscovery(limit, filters = {}) {
     return (await getValidatedPublicIptvPage(limit, { ...filters, scheduleValidation: false })).results;
@@ -1304,18 +1329,7 @@ app.get('/api/discover', apiLimiter, async (req, res) => {
     try { const discovery = await discoverMedia(area, limit); res.json({ area, term: discovery.term, results: discovery.results, sources: sourceStatus, note: 'Resultados obtidos de fontes públicas e configurações disponíveis; cada item mantém a sua origem.' }); }
     catch (error) { console.error('[discover]', error.message); res.status(502).json({ error: 'Não foi possível carregar a descoberta agora.', errorCode: errorCode(error), sources: sourceStatus }); }
 });
-app.get('/api/iptv/channels', apiLimiter, async (req, res) => {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 48, 1), 60); const offset = Math.max(Number(req.query.offset) || 0, 0); const filters = { country: String(req.query.country || '').toUpperCase() || null, language: String(req.query.language || '').toLowerCase() || null, category: String(req.query.category || '').toLowerCase() || null, query: String(req.query.q || '').trim().slice(0, 80) || null, batchSize: Math.min(Math.max(Number(req.query.batchSize) || 12, 1), 60) };
-    try { const page = await getValidatedPublicIptvPage(limit, { ...filters, offset }); res.json({ ...page, filters, source: 'iptv-org', note: 'Lista apenas streams HTTPS acessíveis e estruturalmente válidas na última verificação; bloqueios de região, autenticação e DRM não são contornados.' }); }
-    catch (error) { console.error('[iptv]', error.message); res.status(502).json({ error: 'Não foi possível consultar os canais IPTV públicos agora.', errorCode: errorCode(error) }); }
-});
-app.get('/api/iptv/meta', apiLimiter, async (req, res) => {
-    try {
-        const items = await loadPublicIptvCatalog(); const countries = new Map(); const categories = new Map();
-        for (const item of items) { if (item.country) countries.set(item.country, (countries.get(item.country) || 0) + 1); for (const category of item.categories || []) categories.set(category, (categories.get(category) || 0) + 1); }
-        res.json({ countries: [...countries].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count), categories: [...categories].map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count), source: 'iptv-org' });
-    } catch (error) { res.status(502).json({ error: 'Não foi possível carregar os filtros IPTV agora.', errorCode: errorCode(error) }); }
-});
+app.use('/api/iptv', createIptvRouter({ apiLimiter, catalogService: iptvCatalogService, log: logEvent, errorCode }));
 app.get('/api/search', apiLimiter, async (req, res) => {
     const query = String(req.query.q || '').trim();
     const type = ['all', 'music', 'video', 'film'].includes(String(req.query.type || 'all').toLowerCase()) ? String(req.query.type || 'all').toLowerCase() : 'all';

@@ -84,6 +84,9 @@
     let iptvOffset = 0;
     let iptvTotal = 0;
     let iptvRequestSequence = 0;
+    let iptvRefreshTimer = null;
+    let iptvRefreshDelay = 5000;
+    let iptvHasMore = false;
     let currentItem = null;
     let currentStreamUrl = '';
     let failedStreamUrls = new Set();
@@ -382,36 +385,70 @@
           : `Assistir ${channel.title || 'canal'}`;
     }
 
-    function iptvSkeletonMarkup(count = iptvPageSize) {
+    function iptvSkeletonMarkup(count = 8) {
       return `<div class="iptv-skeleton-grid" aria-hidden="true">${Array.from({ length: count }, () => '<div class="iptv-skeleton-card"><span class="iptv-skeleton-art"></span><span class="iptv-skeleton-line"></span><span class="iptv-skeleton-line short"></span></div>').join('')}</div>`;
     }
-    async function loadIptv(requestedOffset = 0) {
+    function clearIptvRefresh() {
+      if (iptvRefreshTimer) window.clearTimeout(iptvRefreshTimer);
+      iptvRefreshTimer = null;
+    }
+    function scheduleIptvRefresh(offset, delay = iptvRefreshDelay) {
+      clearIptvRefresh();
+      if (!iptvHasMore || document.hidden || $('#iptvBody')?.hidden) return;
+      iptvRefreshTimer = window.setTimeout(() => {
+        iptvRefreshTimer = null;
+        loadIptv(offset, { background: true });
+      }, delay);
+    }
+    function renderIptvItems(items) {
+      const existing = new Map([...iptvResults.querySelectorAll('.ent-card')].map(cardElement => [cardElement.dataset.itemId, cardElement]));
+      const ordered = [];
+      for (const item of items) {
+        const key = String(keyOf(item));
+        let cardElement = existing.get(key);
+        if (!cardElement) {
+          const template = document.createElement('template');
+          template.innerHTML = card(item).trim();
+          cardElement = template.content.firstElementChild;
+        }
+        ordered.push(cardElement);
+      }
+      const current = [...iptvResults.querySelectorAll('.ent-card')];
+      if (current.length === ordered.length && current.every((element, index) => element === ordered[index])) return;
+      iptvResults.replaceChildren(...ordered);
+    }
+    async function loadIptv(requestedOffset = 0, { background = false } = {}) {
       const results = $('#iptvResults'); const statusLine = $('#iptvStatus');
       if (!results || !statusLine) return;
+      if (!background) clearIptvRefresh();
       const requestId = ++iptvRequestSequence;
       const offset = Math.max(0, Math.floor((Number(requestedOffset) || 0) / iptvPageSize) * iptvPageSize);
       const query = $('#iptvQuery')?.value.trim() || ''; const country = $('#iptvCountry')?.value || ''; const selectedLanguage = $('#iptvLanguage')?.value || ''; const language = ['por', 'eng'].includes(selectedLanguage) ? selectedLanguage : ''; const category = $('#iptvCategory')?.value || '';
       const loadButton = $('#loadIptv'); const moreButton = $('#loadMoreIptv');
       iptvOffset = offset;
       const hasContent = Boolean(results.querySelector('.ent-card'));
-      if (!hasContent) results.innerHTML = iptvSkeletonMarkup();
-      results.setAttribute('aria-busy', 'true');
-      if (loadButton) loadButton.disabled = true;
-      if (moreButton) moreButton.disabled = true;
+      if (!hasContent && !background) results.innerHTML = iptvSkeletonMarkup();
+      if (!background) results.setAttribute('aria-busy', 'true');
+      if (loadButton && !background) loadButton.disabled = true;
+      if (moreButton && !background) moreButton.disabled = true;
       try {
         const response = await fetch(`/api/iptv/channels?limit=${iptvPageSize}&offset=${offset}&q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}`);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os canais agora.');
         if (requestId !== iptvRequestSequence) return;
+        iptvRefreshDelay = 5000;
         const total = Number(payload.total || 0);
         const items = (payload.results || []).map(register).filter(isCatalogItemPlayable);
         renderIptvFeatured(items[0] || null);
-        results.innerHTML = items.length ? items.map(card).join('') : empty(offset > 0 && payload.hasMore ? 'A verificar mais canais reproduzíveis…' : 'Não há canais disponíveis com estes filtros. Tenta outra pesquisa ou limpa os filtros.');
+        iptvHasMore = Boolean(payload.hasMore);
+        if (items.length) renderIptvItems(items);
+        else if (!payload.hasMore) results.innerHTML = empty('Não há canais disponíveis com estes filtros. Tenta outra pesquisa ou limpa os filtros.');
+        else if (!results.querySelector('.ent-card')) results.innerHTML = empty('A seleção está a ser preparada. Os canais aparecem aqui assim que estiverem disponíveis.');
         iptvTotal = total;
         const formatCount = value => Number(value || 0).toLocaleString('pt-BR');
         const rangeStart = items.length ? offset + 1 : 0;
         const rangeEnd = offset + items.length;
-        statusLine.textContent = !items.length && offset > 0 && payload.hasMore ? 'A verificar mais canais reproduzíveis…' : iptvTotal > 0 ? `${formatCount(rangeStart)}–${formatCount(rangeEnd)} de ${formatCount(iptvTotal)} canais` : 'Nenhum canal corresponde aos filtros';
+        statusLine.textContent = items.length ? (payload.hasMore ? `Canais ${formatCount(rangeStart)}–${formatCount(rangeEnd)}` : `${formatCount(total)} ${total === 1 ? 'canal disponível' : 'canais disponíveis'}`) : (payload.hasMore ? 'A preparar a seleção' : 'Nenhum canal disponível');
         const currentPage = Math.floor(offset / iptvPageSize) + 1;
         const totalPages = Math.max(1, Math.ceil(iptvTotal / iptvPageSize), payload.hasMore ? currentPage + 1 : currentPage);
         const pagination = $('#iptvPagination');
@@ -423,17 +460,19 @@
         if (nextPage) nextPage.disabled = offset + iptvPageSize >= iptvTotal && !payload.hasMore;
         if (pageStatus) pageStatus.textContent = `Página ${formatCount(currentPage)} de ${formatCount(totalPages)}${payload.hasMore ? '+' : ''}`;
         if (moreButton) moreButton.hidden = true;
-        if (!items.length && offset > 0 && payload.hasMore) window.setTimeout(() => { if (requestId === iptvRequestSequence) loadIptv(offset); }, 1800);
+        if (payload.hasMore) scheduleIptvRefresh(offset);
       } catch (error) {
         if (requestId !== iptvRequestSequence) return;
-        if (!hasContent) results.innerHTML = empty('Não foi possível carregar os canais. Verifica a ligação e tenta novamente.');
-        statusLine.textContent = hasContent ? 'Não foi possível atualizar' : 'Catálogo temporariamente indisponível';
-        if (hasContent) notify(error.message || 'Não foi possível atualizar os canais.', 'error');
+        iptvHasMore = true;
+        iptvRefreshDelay = Math.min(Math.max(iptvRefreshDelay * 2, 5000), 30000);
+        if (!hasContent) results.innerHTML = empty('O catálogo está temporariamente indisponível. Vamos tentar novamente automaticamente.');
+        if (!background) statusLine.textContent = hasContent ? 'A atualização será repetida' : 'A carregar catálogo';
+        scheduleIptvRefresh(offset, iptvRefreshDelay);
       } finally {
         if (requestId === iptvRequestSequence) {
-          results.setAttribute('aria-busy', 'false');
-          if (loadButton) loadButton.disabled = false;
-          if (moreButton) moreButton.disabled = false;
+          if (!background) results.setAttribute('aria-busy', 'false');
+          if (loadButton && !background) loadButton.disabled = false;
+          if (moreButton && !background) moreButton.disabled = false;
         }
       }
     }
@@ -527,7 +566,8 @@
       updateIptvFilterSummary();
       loadIptv(false);
     }));
-    $('#toggleIptv')?.addEventListener('click', event => { const body = $('#iptvBody'); const collapsed = body.hidden; body.hidden = !collapsed; event.currentTarget.textContent = collapsed ? 'Recolher canais' : 'Expandir canais'; event.currentTarget.setAttribute('aria-expanded', String(collapsed)); });
+    $('#toggleIptv')?.addEventListener('click', event => { const body = $('#iptvBody'); const collapsed = body.hidden; body.hidden = !collapsed; event.currentTarget.textContent = collapsed ? 'Recolher canais' : 'Expandir canais'; event.currentTarget.setAttribute('aria-expanded', String(collapsed)); if (collapsed && iptvHasMore) scheduleIptvRefresh(iptvOffset, 250); else if (!collapsed) clearIptvRefresh(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) clearIptvRefresh(); else if (iptvHasMore) scheduleIptvRefresh(iptvOffset, 250); });
     document.addEventListener('click', event => { const cardEl = event.target.closest('.ent-card'); if (cardEl) { const item = itemMap.get(cardEl.dataset.itemId); if (item && event.target.closest('[data-action="play"]')) playItem(item, event.target.closest('[data-action="play"]')); if (item && event.target.closest('[data-action="details"]')) showDetail(item); if (item && event.target.closest('[data-action="list"]')) toggleList(item); if (item && event.target.closest('[data-action="download"]')) downloadItem(item); } });
     heroPlay?.addEventListener('click', () => $('#entertainmentRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroMore?.addEventListener('click', () => $('#iptvSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); heroList?.addEventListener('click', () => { const details = $('.iptv-source-details'); if (details) details.open = true; details?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
     $('#closeDetail')?.addEventListener('click', () => { detailDrawer.hidden = true; }); detailDrawer?.addEventListener('click', event => { if (event.target.matches('[data-close-detail]')) detailDrawer.hidden = true; }); detailPlay?.addEventListener('click', () => { if (detailItem) { detailDrawer.hidden = true; playItem(detailItem); } }); detailList?.addEventListener('click', () => detailItem && toggleList(detailItem));

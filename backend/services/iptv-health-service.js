@@ -4,13 +4,29 @@ const crypto = require('node:crypto');
 
 const FAILURE_ORDER = ['drm-protected', 'restricted', 'protected-unverified', 'unsafe', 'insecure', 'timeout', 'offline', 'incompatible', 'unsupported'];
 
-function createIptvHealthService({ probeStream, concurrency = 4, ttlMs = 30 * 60 * 1000, now = Date.now } = {}) {
+function createIptvHealthService({ probeStream, concurrency = 4, ttlMs = 30 * 60 * 1000, now = Date.now, persistEntry = null, onExpire = null, onPersistenceError = null } = {}) {
   if (typeof probeStream !== 'function') throw new TypeError('probeStream must be a function');
   const cache = new Map();
   const queue = [];
   const pending = new Set();
   let active = 0;
   const maxConcurrent = Math.max(1, Math.min(8, Number(concurrency) || 4));
+
+  function remember(key, entry, item = null) {
+    cache.set(key, entry);
+    if (typeof persistEntry === 'function') {
+      Promise.resolve(persistEntry(key, entry, item)).catch(error => { if (typeof onPersistenceError === 'function') onPersistenceError(key, error, item); });
+    }
+  }
+
+  function restore(entries = []) {
+    for (const record of entries) {
+      const key = String(record?.key || '');
+      const entry = record?.entry;
+      if (key && entry && Number.isFinite(Number(entry.checkedAt)) && now() - Number(entry.checkedAt) < ttlMs) cache.set(key, entry);
+    }
+    return cache.size;
+  }
 
   function keyOf(item) {
     const urls = (item?.streams || []).map(stream => String(stream?.url || '')).filter(Boolean).sort();
@@ -22,7 +38,10 @@ function createIptvHealthService({ probeStream, concurrency = 4, ttlMs = 30 * 60
     const key = keyOf(item);
     const entry = cache.get(key);
     if (entry && now() - entry.checkedAt < ttlMs) return entry;
-    if (entry) cache.delete(key);
+    if (entry) {
+      cache.delete(key);
+      if (typeof onExpire === 'function') onExpire(key, entry, item);
+    }
     return null;
   }
 
@@ -51,8 +70,8 @@ function createIptvHealthService({ probeStream, concurrency = 4, ttlMs = 30 * 60
       const task = queue.shift();
       active += 1;
       validateItem(task.item)
-        .then(entry => cache.set(task.key, entry))
-        .catch(error => cache.set(task.key, { status: 'offline', label: 'Falha ao validar a fonte', checkedAt: now(), failures: [{ status: 'offline', label: String(error?.message || error) }] }))
+        .then(entry => remember(task.key, entry, task.item))
+        .catch(error => remember(task.key, { status: 'offline', label: 'Falha ao validar a fonte', checkedAt: now(), failures: [{ status: 'offline', label: String(error?.message || error) }] }, task.item))
         .finally(() => { active -= 1; pending.delete(task.key); pump(); });
     }
   }
@@ -111,7 +130,7 @@ function createIptvHealthService({ probeStream, concurrency = 4, ttlMs = 30 * 60
   function statusOf(item) { return fresh(item); }
   function isPending(item) { return pending.has(keyOf(item)); }
   function clear() { cache.clear(); queue.length = 0; pending.clear(); }
-  return { clear, isPending, keyOf, schedule, snapshot, statusOf, waitForIdle };
+  return { clear, isPending, keyOf, restore, schedule, snapshot, statusOf, ttlMs, waitForIdle };
 }
 
 module.exports = { createIptvHealthService };

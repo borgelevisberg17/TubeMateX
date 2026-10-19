@@ -77,3 +77,28 @@ test('cache é invalidado pelo TTL e pelo conjunto de URLs', async () => {
   service.snapshot([changed]); await service.waitForIdle();
   assert.equal(probes, 3);
 });
+
+test('restaura validações persistidas dentro do TTL sem sondar de novo', async () => {
+  const item = channel('restored', [{ url: 'https://restored.example/live.m3u8' }]);
+  let probes = 0;
+  const seed = createIptvHealthService({ probeStream: async () => ({ status: 'online', label: 'ok', latencyMs: 12 }) });
+  const key = seed.keyOf(item);
+  const checkedAt = Date.now();
+  const service = createIptvHealthService({ probeStream: async () => { probes += 1; throw new Error('não devia sondar'); } });
+  service.restore([{ key, entry: { status: 'online', label: 'ok', checkedAt, latencyMs: 12, stream: { url: item.url } } }]);
+  const result = service.snapshot([item]);
+  await service.waitForIdle();
+  assert.equal(result.items.length, 1);
+  assert.equal(probes, 0);
+});
+
+test('persiste o resultado concluído para o próximo processo', async () => {
+  const saved = [];
+  const item = channel('persist', [{ url: 'https://persist.example/live.m3u8' }]);
+  const service = createIptvHealthService({ probeStream: async () => ({ status: 'online', label: 'ok', latencyMs: 8 }), persistEntry: (key, entry) => saved.push({ key, entry }) });
+  service.snapshot([item]);
+  await service.waitForIdle();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].key, service.keyOf(item));
+  assert.equal(saved[0].entry.status, 'online');
+});
